@@ -43,7 +43,7 @@ def run_apktool(apk_path: str, output_dir: str) -> dict:
     try:
         cmd = ["apktool", "d", "-f", "-o", output_dir, apk_path]
         proc = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=120
+            cmd, capture_output=True, text=True, timeout=120, shell=(os.name == "nt")
         )
         if proc.returncode == 0:
             result["success"] = True
@@ -70,7 +70,7 @@ def run_jadx(apk_path: str, output_dir: str) -> dict:
             apk_path,
         ]
         proc = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=300
+            cmd, capture_output=True, text=True, timeout=300, shell=(os.name == "nt")
         )
         if proc.returncode == 0:
             result["success"] = True
@@ -96,7 +96,7 @@ def extract_native_strings(apk_dir: str) -> list:
         try:
             cmd = ["r2", "-qq", "-c", "iz", str(so_file)]
             proc = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=60
+                cmd, capture_output=True, text=True, timeout=60, shell=(os.name == "nt")
             )
             if proc.returncode == 0:
                 for line in proc.stdout.splitlines():
@@ -111,13 +111,13 @@ def extract_native_strings(apk_dir: str) -> list:
                             if s:
                                 strings.append({
                                     "value": s,
-                                    "source": str(so_file.relative_to(apk_dir)),
+                                    "source": so_file.relative_to(apk_dir).as_posix(),
                                 })
             else:
                 # Fallback: use rabin2 -zz
                 cmd = ["rabin2", "-zz", str(so_file)]
                 proc = subprocess.run(
-                    cmd, capture_output=True, text=True, timeout=60
+                    cmd, capture_output=True, text=True, timeout=60, shell=(os.name == "nt")
                 )
                 if proc.returncode == 0:
                     for line in proc.stdout.splitlines():
@@ -129,7 +129,7 @@ def extract_native_strings(apk_dir: str) -> list:
                                 if s:
                                     strings.append({
                                         "value": s,
-                                        "source": str(so_file.relative_to(apk_dir)),
+                                        "source": so_file.relative_to(apk_dir).as_posix(),
                                     })
         except Exception:
             continue
