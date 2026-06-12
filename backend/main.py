@@ -18,6 +18,14 @@ from pydantic import BaseModel
 from analysis.pipeline import run_pipeline
 from backend.events import WebSocketEvent, VALID_EVENT_TYPES
 from backend.validators import validate_event
+from backend.transformers import (
+    load_result,
+    load_all_results,
+    transform_graph,
+    transform_clusters,
+    transform_timeline,
+    transform_samples_list,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -128,29 +136,62 @@ app.add_middleware(
 
 @app.get("/")
 async def health_check():
-    return {"status": "ok", "version": "1.0.0"}
+    return {"status": "ok", "version": "1.0.0", "api_prefix": "/api"}
 
 
+@app.get("/api/samples")
+async def api_list_samples() -> dict:
+    """List all analyzed samples with summary fields."""
+    results = load_all_results()
+    samples = transform_samples_list(results)
+    return {"samples": samples, "total": len(samples)}
+
+
+@app.get("/api/sample/{sample_id}")
+async def api_get_sample(sample_id: str) -> dict:
+    """Get full analysis report for a sample."""
+    result = load_result(sample_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Sample not found")
+    return result
+
+
+@app.get("/api/graph/{sample_id}")
+async def api_get_graph(sample_id: str) -> dict:
+    """Get 3D graph nodes/edges for a sample."""
+    result = load_result(sample_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Sample not found")
+    return transform_graph(result)
+
+
+@app.get("/api/clusters")
+async def api_get_clusters() -> dict:
+    """Get 3D clustering data for all samples."""
+    results = load_all_results()
+    return transform_clusters(results)
+
+
+@app.get("/api/timeline/{sample_id}")
+async def api_get_timeline(sample_id: str) -> dict:
+    """Get timeline/attack-chain progression for a sample."""
+    result = load_result(sample_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Sample not found")
+    return transform_timeline(result)
+
+
+# Legacy endpoints (kept for backward compatibility)
 @app.get("/samples")
 async def list_samples() -> dict:
-    """List all processed samples."""
-    samples = []
-    for sample_id, info in sample_status.items():
-        samples.append({
-            "id": sample_id,
-            "name": info.get("name", "unknown"),
-            "status": info.get("status", "unknown"),
-            "timestamp": info.get("timestamp", ""),
-        })
-    return {"samples": samples}
+    """List all processed samples (legacy)."""
+    return await api_list_samples()
 
 
 @app.get("/samples/{sample_id}")
 async def get_sample(sample_id: str) -> dict:
-    """Get analysis result for a sample."""
-    if sample_id not in sample_results:
-        raise HTTPException(status_code=404, detail="Sample not found")
-    return sample_results[sample_id]
+    """Get analysis result for a sample (legacy)."""
+    return await api_get_sample(sample_id)
 
 
 @app.post("/analyze")
