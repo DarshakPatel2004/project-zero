@@ -62,5 +62,20 @@ Thumbs.db
 
 .mcp.json
 .windsurfrules
-.cursor/*
-.jetro/*
+.cursor/
+.jetro/
+.claude/
+.gemini/
+.kiro/
+.qoder/
+.agents/
+.cursorrules
+.github/code-review-graph.instruction.md
+.opencode.json
+AGENTS.md
+GEMINI.md
+QODER.md
+
+# Added by code-review-graph
+.code-review-graph/
+
