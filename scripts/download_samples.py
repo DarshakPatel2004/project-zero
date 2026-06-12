@@ -3,7 +3,9 @@
 Sample Downloader for DroidForensix
 
 Fetches Android APK samples from multiple sources:
+- AndroZoo for malware samples (requires API key)
 - MalwareBazaar (abuse.ch) for malware samples
+- Koodous for malware samples (requires API key)
 - F-Droid for legitimate baseline APKs
 
 Generates sample_metadata.csv with SHA-256, family tags, and source info.
@@ -28,11 +30,14 @@ SAMPLES_DIR = Path(__file__).parent.parent / "samples"
 META_PATH = Path(__file__).parent.parent / "sample_metadata.csv"
 MALWAREBazaar_API = "https://mb-api.abuse.ch/api/v1/"
 KOODOUS_API = "https://developer.koodous.com/apks/"
+ANDROZOO_API = "https://androzoo.uni.lu/api/download"
+ANDROZOO_CSV = "https://androzoo.uni.lu/api/lists"
 FDROID_REPO = "https://f-droid.org/repo/"
 
 REQUEST_TIMEOUT = 120
 RATE_LIMIT_SLEEP = 6  # seconds between MB requests
 KOODOUS_RATE_LIMIT = 1  # seconds between Koodous requests
+ANDROZOO_RATE_LIMIT = 2  # seconds between AndroZoo downloads
 
 HEADERS = {
     "User-Agent": "DroidForensix/1.0 (Research Project)",
@@ -44,6 +49,13 @@ def get_koodous_headers() -> dict:
     if not key:
         raise RuntimeError("KOODOUS_API_KEY environment variable not set")
     return {**HEADERS, "Authorization": f"Token {key}"}
+
+
+def get_androzoo_api_key() -> str:
+    key = os.environ.get("ANDROZOO_API_KEY")
+    if not key:
+        raise RuntimeError("ANDROZOO_API_KEY environment variable not set")
+    return key
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -212,6 +224,83 @@ def koodous_download(sha256_hash: str, dest_path: Path) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# AndroZoo
+# ---------------------------------------------------------------------------
+
+def download_androzoo_csv(dest_path: Path) -> bool:
+    """Download the AndroZoo latest.csv.gz metadata file."""
+    try:
+        url = "https://androzoo.uni.lu/static/lists/latest.csv.gz"
+        print(f"[*] Downloading AndroZoo metadata CSV (this may take a while)...")
+        print(f"    URL: {url}")
+        with requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT * 10, stream=True) as resp:
+            resp.raise_for_status()
+            with open(dest_path, "wb") as f:
+                for chunk in resp.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+        print(f"[+] Metadata CSV saved: {dest_path} ({dest_path.stat().st_size} bytes)")
+        return True
+    except Exception as e:
+        print(f"[!] AndroZoo CSV download error: {e}")
+        return False
+
+
+def filter_androzoo_hashes(csv_path: Path, min_vt: int = 2, max_size: int = 50_000_000,
+                            max_count: int = 100) -> list:
+    """Filter AndroZoo CSV for malware hashes (vt_detection >= min_vt)."""
+    import gzip
+    hashes = []
+    print(f"[*] Filtering AndroZoo CSV for vt_detection >= {min_vt}, size <= {max_size} bytes...")
+    try:
+        with gzip.open(csv_path, "rt", encoding="utf-8", errors="ignore") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                try:
+                    vt = int(row.get("vt_detection", "0") or 0)
+                    size = int(row.get("apk_size", "0") or 0)
+                    if vt >= min_vt and 0 < size <= max_size:
+                        sha256 = row.get("sha256", "").strip().lower()
+                        if sha256:
+                            hashes.append({
+                                "sha256": sha256,
+                                "md5": row.get("md5", "").strip(),
+                                "package_name": row.get("pkg_name", "").strip(),
+                                "file_size_bytes": size,
+                                "vt_detections": vt,
+                                "markets": row.get("markets", "").strip(),
+                            })
+                            if len(hashes) >= max_count * 2:
+                                break
+                except (ValueError, KeyError):
+                    continue
+    except Exception as e:
+        print(f"[!] Error filtering AndroZoo CSV: {e}")
+    print(f"[*] Found {len(hashes)} candidate malware hashes")
+    return hashes
+
+
+def androzoo_download(sha256_hash: str, dest_path: Path) -> bool:
+    """Download an APK from AndroZoo by SHA-256."""
+    try:
+        params = {"apikey": get_androzoo_api_key(), "sha256": sha256_hash}
+        with requests.get(ANDROZOO_API, params=params, headers=HEADERS,
+                          timeout=REQUEST_TIMEOUT * 2, stream=True) as resp:
+            if resp.status_code == 404:
+                print(f"[!] AndroZoo: {sha256_hash} not found (404)")
+                return False
+            resp.raise_for_status()
+            with open(dest_path, "wb") as f:
+                for chunk in resp.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+        return True
+    except Exception as e:
+        print(f"[!] AndroZoo download error for {sha256_hash}: {e}")
+        return False
+
+
+# ---------------------------------------------------------------------------
 # F-Droid (Legitimate)
 # ---------------------------------------------------------------------------
 
@@ -235,17 +324,18 @@ def fdroid_download_apk(package_name: str, dest_path: Path) -> bool:
         resp = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
         resp.raise_for_status()
         data = resp.json()
-        versions = data.get("packages", {}).get(package_name, [])
+        versions = data.get("packages", [])
         if not versions:
             print(f"[!] No versions found for {package_name}")
             return False
         # Sort by version code descending
         versions.sort(key=lambda v: v.get("versionCode", 0), reverse=True)
         latest = versions[0]
-        apk_name = latest.get("apkName")
-        if not apk_name:
-            print(f"[!] No apkName for {package_name}")
+        version_code = latest.get("versionCode")
+        if not version_code:
+            print(f"[!] No versionCode for {package_name}")
             return False
+        apk_name = f"{package_name}_{version_code}.apk"
         download_url = f"{FDROID_REPO}{apk_name}"
         print(f"    Downloading {download_url} ...")
         resp = requests.get(download_url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
@@ -256,6 +346,76 @@ def fdroid_download_apk(package_name: str, dest_path: Path) -> bool:
     except Exception as e:
         print(f"[!] F-Droid download error for {package_name}: {e}")
         return False
+
+
+def fetch_androzoo(target_count: int = 50, csv_path: Path = None,
+                   min_vt: int = 2, max_size: int = 50_000_000) -> int:
+    """Fetch malware APKs from AndroZoo using the latest CSV metadata."""
+    records = load_existing_metadata()
+    existing_hashes = {r["sha256"].lower() for r in records if r.get("type") == "malware"}
+    fetched = 0
+
+    print(f"[*] Fetching {target_count} malware APKs from AndroZoo...")
+
+    # Ensure CSV is available
+    if csv_path is None:
+        csv_path = SAMPLES_DIR / "androzoo_latest.csv.gz"
+    csv_path = Path(csv_path)
+
+    if not csv_path.exists():
+        if not download_androzoo_csv(csv_path):
+            print("[!] Failed to download AndroZoo metadata CSV")
+            return 0
+
+    candidates = filter_androzoo_hashes(csv_path, min_vt=min_vt, max_size=max_size,
+                                        max_count=target_count)
+    if not candidates:
+        print("[!] No AndroZoo candidates found matching criteria")
+        return 0
+
+    dest_dir = SAMPLES_DIR / "malware" / "androzoo"
+    dest_dir.mkdir(parents=True, exist_ok=True)
+
+    for candidate in candidates:
+        if fetched >= target_count:
+            break
+        sha256_hash = candidate["sha256"].lower()
+        if not sha256_hash or already_have(sha256_hash, records):
+            continue
+
+        dest = dest_dir / f"{sha256_hash}.apk"
+        print(f"[*] Downloading AndroZoo {fetched+1}/{target_count}: {sha256_hash}")
+        if androzoo_download(sha256_hash, dest):
+            actual_sha = sha256_file(str(dest))
+            if actual_sha.lower() != sha256_hash:
+                print(f"[!] Hash mismatch! Expected {sha256_hash}, got {actual_sha}")
+                dest.unlink(missing_ok=True)
+                continue
+
+            record = {
+                "sample_name": dest.name,
+                "sha256": actual_sha,
+                "md5": candidate.get("md5", ""),
+                "family": candidate.get("package_name", "unknown"),
+                "source": "AndroZoo",
+                "type": "malware",
+                "tags": f"vt_detection={candidate.get('vt_detections', '')};markets={candidate.get('markets', '')}",
+                "file_size_bytes": dest.stat().st_size,
+                "status": "pending",
+                "vt_detections": candidate.get("vt_detections", ""),
+                "collection_date": time.strftime("%Y-%m-%d"),
+            }
+            records.append(record)
+            save_metadata(records)
+            fetched += 1
+            print(f"[+] Saved: {dest.name} ({dest.stat().st_size} bytes)")
+        else:
+            print(f"[!] Failed to download {sha256_hash}")
+
+        time.sleep(ANDROZOO_RATE_LIMIT)
+
+    print(f"[+] AndroZoo fetch complete. Total AndroZoo samples: {fetched}")
+    return fetched
 
 
 # ---------------------------------------------------------------------------
@@ -432,7 +592,6 @@ def fetch_legitimate(target_count: int = 10) -> int:
     packages = [
         "org.mozilla.fennec_fdroid",   # Firefox
         "com.foobnix.pro.pdf.reader",  # Librera
-        "org.telegram.messenger",      # Telegram
         "com.fsck.k9",                 # K-9 Mail
         "org.videolan.vlc",            # VLC
         "com.zulipmobile",             # Zulip
@@ -442,7 +601,6 @@ def fetch_legitimate(target_count: int = 10) -> int:
         "org.openhab.habdroid",        # openHAB
         "net.osmand.plus",             # OsmAnd
         "com.nextcloud.client",        # Nextcloud
-        "com.bumptech.glide.integration", # (placeholder, will skip if fails)
     ]
 
     print(f"[*] Fetching {target_count} legitimate APKs from F-Droid...")
@@ -502,13 +660,33 @@ def main():
     legit_target = 10
     koodous_target = 30
     koodous_search = None
+    androzoo_target = 50
+    androzoo_min_vt = 2
+    androzoo_csv = None
 
     if "--koodous-search" in args:
         idx = args.index("--koodous-search")
         if idx + 1 < len(args):
             koodous_search = args[idx + 1]
 
-    if "--koodous" in args:
+    if "--androzoo-count" in args:
+        idx = args.index("--androzoo-count")
+        if idx + 1 < len(args):
+            try:
+                androzoo_target = int(args[idx + 1])
+            except ValueError:
+                pass
+
+    if "--androzoo-csv" in args:
+        idx = args.index("--androzoo-csv")
+        if idx + 1 < len(args):
+            androzoo_csv = Path(args[idx + 1])
+
+    if "--androzoo" in args:
+        fetch_androzoo(androzoo_target, csv_path=androzoo_csv, min_vt=androzoo_min_vt)
+    elif "--androzoo-only" in args:
+        fetch_androzoo(androzoo_target, csv_path=androzoo_csv, min_vt=androzoo_min_vt)
+    elif "--koodous" in args:
         fetch_koodous(koodous_target, search=koodous_search)
     elif "--koodous-only" in args:
         fetch_koodous(koodous_target, search=koodous_search)
@@ -520,8 +698,8 @@ def main():
         fetch_malware(5)
         fetch_legitimate(2)
     else:
-        fetch_malware(malware_target)
-        fetch_koodous(koodous_target)
+        # Default: AndroZoo + F-Droid
+        fetch_androzoo(androzoo_target, csv_path=androzoo_csv, min_vt=androzoo_min_vt)
         fetch_legitimate(legit_target)
 
     records = load_existing_metadata()

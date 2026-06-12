@@ -27,6 +27,7 @@ htmlcov/
 .tox/
 .nox/
 .env
+setenv.sh
 .venv
 venv/
 
@@ -40,11 +41,13 @@ yarn-debug.log*
 yarn-error.log*
 
 # Malware samples & reports
-samples/*.apk
+samples/**/*.apk
+samples/**/*.csv.gz
 reports/*.json
 reports/*.html
 reports/*.pdf
 analysis/work/
+data/
 
 # IDE
 .vscode/
