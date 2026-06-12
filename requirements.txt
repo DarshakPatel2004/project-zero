@@ -1,0 +1,27 @@
+# Web Framework & Server
+fastapi
+uvicorn[standard]
+websockets
+
+# Data Validation
+pydantic
+
+# HTTP Client
+requests
+
+# Phone Number Validation
+phonenumbers
+
+# LLM Client
+ollama
+
+# Testing
+pytest
+pytest-asyncio
+httpx
+
+# Report Generation (PDF)
+weasyprint
+
+# Utilities
+python-dotenv

@@ -1,0 +1,537 @@
+#!/usr/bin/env python3
+"""
+Sample Downloader for DroidForensix
+
+Fetches Android APK samples from multiple sources:
+- MalwareBazaar (abuse.ch) for malware samples
+- F-Droid for legitimate baseline APKs
+
+Generates sample_metadata.csv with SHA-256, family tags, and source info.
+"""
+
+import csv
+import hashlib
+import json
+import os
+import sys
+import time
+import zipfile
+from pathlib import Path
+from urllib.parse import urlparse
+
+import requests
+
+# ---------------------------------------------------------------------------
+# Config
+# ---------------------------------------------------------------------------
+SAMPLES_DIR = Path(__file__).parent.parent / "samples"
+META_PATH = Path(__file__).parent.parent / "sample_metadata.csv"
+MALWAREBazaar_API = "https://mb-api.abuse.ch/api/v1/"
+KOODOUS_API = "https://developer.koodous.com/apks/"
+FDROID_REPO = "https://f-droid.org/repo/"
+
+REQUEST_TIMEOUT = 120
+RATE_LIMIT_SLEEP = 6  # seconds between MB requests
+KOODOUS_RATE_LIMIT = 1  # seconds between Koodous requests
+
+HEADERS = {
+    "User-Agent": "DroidForensix/1.0 (Research Project)",
+}
+
+
+def get_koodous_headers() -> dict:
+    key = os.environ.get("KOODOUS_API_KEY")
+    if not key:
+        raise RuntimeError("KOODOUS_API_KEY environment variable not set")
+    return {**HEADERS, "Authorization": f"Token {key}"}
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def sha256_file(path: str) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def ensure_dirs():
+    SAMPLES_DIR.mkdir(parents=True, exist_ok=True)
+    (SAMPLES_DIR / "malware").mkdir(exist_ok=True)
+    (SAMPLES_DIR / "legitimate").mkdir(exist_ok=True)
+
+
+def load_existing_metadata() -> list:
+    if not META_PATH.exists():
+        return []
+    with open(META_PATH, "r", newline="", encoding="utf-8") as f:
+        return list(csv.DictReader(f))
+
+
+def save_metadata(records: list):
+    fieldnames = [
+        "sample_name", "sha256", "md5", "family", "source",
+        "type", "tags", "file_size_bytes", "status", "vt_detections",
+        "collection_date",
+    ]
+    with open(META_PATH, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        for r in records:
+            writer.writerow({k: r.get(k, "") for k in fieldnames})
+
+
+def already_have(sha256_hash: str, records: list) -> bool:
+    return any(r.get("sha256", "").lower() == sha256_hash.lower() for r in records)
+
+
+# ---------------------------------------------------------------------------
+# MalwareBazaar
+# ---------------------------------------------------------------------------
+
+def mb_query_recent(tag: str = "apk", limit: int = 50) -> list:
+    """Query MalwareBazaar for recent samples with a given tag."""
+    data = {"query": "get_recent", "selector": "time", "limit": limit}
+    try:
+        resp = requests.post(MALWAREBazaar_API, data=data, headers=HEADERS, timeout=REQUEST_TIMEOUT)
+        resp.raise_for_status()
+        result = resp.json()
+        if result.get("query_status") != "ok":
+            print(f"[!] MalwareBazaar query failed: {result.get('query_status')}")
+            return []
+        samples = result.get("data", [])
+        # Filter to APKs
+        apk_samples = []
+        for s in samples:
+            tags = [t.lower() for t in s.get("tags", [])]
+            file_type = s.get("file_type", "").lower()
+            if "apk" in tags or "android" in tags or file_type == "apk":
+                apk_samples.append(s)
+        return apk_samples
+    except Exception as e:
+        print(f"[!] MalwareBazaar query error: {e}")
+        return []
+
+
+def mb_query_tag(tag: str = "apk", limit: int = 50) -> list:
+    """Query MalwareBazaar for samples by tag."""
+    data = {"query": "get_taginfo", "tag": tag, "limit": limit}
+    try:
+        resp = requests.post(MALWAREBazaar_API, data=data, headers=HEADERS, timeout=REQUEST_TIMEOUT)
+        resp.raise_for_status()
+        result = resp.json()
+        if result.get("query_status") != "ok":
+            print(f"[!] MalwareBazaar tag query failed: {result.get('query_status')}")
+            return []
+        return result.get("data", [])
+    except Exception as e:
+        print(f"[!] MalwareBazaar tag query error: {e}")
+        return []
+
+
+def mb_download(sha256_hash: str, dest_path: Path) -> bool:
+    """Download a sample from MalwareBazaar by SHA-256."""
+    data = {"query": "get_file", "sha256_hash": sha256_hash}
+    try:
+        resp = requests.post(MALWAREBazaar_API, data=data, headers=HEADERS, timeout=REQUEST_TIMEOUT)
+        resp.raise_for_status()
+        # Response is a ZIP containing the sample with password "infected"
+        zip_path = dest_path.with_suffix(".zip")
+        with open(zip_path, "wb") as f:
+            f.write(resp.content)
+        # Extract with password
+        with zipfile.ZipFile(zip_path, "r") as z:
+            z.extractall(path=dest_path.parent, pwd=b"infected")
+        zip_path.unlink()
+        # The extracted file may have a generic name; rename if needed
+        extracted = list(dest_path.parent.iterdir())
+        for item in extracted:
+            if item.is_file() and item.suffix != ".apk" and not item.name.endswith(".zip"):
+                # Try to determine if it's an APK by magic bytes
+                with open(item, "rb") as f:
+                    magic = f.read(4)
+                if magic == b"PK\x03\x04":  # ZIP = APK
+                    item.rename(dest_path)
+                    break
+        if not dest_path.exists():
+            # Maybe it was already named .apk inside the zip
+            for item in extracted:
+                if item.suffix == ".apk" and item != dest_path:
+                    item.rename(dest_path)
+                    break
+        return dest_path.exists()
+    except Exception as e:
+        print(f"[!] Download failed for {sha256_hash}: {e}")
+        return False
+
+
+# ---------------------------------------------------------------------------
+# Koodous
+# ---------------------------------------------------------------------------
+
+def koodous_query_list(limit: int = 50, offset: int = 0) -> list:
+    """Query Koodous for recent APK samples."""
+    try:
+        url = f"{KOODOUS_API}?limit={limit}&offset={offset}"
+        resp = requests.get(url, headers=get_koodous_headers(), timeout=REQUEST_TIMEOUT)
+        resp.raise_for_status()
+        data = resp.json()
+        return data.get("results", [])
+    except Exception as e:
+        print(f"[!] Koodous query error: {e}")
+        return []
+
+
+def koodous_search(query: str, limit: int = 50) -> list:
+    """Search Koodous APKs by tag/family."""
+    try:
+        url = f"{KOODOUS_API}?search={query}&limit={limit}"
+        resp = requests.get(url, headers=get_koodous_headers(), timeout=REQUEST_TIMEOUT)
+        resp.raise_for_status()
+        data = resp.json()
+        return data.get("results", [])
+    except Exception as e:
+        print(f"[!] Koodous search error: {e}")
+        return []
+
+
+def koodous_download(sha256_hash: str, dest_path: Path) -> bool:
+    """Download an APK from Koodous by SHA-256."""
+    try:
+        url = f"{KOODOUS_API}{sha256_hash}/download"
+        resp = requests.get(url, headers=get_koodous_headers(), timeout=REQUEST_TIMEOUT)
+        resp.raise_for_status()
+        with open(dest_path, "wb") as f:
+            f.write(resp.content)
+        return True
+    except Exception as e:
+        print(f"[!] Koodous download error for {sha256_hash}: {e}")
+        return False
+
+
+# ---------------------------------------------------------------------------
+# F-Droid (Legitimate)
+# ---------------------------------------------------------------------------
+
+def fdroid_get_index() -> dict:
+    """Fetch F-Droid app index."""
+    try:
+        url = "https://f-droid.org/api/v1/apps"
+        resp = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
+        resp.raise_for_status()
+        return resp.json()
+    except Exception as e:
+        print(f"[!] F-Droid index fetch error: {e}")
+        return {}
+
+
+def fdroid_download_apk(package_name: str, dest_path: Path) -> bool:
+    """Download latest APK for an F-Droid package."""
+    try:
+        # Get package info to find download URL
+        url = f"https://f-droid.org/api/v1/packages/{package_name}"
+        resp = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
+        resp.raise_for_status()
+        data = resp.json()
+        versions = data.get("packages", {}).get(package_name, [])
+        if not versions:
+            print(f"[!] No versions found for {package_name}")
+            return False
+        # Sort by version code descending
+        versions.sort(key=lambda v: v.get("versionCode", 0), reverse=True)
+        latest = versions[0]
+        apk_name = latest.get("apkName")
+        if not apk_name:
+            print(f"[!] No apkName for {package_name}")
+            return False
+        download_url = f"{FDROID_REPO}{apk_name}"
+        print(f"    Downloading {download_url} ...")
+        resp = requests.get(download_url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
+        resp.raise_for_status()
+        with open(dest_path, "wb") as f:
+            f.write(resp.content)
+        return True
+    except Exception as e:
+        print(f"[!] F-Droid download error for {package_name}: {e}")
+        return False
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+def fetch_malware(target_count: int = 50) -> int:
+    """Fetch malware APKs from MalwareBazaar."""
+    records = load_existing_metadata()
+    existing_hashes = {r["sha256"].lower() for r in records if r.get("type") == "malware"}
+    fetched = 0
+
+    print(f"[*] Querying MalwareBazaar for Android APK malware (target: {target_count})...")
+
+    # Try multiple query strategies
+    queries = [
+        ("tag", {"tag": "apk", "limit": 100}),
+        ("tag", {"tag": "android", "limit": 100}),
+        ("recent", {"limit": 100}),
+    ]
+
+    all_samples = []
+    for qtype, params in queries:
+        if qtype == "tag":
+            samples = mb_query_tag(**params)
+        else:
+            samples = mb_query_recent(**params)
+        for s in samples:
+            h = s.get("sha256_hash", "").lower()
+            if h and h not in existing_hashes and h not in {x.get("sha256_hash", "").lower() for x in all_samples}:
+                all_samples.append(s)
+        if len(all_samples) >= target_count * 2:
+            break
+        time.sleep(RATE_LIMIT_SLEEP)
+
+    print(f"[*] Found {len(all_samples)} candidate malware samples")
+
+    for sample in all_samples:
+        if fetched >= target_count:
+            break
+        sha256_hash = sample.get("sha256_hash", "").lower()
+        if not sha256_hash:
+            continue
+        if already_have(sha256_hash, records):
+            continue
+
+        file_name = sample.get("file_name", f"{sha256_hash}.apk")
+        if not file_name.endswith(".apk"):
+            file_name += ".apk"
+        dest = SAMPLES_DIR / "malware" / file_name
+
+        print(f"[*] Downloading malware {fetched+1}/{target_count}: {sha256_hash}")
+        if mb_download(sha256_hash, dest):
+            # Verify hash
+            actual_sha = sha256_file(str(dest))
+            if actual_sha.lower() != sha256_hash:
+                print(f"[!] Hash mismatch! Expected {sha256_hash}, got {actual_sha}")
+                dest.unlink(missing_ok=True)
+                continue
+
+            record = {
+                "sample_name": dest.name,
+                "sha256": actual_sha,
+                "md5": sample.get("md5_hash", ""),
+                "family": sample.get("signature", "unknown"),
+                "source": "MalwareBazaar",
+                "type": "malware",
+                "tags": ";".join(sample.get("tags", [])),
+                "file_size_bytes": dest.stat().st_size,
+                "status": "pending",
+                "vt_detections": sample.get("vendor_count", ""),
+                "collection_date": time.strftime("%Y-%m-%d"),
+            }
+            records.append(record)
+            save_metadata(records)
+            fetched += 1
+            print(f"[+] Saved: {dest.name} ({dest.stat().st_size} bytes)")
+        else:
+            print(f"[!] Failed to download {sha256_hash}")
+
+        time.sleep(RATE_LIMIT_SLEEP)
+
+    print(f"[+] Malware fetch complete. Total malware samples: {len([r for r in records if r.get('type') == 'malware'])}")
+    return fetched
+
+
+def fetch_koodous(target_count: int = 30, search: str = None) -> int:
+    """Fetch malware APKs from Koodous."""
+    records = load_existing_metadata()
+    existing_hashes = {r["sha256"].lower() for r in records if r.get("type") == "malware"}
+    fetched = 0
+
+    print(f"[*] Querying Koodous for Android APK malware (target: {target_count})...")
+
+    if search:
+        samples = koodous_search(search, limit=target_count * 2)
+    else:
+        samples = []
+        offset = 0
+        while len(samples) < target_count * 2:
+            batch = koodous_query_list(limit=50, offset=offset)
+            if not batch:
+                break
+            samples.extend(batch)
+            offset += 50
+            time.sleep(KOODOUS_RATE_LIMIT)
+
+    print(f"[*] Found {len(samples)} candidate samples on Koodous")
+
+    for sample in samples:
+        if fetched >= target_count:
+            break
+        sha256_hash = sample.get("sha256", "").lower()
+        if not sha256_hash:
+            continue
+        if already_have(sha256_hash, records):
+            continue
+
+        file_name = sample.get("app", sample.get("filename", f"{sha256_hash}.apk"))
+        if not file_name.endswith(".apk"):
+            file_name += ".apk"
+        # Sanitize filename
+        file_name = "".join(c if c.isalnum() or c in "._-" else "_" for c in file_name)
+        dest = SAMPLES_DIR / "malware" / "koodous" / file_name
+        dest.parent.mkdir(parents=True, exist_ok=True)
+
+        print(f"[*] Downloading Koodous {fetched+1}/{target_count}: {sha256_hash}")
+        if koodous_download(sha256_hash, dest):
+            actual_sha = sha256_file(str(dest))
+            if actual_sha.lower() != sha256_hash:
+                print(f"[!] Hash mismatch! Expected {sha256_hash}, got {actual_sha}")
+                dest.unlink(missing_ok=True)
+                continue
+
+            # Determine family/tags from Koodous data
+            tags = []
+            if sample.get("is_apk"):
+                tags.append("apk")
+            family = sample.get("app", "unknown")
+
+            record = {
+                "sample_name": dest.name,
+                "sha256": actual_sha,
+                "md5": sample.get("md5", ""),
+                "family": family,
+                "source": "Koodous",
+                "type": "malware",
+                "tags": ";".join(tags),
+                "file_size_bytes": dest.stat().st_size,
+                "status": "pending",
+                "vt_detections": sample.get(" positives", ""),
+                "collection_date": time.strftime("%Y-%m-%d"),
+            }
+            records.append(record)
+            save_metadata(records)
+            fetched += 1
+            print(f"[+] Saved: {dest.name} ({dest.stat().st_size} bytes)")
+        else:
+            print(f"[!] Failed to download {sha256_hash}")
+
+        time.sleep(KOODOUS_RATE_LIMIT)
+
+    print(f"[+] Koodous fetch complete. Total Koodous samples: {fetched}")
+    return fetched
+
+
+def fetch_legitimate(target_count: int = 10) -> int:
+    """Fetch legitimate APKs from F-Droid."""
+    records = load_existing_metadata()
+    existing_hashes = {r["sha256"].lower() for r in records if r.get("type") == "legitimate"}
+    fetched = 0
+
+    # Popular, well-known F-Droid packages
+    packages = [
+        "org.mozilla.fennec_fdroid",   # Firefox
+        "com.foobnix.pro.pdf.reader",  # Librera
+        "org.telegram.messenger",      # Telegram
+        "com.fsck.k9",                 # K-9 Mail
+        "org.videolan.vlc",            # VLC
+        "com.zulipmobile",             # Zulip
+        "com.ichi2.anki",              # AnkiDroid
+        "com.termux",                  # Termux
+        "com.duckduckgo.mobile.android", # DuckDuckGo
+        "org.openhab.habdroid",        # openHAB
+        "net.osmand.plus",             # OsmAnd
+        "com.nextcloud.client",        # Nextcloud
+        "com.bumptech.glide.integration", # (placeholder, will skip if fails)
+    ]
+
+    print(f"[*] Fetching {target_count} legitimate APKs from F-Droid...")
+
+    for pkg in packages:
+        if fetched >= target_count:
+            break
+        dest = SAMPLES_DIR / "legitimate" / f"{pkg}.apk"
+        if dest.exists():
+            actual_sha = sha256_file(str(dest))
+            if already_have(actual_sha, records):
+                print(f"[*] Already have {pkg}")
+                fetched += 1
+                continue
+
+        print(f"[*] Downloading legitimate {fetched+1}/{target_count}: {pkg}")
+        if fdroid_download_apk(pkg, dest):
+            actual_sha = sha256_file(str(dest))
+            if already_have(actual_sha, records):
+                print(f"[*] Already have {pkg} (duplicate)")
+                dest.unlink(missing_ok=True)
+                continue
+            record = {
+                "sample_name": dest.name,
+                "sha256": actual_sha,
+                "md5": "",
+                "family": pkg,
+                "source": "F-Droid",
+                "type": "legitimate",
+                "tags": "",
+                "file_size_bytes": dest.stat().st_size,
+                "status": "pending",
+                "vt_detections": "0",
+                "collection_date": time.strftime("%Y-%m-%d"),
+            }
+            records.append(record)
+            save_metadata(records)
+            fetched += 1
+            print(f"[+] Saved: {dest.name} ({dest.stat().st_size} bytes)")
+        else:
+            print(f"[!] Failed to download {pkg}")
+
+        time.sleep(2)
+
+    print(f"[+] Legitimate fetch complete. Total legitimate samples: {len([r for r in records if r.get('type') == 'legitimate'])}")
+    return fetched
+
+
+def main():
+    ensure_dirs()
+    print("=" * 60)
+    print("DroidForensix Sample Downloader")
+    print("=" * 60)
+
+    args = sys.argv[1:]
+    malware_target = 50
+    legit_target = 10
+    koodous_target = 30
+    koodous_search = None
+
+    if "--koodous-search" in args:
+        idx = args.index("--koodous-search")
+        if idx + 1 < len(args):
+            koodous_search = args[idx + 1]
+
+    if "--koodous" in args:
+        fetch_koodous(koodous_target, search=koodous_search)
+    elif "--koodous-only" in args:
+        fetch_koodous(koodous_target, search=koodous_search)
+    elif "--malware-only" in args:
+        fetch_malware(malware_target)
+    elif "--legit-only" in args:
+        fetch_legitimate(legit_target)
+    elif "--small" in args:
+        fetch_malware(5)
+        fetch_legitimate(2)
+    else:
+        fetch_malware(malware_target)
+        fetch_koodous(koodous_target)
+        fetch_legitimate(legit_target)
+
+    records = load_existing_metadata()
+    print("=" * 60)
+    print(f"Total samples in metadata: {len(records)}")
+    print(f"  Malware: {len([r for r in records if r.get('type') == 'malware'])}")
+    print(f"  Legitimate: {len([r for r in records if r.get('type') == 'legitimate'])}")
+    print(f"Metadata saved to: {META_PATH}")
+    print("=" * 60)
+
+
+if __name__ == "__main__":
+    main()

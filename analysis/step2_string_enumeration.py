@@ -1,0 +1,228 @@
+"""
+Step 2: String Enumeration & Entropy Analysis
+
+Extracts all string literals, byte arrays, numeric constants, resource strings,
+and native strings from decompiled APK output. Calculates Shannon entropy for
+each extracted value and outputs structured JSON.
+"""
+
+import json
+import math
+import os
+import re
+import xml.etree.ElementTree as ET
+from pathlib import Path
+from typing import List, Dict, Any, Optional
+
+
+class StringEnumerationError(Exception):
+    """Raised when string enumeration fails."""
+    pass
+
+
+def shannon_entropy(data: bytes) -> float:
+    """Calculate Shannon entropy H = -Σ p(x) log₂ p(x)."""
+    if not data:
+        return 0.0
+    length = len(data)
+    freq = {}
+    for byte in data:
+        freq[byte] = freq.get(byte, 0) + 1
+    entropy = 0.0
+    for count in freq.values():
+        p = count / length
+        entropy -= p * math.log2(p)
+    return entropy
+
+
+def entropy_of_string(s: str) -> float:
+    """Calculate entropy of a string (as UTF-8 bytes)."""
+    return shannon_entropy(s.encode("utf-8", errors="ignore"))
+
+
+def extract_java_strings(source_dir: str) -> List[Dict[str, Any]]:
+    """Extract string literals from Java source files."""
+    results = []
+    source_path = Path(source_dir)
+    if not source_path.exists():
+        return results
+
+    # Regex for double-quoted string literals (basic, handles escaped quotes)
+    string_regex = re.compile(r'"([^"\\]*(?:\\.[^"\\]*)*)"')
+    # Regex for byte arrays: {0x01, 0x02, ...}
+    byte_array_regex = re.compile(r'\{\s*(0x[0-9A-Fa-f]{2}\s*(?:,\s*0x[0-9A-Fa-f]{2})*)\s*\}')
+    # Regex for numeric constants (3-5 digits, likely ports/keys)
+    numeric_regex = re.compile(r'\b(\d{3,5})\b')
+
+    for java_file in source_path.rglob("*.java"):
+        try:
+            with open(java_file, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+                lines = content.splitlines()
+
+            for line_no, line in enumerate(lines, start=1):
+                # String literals
+                for match in string_regex.finditer(line):
+                    value = match.group(1)
+                    if len(value) >= 3:  # Skip trivial strings
+                        results.append({
+                            "category": "string_literal",
+                            "value": value,
+                            "entropy": round(entropy_of_string(value), 4),
+                            "source": f"{java_file.relative_to(source_path)}:{line_no}",
+                        })
+
+                # Byte arrays
+                for match in byte_array_regex.finditer(line):
+                    hex_str = match.group(1)
+                    try:
+                        bytes_values = [int(x.strip(), 16) for x in hex_str.split(",")]
+                        byte_data = bytes(bytes_values)
+                        hex_repr = byte_data.hex()
+                        results.append({
+                            "category": "byte_array",
+                            "value": hex_repr,
+                            "entropy": round(shannon_entropy(byte_data), 4),
+                            "source": f"{java_file.relative_to(source_path)}:{line_no}",
+                        })
+                    except ValueError:
+                        continue
+
+                # Numeric constants
+                for match in numeric_regex.finditer(line):
+                    value = int(match.group(1))
+                    results.append({
+                        "category": "numeric_constant",
+                        "value": value,
+                        "entropy": 0.0,
+                        "source": f"{java_file.relative_to(source_path)}:{line_no}",
+                    })
+        except Exception:
+            continue
+
+    return results
+
+
+def extract_resource_strings(apktool_dir: str) -> List[Dict[str, Any]]:
+    """Extract strings from Android resources (strings.xml, raw/, values/*.xml)."""
+    results = []
+    apktool_path = Path(apktool_dir)
+    if not apktool_path.exists():
+        return results
+
+    # Parse strings.xml
+    strings_xml = apktool_path / "res" / "values" / "strings.xml"
+    if strings_xml.exists():
+        try:
+            tree = ET.parse(str(strings_xml))
+            root = tree.getroot()
+            for child in root:
+                if child.tag == "string" and child.text:
+                    value = child.text
+                    results.append({
+                        "category": "resource_string",
+                        "value": value,
+                        "entropy": round(entropy_of_string(value), 4),
+                        "source": f"res/values/strings.xml:{child.get('name', 'unknown')}",
+                    })
+        except Exception:
+            pass
+
+    # Read raw/ directory files
+    raw_dir = apktool_path / "res" / "raw"
+    if raw_dir.exists():
+        for raw_file in raw_dir.iterdir():
+            if raw_file.is_file():
+                try:
+                    with open(raw_file, "rb") as f:
+                        data = f.read()
+                    # Try to decode as text; fallback to hex
+                    try:
+                        text = data.decode("utf-8")
+                    except UnicodeDecodeError:
+                        text = data.hex()
+                    results.append({
+                        "category": "resource_raw",
+                        "value": text[:5000],  # Limit size
+                        "entropy": round(shannon_entropy(data), 4),
+                        "source": f"res/raw/{raw_file.name}",
+                    })
+                except Exception:
+                    continue
+
+    return results
+
+
+def enumerate_strings(extraction_result: dict) -> dict:
+    """
+    Full Step 2: Enumerate strings from extracted APK output.
+
+    Args:
+        extraction_result: Output dict from Step 1 (APK extraction).
+
+    Returns:
+        dict with categorized strings and metadata.
+    """
+    sample_id = extraction_result["sample_id"]
+    work_dir = Path(extraction_result.get("apktool_output_dir", "analysis/work")).parent
+    work_dir.mkdir(parents=True, exist_ok=True)
+
+    apktool_dir = extraction_result.get("apktool_output_dir")
+    jadx_dir = extraction_result.get("jadx_output_dir")
+    native_strings = extraction_result.get("native_strings", [])
+
+    all_strings = []
+
+    # Java strings from jadx output
+    if jadx_dir:
+        java_strings = extract_java_strings(jadx_dir)
+        all_strings.extend(java_strings)
+
+    # Resource strings from apktool output
+    if apktool_dir:
+        resource_strings = extract_resource_strings(apktool_dir)
+        all_strings.extend(resource_strings)
+
+    # Native strings
+    for ns in native_strings:
+        value = ns.get("value", "")
+        if len(value) >= 3:
+            all_strings.append({
+                "category": "native_string",
+                "value": value,
+                "entropy": round(entropy_of_string(value), 4),
+                "source": ns.get("source", "native"),
+            })
+
+    # Categorize results
+    categorized = {
+        "string_literals": [s for s in all_strings if s["category"] == "string_literal"],
+        "byte_arrays": [s for s in all_strings if s["category"] == "byte_array"],
+        "numeric_constants": [s for s in all_strings if s["category"] == "numeric_constant"],
+        "resource_strings": [s for s in all_strings if s["category"] in ("resource_string", "resource_raw")],
+        "native_strings": [s for s in all_strings if s["category"] == "native_string"],
+    }
+
+    result = {
+        "sample_id": sample_id,
+        "total_strings": len(all_strings),
+        "categories": categorized,
+        "summary": {k: len(v) for k, v in categorized.items()},
+    }
+
+    # Save intermediate result
+    result_path = work_dir / "step2_strings.json"
+    with open(result_path, "w", encoding="utf-8") as f:
+        json.dump(result, f, indent=2)
+
+    return result
+
+
+if __name__ == "__main__":
+    import sys
+    if len(sys.argv) < 2:
+        print("Usage: python step2_string_enumeration.py <step1_extraction.json>")
+        sys.exit(1)
+    with open(sys.argv[1], "r", encoding="utf-8") as f:
+        extraction = json.load(f)
+    print(json.dumps(enumerate_strings(extraction), indent=2))
