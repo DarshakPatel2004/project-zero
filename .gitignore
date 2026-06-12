@@ -59,3 +59,8 @@ data/
 # OS
 .DS_Store
 Thumbs.db
+
+.mcp.json
+.windsurfrules
+.cursor/*
+.jetro/*
