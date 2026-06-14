@@ -190,10 +190,11 @@ def transform_clusters(results: List[Dict[str, Any]]) -> Dict[str, Any]:
         ips = set(c.get("ip") for c in c2s if c.get("ip"))
         y = len(c2s) + len(protocols) * 2 + len(domains) + len(ips)
 
-        # Z: exfiltration volume
+        # Z: exfiltration volume + obfuscation
         payloads = result.get("payloads", [])
         chains = result.get("threat_chains", [])
-        z = len(payloads) + len(chains)
+        obfuscation = result.get("obfuscation_analysis", {})
+        z = len(payloads) + len(chains) + (obfuscation.get("obfuscation_score", 0) / 25)
 
         assessment = result.get("llm_assessment", {})
         risk_score = assessment.get("risk_score", 0)
@@ -273,6 +274,7 @@ def transform_samples_list(results: List[Dict[str, Any]]) -> List[Dict[str, Any]
     for result in results:
         metadata = result.get("metadata", {})
         assessment = result.get("llm_assessment", {})
+        obfuscation = result.get("obfuscation_analysis", {})
         samples.append({
             "id": result.get("sample_id", ""),
             "name": metadata.get("sample_name", ""),
@@ -283,6 +285,8 @@ def transform_samples_list(results: List[Dict[str, Any]]) -> List[Dict[str, Any]
             "severity": assessment.get("severity", "low"),
             "risk_score": assessment.get("risk_score", 0),
             "primary_threat": assessment.get("primary_threat", "other"),
+            "obfuscation_score": obfuscation.get("obfuscation_score", 0),
+            "obfuscation_level": obfuscation.get("obfuscation_level", "low"),
             "encodings_count": len(result.get("encodings", [])),
             "payloads_count": len(result.get("payloads", [])),
             "c2_count": len(result.get("c2_infrastructure", [])),

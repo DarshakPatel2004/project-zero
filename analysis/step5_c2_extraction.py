@@ -15,6 +15,13 @@ from typing import Dict, List, Any, Optional
 from urllib.parse import urlparse, parse_qs
 
 
+try:
+    from backend.circl_client import CIRCLAuthError, CIRCLClient, CIRCLClientError
+    CIRCL_AVAILABLE = True
+except ImportError:
+    CIRCL_AVAILABLE = False
+
+
 class C2ExtractionError(Exception):
     """Raised when C2 extraction fails."""
     pass
@@ -27,6 +34,80 @@ class C2ExtractionError(Exception):
 URL_RE = re.compile(r'https?://[^\s"\'<>]+', re.IGNORECASE)
 IP_RE = re.compile(r'\b(?:(?:25[0-5]|2[0-4]\d|[01]?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d?\d)\b')
 DOMAIN_RE = re.compile(r'\b(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}\b')
+
+# Known benign SDK, documentation, and namespace domains that are not C2.
+# These appear frequently in legitimate apps and dilute the C2 signal.
+BENIGN_DOMAINS = {
+    # Android / Google
+    "schemas.android.com",
+    "play.google.com",
+    "developer.android.com",
+    "issuetracker.google.com",
+    "maps.google.com",
+    "www.googleapis.com",
+    "www.google.com",
+    "google.com",
+    "youtube.com",
+    "android.com",
+    "www.android.com",
+    # W3C / XML
+    "www.w3.org",
+    "xml.org",
+    "xmlpull.org",
+    "www.w3.org",
+    "xmlns.org",
+    # Development platforms / libraries
+    "github.com",
+    "gitlab.com",
+    "bitbucket.org",
+    "www.slf4j.org",
+    "apache.org",
+    "www.apache.org",
+    "kotlinlang.org",
+    # Adobe / media
+    "ns.adobe.com",
+    "aomedia.org",
+    # JetBrains
+    "youtrack.jetbrains.com",
+    "developer.apple.com",
+    "docs.flutter.dev",
+    # Mozilla
+    "mozilla.org",
+    "www.mozilla.org",
+    # Common legitimate app endpoints observed in dataset
+    "videolan.org",
+    "www.videolan.org",
+    "etesync.com",
+    "etebase.com",
+    "dashboard.etebase.com",
+    "api.etebase.com",
+    "api.etesync.com",
+    "fastmail.com",
+    "www.fastmail.com",
+    "api.fastmail.com",
+    "api.login.aol.com",
+    "thunderbird.net",
+    "autoconfig.thunderbird.net",
+    "jrpn.jovial.com",
+    "legacy.jrpn.jovial.com",
+    "dmfs.org",
+    "schema.dmfs.org",
+    "t.me",
+    # PDF/file converter services (legitimate, often embedded in readers)
+    "cloudconvert.com",
+    "www.zamzar.com",
+    "zamzar.com",
+    "www.pdfrotate.com",
+    "pdfrotate.com",
+    "smallpdf.com",
+    "topdf.com",
+    "smaltilpdf.com",
+}
+
+BENIGN_URL_PATHS = {
+    "/apk/res/android",
+    "/apk/res-auto",
+}
 
 # Known VPN/proxy ranges (common examples, not exhaustive)
 VPN_RANGES = [
@@ -48,6 +129,27 @@ def is_valid_ip(ip: str) -> bool:
         return True
     except socket.error:
         return False
+
+
+def is_benign_url(url: str) -> bool:
+    """Return True if URL belongs to a known benign SDK/documentation endpoint."""
+    try:
+        parsed = urlparse(url)
+        if parsed.hostname:
+            hostname = parsed.hostname.lower().lstrip("www.")
+            if hostname in BENIGN_DOMAINS:
+                return True
+            # Also match any subdomain of a benign domain
+            parts = parsed.hostname.lower().split(".")
+            for i in range(len(parts)):
+                if ".".join(parts[i:]) in BENIGN_DOMAINS:
+                    return True
+        for benign_path in BENIGN_URL_PATHS:
+            if benign_path in parsed.path:
+                return True
+    except Exception:
+        pass
+    return False
 
 
 def classify_ip(ip: str) -> str:
@@ -149,6 +251,44 @@ def calculate_c2_confidence(parsed: dict, source_context: str) -> float:
     return round(min(1.0, max(0.0, score)), 4)
 
 
+def enrich_with_circl(c2_records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Optionally enrich C2 records with CIRCL pSSL/pDNS data.
+
+    Returns the records unmodified if CIRCL is not configured or the
+    enrichment fails.
+    """
+    if not CIRCL_AVAILABLE:
+        return c2_records
+
+    try:
+        client = CIRCLClient()
+    except CIRCLAuthError:
+        # Credentials not configured; skip enrichment silently
+        return c2_records
+
+    # CIRCL client expects items with ip/domain/url/cert_sha1 keys
+    enrichment_input = []
+    for record in c2_records:
+        enrichment_input.append({
+            "ip": record.get("ip"),
+            "domain": record.get("domain"),
+            "url": record.get("raw_url"),
+            "cert_sha1": record.get("cert_sha1"),
+        })
+
+    try:
+        enriched = client.enrich_c2_infrastructure(enrichment_input)
+    except CIRCLClientError:
+        return c2_records
+
+    # Merge CIRCL data back into original records
+    for original, circl_data in zip(c2_records, enriched):
+        original["circl"] = circl_data.get("circl", {})
+
+    return c2_records
+
+
 # ---------------------------------------------------------------------------
 # Main extraction
 # ---------------------------------------------------------------------------
@@ -186,7 +326,7 @@ def extract_c2_infrastructure(payloads_result: dict, strings_result: dict) -> di
                 seen_urls.add(url)
 
                 parsed = parse_url(url)
-                if parsed is None:
+                if parsed is None or is_benign_url(url):
                     continue
 
                 c2_records.append({
@@ -221,7 +361,7 @@ def extract_c2_infrastructure(payloads_result: dict, strings_result: dict) -> di
                 seen_urls.add(url)
 
                 parsed = parse_url(url)
-                if parsed is None:
+                if parsed is None or is_benign_url(url):
                     continue
 
                 c2_records.append({
@@ -241,6 +381,9 @@ def extract_c2_infrastructure(payloads_result: dict, strings_result: dict) -> di
                     "confidence": round(calculate_c2_confidence(parsed, source_location) * 0.9, 4),
                 })
                 c2_id += 1
+
+    # Optional CIRCL enrichment (pSSL/pDNS) — never fail the pipeline
+    c2_records = enrich_with_circl(c2_records)
 
     result = {
         "sample_id": sample_id,

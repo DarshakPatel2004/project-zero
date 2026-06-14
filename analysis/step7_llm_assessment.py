@@ -1,8 +1,17 @@
 """
 Step 7: LLM-Powered Assessment
 
-Sends threat chains to a local Ollama LLM for severity assessment.
+Sends threat chains to an LLM (NVIDIA NIM by default) for severity assessment.
 Validates JSON output, retries on failure, and provides rule-based fallback.
+
+Environment variables:
+    NVIDIA_NIM_API_KEY  - NVIDIA NIM API key (required unless Ollama is used)
+    NVIDIA_NIM_MODEL    - Model ID on NVIDIA NIM (default: nvidia/nemotron-nano-9b-v2)
+    NVIDIA_NIM_BASE_URL - Endpoint base URL (default: https://integrate.api.nvidia.com/v1)
+
+Fallback to local Ollama is still supported:
+    OLLAMA_HOST         - Ollama host (default: http://localhost:11434)
+    OLLAMA_MODEL        - Ollama model (default: llama3.2:3b)
 """
 
 import json
@@ -10,9 +19,7 @@ import os
 import re
 import time
 from pathlib import Path
-from typing import Dict, Any, Optional, List
-
-import ollama
+from typing import Dict, Any, Optional
 
 
 class LLMAssessmentError(Exception):
@@ -30,7 +37,9 @@ DEFAULT_FALLBACK = {
 }
 
 
-SYSTEM_PROMPT = """You are an expert malware threat analyst. Assess the severity of the Android malware sample based on the provided threat chains.
+SYSTEM_PROMPT = """/no_think
+
+You are an expert malware threat analyst. Assess the severity of the Android malware sample based on the provided threat chains and static obfuscation/permission indicators.
 
 Output must be valid JSON only, with no markdown, no explanation, and no code blocks. Use this exact schema:
 
@@ -45,16 +54,17 @@ Output must be valid JSON only, with no markdown, no explanation, and no code bl
 
 Rules:
 - Severity critical: active public C2 with exfiltration, banking trojan behavior, or ransomware indicators.
-- Severity high: multiple encodings leading to C2, spyware behavior, or suspicious network infrastructure.
+- Severity high: multiple encodings leading to C2, spyware behavior, suspicious network infrastructure, OR heavy obfuscation with dangerous permissions.
 - Severity medium: encoding/obfuscation present but no clear active C2.
 - Severity low: few or no malicious indicators.
 - Risk score must align with severity: critical 80-100, high 60-79, medium 30-59, low 0-29.
+- If decompilation failed (few or no strings/chains) but obfuscation score is medium/high with dangerous permissions, raise severity to at least medium/high accordingly.
 - Do not include actual malicious URLs or payloads in the narrative; describe them indirectly.
 """
 
 
-def format_threat_context(chains_result: dict, c2_result: dict) -> str:
-    """Format threat chains and C2 summary for LLM consumption."""
+def format_threat_context(chains_result: dict, c2_result: dict, obfuscation_result: Optional[dict] = None) -> str:
+    """Format threat chains, C2 summary, and obfuscation indicators for LLM consumption."""
     lines = []
     lines.append(f"Total threat chains: {chains_result.get('total_chains', 0)}")
     lines.append(f"Total C2 indicators: {c2_result.get('total_c2s', 0)}")
@@ -73,12 +83,28 @@ def format_threat_context(chains_result: dict, c2_result: dict) -> str:
         lines.append(f"  - {c2.get('protocol', 'unknown')}://{domain}:{c2.get('port', 'unknown')}{c2.get('path', '/')} "
                      f"(classification={c2.get('ip_classification', 'n/a')}, type={c2.get('communication_type', 'other')})")
 
+    if obfuscation_result:
+        lines.append("")
+        lines.append("Static Obfuscation & Permission Analysis:")
+        lines.append(f"  Obfuscation score: {obfuscation_result.get('obfuscation_score', 0)} ({obfuscation_result.get('obfuscation_level', 'unknown')})")
+        indicators = obfuscation_result.get("indicators", {})
+        lines.append(f"  Classes: {indicators.get('total_classes', 0)}, Methods: {indicators.get('total_methods', 0)}")
+        lines.append(f"  Reflection usages: {len(indicators.get('reflection', []))}")
+        lines.append(f"  Dynamic loading usages: {len(indicators.get('dynamic_loading', []))}")
+        lines.append(f"  Crypto API usages: {len(indicators.get('crypto_apis', []))}")
+        lines.append(f"  Suspicious API usages: {len(indicators.get('suspicious_apis', []))}")
+        lines.append(f"  Dangerous permissions: {len(indicators.get('dangerous_permissions', []))}")
+        for perm in indicators.get("dangerous_permissions", [])[:10]:
+            lines.append(f"    - {perm}")
+        dex_entropy = obfuscation_result.get("dex_entropy", [])
+        if any(d.get("likely_packed") for d in dex_entropy):
+            lines.append("  DEX packing detected: likely_packed=True")
+
     return "\n".join(lines)
 
 
 def parse_llm_json(raw_output: str) -> Optional[Dict[str, Any]]:
     """Extract and parse JSON from LLM output."""
-    # Try to find JSON block
     raw_output = raw_output.strip()
 
     # Remove markdown code blocks if present
@@ -122,12 +148,15 @@ def validate_assessment(assessment: dict) -> bool:
     return True
 
 
-def sanity_check(assessment: dict, chains_result: dict, c2_result: dict) -> dict:
-    """Cross-reference LLM severity against detected indicators."""
+def sanity_check(assessment: dict, chains_result: dict, c2_result: dict, obfuscation_result: Optional[dict] = None) -> dict:
+    """Cross-reference LLM severity against detected indicators, including obfuscation/permissions."""
     c2_count = c2_result.get("total_c2s", 0)
     chain_count = chains_result.get("total_chains", 0)
     severity = assessment.get("severity", "low")
     risk_score = assessment.get("risk_score", 0)
+    obf_score = (obfuscation_result or {}).get("obfuscation_score", 0)
+    indicators = (obfuscation_result or {}).get("indicators", {})
+    dangerous_perms = indicators.get("dangerous_permissions", [])
 
     # If active C2 exists but severity is low, raise it
     if c2_count > 0 and severity == "low":
@@ -141,13 +170,31 @@ def sanity_check(assessment: dict, chains_result: dict, c2_result: dict) -> dict
         assessment["risk_score"] = min(risk_score, 55)
         assessment["narrative"] += " [SANITY CHECK: lowered due to absence of confirmed C2.]"
 
+    # Obfuscation/permissions anchor: if decompilation failed (empty chains) but obfuscation is significant, raise severity
+    if chain_count == 0 and c2_count == 0 and obf_score >= 50:
+        if severity == "low":
+            assessment["severity"] = "medium"
+            assessment["risk_score"] = max(risk_score, 50)
+            assessment["narrative"] += f" [SANITY CHECK: elevated due to {obf_score} obfuscation score with {len(dangerous_perms)} dangerous permissions.]"
+        elif severity == "medium" and obf_score >= 70:
+            assessment["severity"] = "high"
+            assessment["risk_score"] = max(risk_score, 65)
+            assessment["narrative"] += f" [SANITY CHECK: elevated to high due to heavy obfuscation (score {obf_score}).]"
+
     return assessment
 
 
-def fallback_assessment(chains_result: dict, c2_result: dict) -> dict:
-    """Rule-based fallback assessment when LLM fails."""
+def fallback_assessment(chains_result: dict, c2_result: dict, obfuscation_result: Optional[dict] = None) -> dict:
+    """Rule-based fallback assessment when LLM fails, anchored by obfuscation/permissions when chains are empty."""
     c2_count = c2_result.get("total_c2s", 0)
     chain_count = chains_result.get("total_chains", 0)
+    obf_score = (obfuscation_result or {}).get("obfuscation_score", 0)
+    obf_level = (obfuscation_result or {}).get("obfuscation_level", "low")
+    indicators = (obfuscation_result or {}).get("indicators", {})
+    dangerous_perms = indicators.get("dangerous_permissions", [])
+    suspicious_apis = indicators.get("suspicious_apis", [])
+    reflection = indicators.get("reflection", [])
+    dynamic_loading = indicators.get("dynamic_loading", [])
 
     if c2_count > 0:
         severity = "high"
@@ -161,6 +208,18 @@ def fallback_assessment(chains_result: dict, c2_result: dict) -> dict:
         narrative = f"Detected {chain_count} threat chain(s) but no confirmed active C2. Obfuscation/encoding present."
         primary_threat = "other"
         actions = ["Review decoded artifacts", "Investigate encoding functions"]
+    elif obf_score >= 50 or len(dangerous_perms) >= 3:
+        # Obfuscation/permissions anchor when decompilation fails or chains are empty
+        severity = "high" if obf_score >= 70 else "medium"
+        risk_score = min(100, max(50, int(obf_score)))
+        narrative = (
+            f"No decoded threat chains, but static analysis shows {obf_level} obfuscation "
+            f"(score {obf_score}) with {len(dangerous_perms)} dangerous permissions, "
+            f"{len(suspicious_apis)} suspicious APIs, {len(reflection)} reflection usages, "
+            f"and {len(dynamic_loading)} dynamic loading usages."
+        )
+        primary_threat = "other"
+        actions = ["Perform manual reverse engineering", "Inspect smali/bytecode for hidden behavior"]
     else:
         severity = "low"
         risk_score = 15
@@ -179,57 +238,127 @@ def fallback_assessment(chains_result: dict, c2_result: dict) -> dict:
     }
 
 
-def assess_with_llm(chains_result: dict, c2_result: dict) -> dict:
-    """
-    Full Step 7: Get LLM assessment of threat chains.
+def _call_nvidia_nim(context: str, model: str, base_url: str, api_key: str, max_retries: int = 3) -> Optional[str]:
+    """Call NVIDIA NIM chat completions endpoint and return raw response text."""
+    try:
+        from openai import OpenAI
+    except ImportError as e:
+        raise LLMAssessmentError(f"openai package not installed: {e}")
 
-    Args:
-        chains_result: Output dict from Step 6.
-        c2_result: Output dict from Step 5.
+    client = OpenAI(base_url=base_url, api_key=api_key)
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": f"THREAT CHAINS:\n{context}\n\nASSESSMENT:"},
+    ]
 
-    Returns:
-        dict with LLM assessment.
-    """
-    sample_id = chains_result["sample_id"]
-    work_dir = Path("analysis/work") / sample_id
-    work_dir.mkdir(parents=True, exist_ok=True)
+    last_error = ""
+    for attempt in range(max_retries):
+        try:
+            response = client.chat.completions.create(
+                model=model,
+                messages=messages,
+                temperature=0.1,
+                max_tokens=512,
+                response_format={"type": "json_object"},
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            last_error = str(e)
+            # NVIDIA NIM free tier: 40 RPM. Back off on 429.
+            if "429" in last_error:
+                sleep_time = 15 + attempt * 5
+                print(f"  [!] Rate limited (429). Sleeping {sleep_time}s...")
+                time.sleep(sleep_time)
+            else:
+                time.sleep(2)
 
-    ollama_host = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
-    model = os.environ.get("OLLAMA_MODEL", "llama3.2:3b")
+    return last_error
 
-    context = format_threat_context(chains_result, c2_result)
+
+def _call_ollama(context: str, host: str, model: str, max_retries: int = 3) -> Optional[str]:
+    """Call local Ollama generate endpoint and return raw response text."""
+    try:
+        import ollama
+    except ImportError as e:
+        raise LLMAssessmentError(f"ollama package not installed: {e}")
+
     prompt = f"{SYSTEM_PROMPT}\n\nTHREAT CHAINS:\n{context}\n\nASSESSMENT:"
-
-    assessment = None
-    raw_output = ""
-    max_retries = 3
+    client = ollama.Client(host=host, timeout=30)
 
     for attempt in range(max_retries):
         try:
-            client = ollama.Client(host=ollama_host)
             response = client.generate(
                 model=model,
                 prompt=prompt,
                 format="json",
                 options={"num_ctx": 4096, "temperature": 0.1},
             )
-            raw_output = response.get("response", "")
-            parsed = parse_llm_json(raw_output)
+            return response.get("response", "")
+        except Exception as e:
+            if attempt < max_retries - 1:
+                time.sleep(2)
+            else:
+                return str(e)
+
+    return ""
+
+
+def assess_with_llm(chains_result: dict, c2_result: dict, obfuscation_result: Optional[dict] = None) -> dict:
+    """
+    Full Step 7: Get LLM assessment of threat chains and obfuscation indicators.
+
+    Prefers NVIDIA NIM if NVIDIA_NIM_API_KEY is set, otherwise falls back to Ollama.
+    """
+    sample_id = chains_result["sample_id"]
+    work_dir = Path("analysis/work") / sample_id
+    work_dir.mkdir(parents=True, exist_ok=True)
+
+    context = format_threat_context(chains_result, c2_result, obfuscation_result)
+    assessment = None
+    raw_output = ""
+    max_retries = 3
+
+    # Prefer NVIDIA NIM if API key is configured
+    nim_api_key = os.environ.get("NVIDIA_NIM_API_KEY")
+    if nim_api_key:
+        nim_model = os.environ.get("NVIDIA_NIM_MODEL", "nvidia/nvidia-nemotron-nano-9b-v2")
+        nim_base_url = os.environ.get("NVIDIA_NIM_BASE_URL", "https://integrate.api.nvidia.com/v1")
+        print(f"  [*] Using NVIDIA NIM model: {nim_model}")
+
+        for attempt in range(max_retries):
+            raw_output = _call_nvidia_nim(context, nim_model, nim_base_url, nim_api_key, max_retries=1)
+            parsed = parse_llm_json(raw_output) if raw_output else None
             if parsed and validate_assessment(parsed):
-                assessment = sanity_check(parsed, chains_result, c2_result)
+                assessment = sanity_check(parsed, chains_result, c2_result, obfuscation_result)
                 break
             else:
-                # Retry with stricter prompt
-                prompt = f"{SYSTEM_PROMPT}\n\nYour previous response was invalid. Output ONLY valid JSON.\n\nTHREAT CHAINS:\n{context}\n\nASSESSMENT:"
+                # Add stricter instruction and retry
+                context = format_threat_context(chains_result, c2_result, obfuscation_result)
+                messages_note = "Your previous response was invalid. Output ONLY valid JSON.\n\n"
+                context = messages_note + context
                 time.sleep(1)
-        except Exception as e:
-            raw_output = str(e)
-            time.sleep(2)
+    else:
+        # Fall back to local Ollama
+        ollama_host = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
+        ollama_model = os.environ.get("OLLAMA_MODEL", "llama3.2:3b")
+        print(f"  [*] Using Ollama model: {ollama_model} at {ollama_host}")
+
+        for attempt in range(max_retries):
+            raw_output = _call_ollama(context, ollama_host, ollama_model, max_retries=1)
+            parsed = parse_llm_json(raw_output) if raw_output else None
+            if parsed and validate_assessment(parsed):
+                assessment = sanity_check(parsed, chains_result, c2_result, obfuscation_result)
+                break
+            else:
+                context = format_threat_context(chains_result, c2_result, obfuscation_result)
+                messages_note = "Your previous response was invalid. Output ONLY valid JSON.\n\n"
+                context = messages_note + context
+                time.sleep(1)
 
     if assessment is None:
-        assessment = fallback_assessment(chains_result, c2_result)
+        assessment = fallback_assessment(chains_result, c2_result, obfuscation_result)
 
-    assessment["raw_llm_output"] = raw_output[:2000]
+    assessment["raw_llm_output"] = (raw_output or "")[:2000]
 
     # Save intermediate result
     result_path = work_dir / "step7_assessment.json"

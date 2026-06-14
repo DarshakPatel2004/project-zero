@@ -40,6 +40,58 @@ def entropy_of_string(s: str) -> float:
     return shannon_entropy(s.encode("utf-8", errors="ignore"))
 
 
+STRING_LITERAL_REGEX = re.compile(r'"([^"\\]*(?:\\.[^"\\]*)*)"')
+BYTE_ARRAY_REGEX = re.compile(r'\{\s*(0x[0-9A-Fa-f]{2}\s*(?:,\s*0x[0-9A-Fa-f]{2})*)\s*\}')
+NUMERIC_REGEX = re.compile(r'\b(\d{3,5})\b')
+SMALI_STRING_REGEX = re.compile(r'const-string(?:/jumbo)?\s+[^,]+,\s*"([^"\\]*(?:\\.[^"\\]*)*)"')
+
+# Noisy patterns that dilute signal in smali/JADX strings
+NOISE_STRINGS = {"null", "true", "false", "none", "yes", "no", "ok"}
+NOISE_PREFIXES = (
+    "android.", "com.android.", "java.", "javax.", "kotlin.", "kotlinx.", "androidx.",
+    "dalvik.", "sun.", "org.xml.", "org.w3c.", "org.json.",
+)
+NOISE_PATTERNS = [
+    re.compile(r'^[\s\\/:;,.\-_=+\*\|\(\)\[\]\{\}<>!?@#\$%^&~`"\'0-9]+$'),  # pure symbols/digits
+    re.compile(r'^0x[0-9a-fA-F]+$'),  # hex constants
+    re.compile(r'^\d{1,6}$'),  # small numbers
+    re.compile(r'^[a-zA-Z0-9_]+\.[a-zA-Z0-9_]+\.[a-zA-Z0-9_]+\.[a-zA-Z0-9_]+$'),  # dotted package names
+]
+
+
+def is_noisy_string(value: str) -> bool:
+    """Return True if a string literal is likely framework/SDK boilerplate or noise."""
+    if not value or len(value) < 6:
+        return True
+    lowered = value.lower().strip()
+    if lowered in NOISE_STRINGS:
+        return True
+    if lowered.startswith(NOISE_PREFIXES):
+        return True
+    for pat in NOISE_PATTERNS:
+        if pat.match(value):
+            return True
+    return False
+
+
+def _extract_strings_from_text(text: str, source_prefix: str, source_path: Path, category: str = "string_literal") -> List[Dict[str, Any]]:
+    """Generic helper to extract string literals from file text."""
+    results = []
+    lines = text.splitlines()
+    for line_no, line in enumerate(lines, start=1):
+        for match in STRING_LITERAL_REGEX.finditer(line):
+            value = match.group(1)
+            if is_noisy_string(value):
+                continue
+            results.append({
+                "category": category,
+                "value": value,
+                "entropy": round(entropy_of_string(value), 4),
+                "source": f"{source_prefix}:{line_no}",
+            })
+    return results
+
+
 def extract_java_strings(source_dir: str) -> List[Dict[str, Any]]:
     """Extract string literals from Java source files."""
     results = []
@@ -47,33 +99,17 @@ def extract_java_strings(source_dir: str) -> List[Dict[str, Any]]:
     if not source_path.exists():
         return results
 
-    # Regex for double-quoted string literals (basic, handles escaped quotes)
-    string_regex = re.compile(r'"([^"\\]*(?:\\.[^"\\]*)*)"')
-    # Regex for byte arrays: {0x01, 0x02, ...}
-    byte_array_regex = re.compile(r'\{\s*(0x[0-9A-Fa-f]{2}\s*(?:,\s*0x[0-9A-Fa-f]{2})*)\s*\}')
-    # Regex for numeric constants (3-5 digits, likely ports/keys)
-    numeric_regex = re.compile(r'\b(\d{3,5})\b')
-
     for java_file in source_path.rglob("*.java"):
         try:
             with open(java_file, "r", encoding="utf-8", errors="ignore") as f:
                 content = f.read()
-                lines = content.splitlines()
+            prefix = str(java_file.relative_to(source_path))
+            results.extend(_extract_strings_from_text(content, prefix, source_path, "string_literal"))
 
+            # Byte arrays
+            lines = content.splitlines()
             for line_no, line in enumerate(lines, start=1):
-                # String literals
-                for match in string_regex.finditer(line):
-                    value = match.group(1)
-                    if len(value) >= 3:  # Skip trivial strings
-                        results.append({
-                            "category": "string_literal",
-                            "value": value,
-                            "entropy": round(entropy_of_string(value), 4),
-                            "source": f"{java_file.relative_to(source_path)}:{line_no}",
-                        })
-
-                # Byte arrays
-                for match in byte_array_regex.finditer(line):
+                for match in BYTE_ARRAY_REGEX.finditer(line):
                     hex_str = match.group(1)
                     try:
                         bytes_values = [int(x.strip(), 16) for x in hex_str.split(",")]
@@ -83,19 +119,48 @@ def extract_java_strings(source_dir: str) -> List[Dict[str, Any]]:
                             "category": "byte_array",
                             "value": hex_repr,
                             "entropy": round(shannon_entropy(byte_data), 4),
-                            "source": f"{java_file.relative_to(source_path)}:{line_no}",
+                            "source": f"{prefix}:{line_no}",
                         })
                     except ValueError:
                         continue
 
                 # Numeric constants
-                for match in numeric_regex.finditer(line):
+                for match in NUMERIC_REGEX.finditer(line):
                     value = int(match.group(1))
                     results.append({
                         "category": "numeric_constant",
                         "value": value,
                         "entropy": 0.0,
-                        "source": f"{java_file.relative_to(source_path)}:{line_no}",
+                        "source": f"{prefix}:{line_no}",
+                    })
+        except Exception:
+            continue
+
+    return results
+
+
+def extract_smali_strings(apktool_dir: str) -> List[Dict[str, Any]]:
+    """Extract string literals from smali files as a fallback when JADX fails."""
+    results = []
+    smali_path = Path(apktool_dir) / "smali"
+    if not smali_path.exists():
+        return results
+
+    for smali_file in smali_path.rglob("*.smali"):
+        try:
+            with open(smali_file, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+            lines = content.splitlines()
+            for line_no, line in enumerate(lines, start=1):
+                for match in SMALI_STRING_REGEX.finditer(line):
+                    value = match.group(1)
+                    if is_noisy_string(value):
+                        continue
+                    results.append({
+                        "category": "string_literal",
+                        "value": value,
+                        "entropy": round(entropy_of_string(value), 4),
+                        "source": f"{smali_file.relative_to(smali_path)}:{line_no}",
                     })
         except Exception:
             continue
@@ -174,9 +239,15 @@ def enumerate_strings(extraction_result: dict) -> dict:
     all_strings = []
 
     # Java strings from jadx output
+    java_strings = []
     if jadx_dir:
         java_strings = extract_java_strings(jadx_dir)
         all_strings.extend(java_strings)
+
+    # Fallback: smali strings from apktool output if JADX produced nothing
+    if apktool_dir and not java_strings:
+        smali_strings = extract_smali_strings(apktool_dir)
+        all_strings.extend(smali_strings)
 
     # Resource strings from apktool output
     if apktool_dir:
