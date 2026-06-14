@@ -1,7 +1,7 @@
 """
 DroidForensix Analysis Pipeline Orchestrator
 
-Coordinates the 7-step analysis pipeline:
+Coordinates the 8-step analysis pipeline:
 1. APK Extraction
 2. String Enumeration
 3. Encoding Detection
@@ -9,6 +9,7 @@ Coordinates the 7-step analysis pipeline:
 5. C2 Extraction
 6. Threat Chain Correlation
 7. LLM Assessment
+8. Obfuscation Analysis
 
 Emits events at key milestones for backend WebSocket broadcasting.
 """
@@ -25,6 +26,8 @@ from analysis.step4_decoding import decode_payloads
 from analysis.step5_c2_extraction import extract_c2_infrastructure
 from analysis.step6_correlation import build_threat_chains
 from analysis.step7_llm_assessment import assess_with_llm
+from analysis.step8_obfuscation_analysis import analyze_obfuscation
+from backend.dissection import APKDissector
 
 
 class PipelineError(Exception):
@@ -73,7 +76,7 @@ def run_pipeline(apk_path: str, work_dir: str = "analysis/work",
     _emit(event_emitter, "analysis_started", {
         "sample_id": sample_id,
         "sample_name": extraction["sample_name"],
-        "total_steps": 7,
+        "total_steps": 8,
     })
     _emit(event_emitter, "extraction_complete", {
         "sample_id": sample_id,
@@ -168,10 +171,26 @@ def run_pipeline(apk_path: str, work_dir: str = "analysis/work",
             "steps": chain["steps"],
         })
 
+    # Step 8: Obfuscation Analysis (run before LLM so the verdict can use it)
+    step_start = time.time()
+    try:
+        obfuscation_result = analyze_obfuscation(apk_path, work_dir, sample_id=sample_id)
+    except Exception as e:
+        obfuscation_result = {
+            "sample_id": sample_id,
+            "obfuscation_score": 0.0,
+            "obfuscation_level": "low",
+            "indicators": {},
+            "dex_entropy": [],
+            "native_library_artifacts": [],
+            "notes": [f"Obfuscation analysis failed: {e}"],
+        }
+    timeline["step8"] = round(time.time() - step_start, 2)
+
     # Step 7: LLM Assessment
     step_start = time.time()
     try:
-        llm_assessment = assess_with_llm(chains_result, c2_result)
+        llm_assessment = assess_with_llm(chains_result, c2_result, obfuscation_result)
     except Exception as e:
         llm_assessment = {
             "severity": "low",
@@ -185,6 +204,20 @@ def run_pipeline(apk_path: str, work_dir: str = "analysis/work",
 
     duration = round(time.time() - start_time, 2)
     timeline["total"] = duration
+
+    # Save structural APK dissection (fast, cached for dashboard)
+    try:
+        dissector = APKDissector(apk_path, work_dir=work_dir)
+        dissection_data = dissector.dissect()
+        dissection_path = Path(work_dir) / sample_id / "dissection.json"
+        with open(dissection_path, "w", encoding="utf-8") as f:
+            json.dump(dissection_data, f, indent=2, default=str)
+    except Exception as e:
+        # Dissection should never fail the full pipeline
+        _emit(event_emitter, "error", {
+            "sample_id": sample_id,
+            "message": f"Dissection save failed: {e}",
+        })
 
     result = {
         "sample_id": sample_id,
@@ -208,6 +241,7 @@ def run_pipeline(apk_path: str, work_dir: str = "analysis/work",
         "c2_infrastructure": c2_result["c2_infrastructure"],
         "threat_chains": chains_result["threat_chains"],
         "llm_assessment": llm_assessment,
+        "obfuscation_analysis": obfuscation_result,
         "timeline": timeline,
     }
 

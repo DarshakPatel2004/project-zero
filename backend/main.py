@@ -9,7 +9,7 @@ import json
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Dict, List, Set
+from typing import Dict, List, Optional, Set
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -26,6 +26,7 @@ from backend.transformers import (
     transform_timeline,
     transform_samples_list,
 )
+from backend.dissection import APKDissector, load_dissection
 
 
 # ---------------------------------------------------------------------------
@@ -179,6 +180,218 @@ async def api_get_timeline(sample_id: str) -> dict:
     if result is None:
         raise HTTPException(status_code=404, detail="Sample not found")
     return transform_timeline(result)
+
+
+# ---------------------------------------------------------------------------
+# APK dissection endpoints
+# ---------------------------------------------------------------------------
+
+WORK_DIR = Path("analysis/work")
+
+
+def _get_sample_apk_path(sample_id: str) -> Optional[Path]:
+    """Find the original APK path for a sample from its work directory."""
+    result = load_result(sample_id)
+    if result is None:
+        return None
+    sample_name = result.get("metadata", {}).get("sample_name")
+    if not sample_name:
+        return None
+
+    # Fast paths: common locations
+    candidates = [
+        WORK_DIR / sample_id / sample_name,
+        Path("samples") / "malware" / sample_name,
+        Path("samples") / "malware" / "androzoo_drebin" / sample_name,
+        Path("samples") / "malware" / "bazaar" / sample_name,
+        Path("samples") / "malware" / "contagio" / sample_name,
+        Path("samples") / "malware" / "github" / sample_name,
+        Path("samples") / "malware" / "koodous" / sample_name,
+        Path("samples") / "legitimate" / sample_name,
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+
+    # Fallback: recursive search under samples/ (slower but thorough)
+    samples_root = Path("samples")
+    if samples_root.exists():
+        for candidate in samples_root.rglob(sample_name):
+            if candidate.is_file():
+                return candidate
+
+    return None
+
+
+@app.get("/api/sample/{sample_id}/dissection")
+async def api_get_dissection(sample_id: str) -> dict:
+    """Get full dissected APK structure (cached or on-demand)."""
+    result = load_result(sample_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Sample not found")
+
+    # Prefer cached dissection.json
+    cached = load_dissection(str(WORK_DIR), sample_id)
+    if cached is not None:
+        return cached
+
+    apk_path = _get_sample_apk_path(sample_id)
+    if apk_path is None:
+        raise HTTPException(status_code=404, detail="APK file not found for sample")
+
+    try:
+        dissector = APKDissector(str(apk_path), work_dir=str(WORK_DIR))
+        return dissector.dissect()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Dissection failed: {e}")
+
+
+@app.get("/api/sample/{sample_id}/dissection/manifest")
+async def api_get_dissection_manifest(sample_id: str) -> dict:
+    """Get parsed AndroidManifest.xml."""
+    result = load_result(sample_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Sample not found")
+
+    cached = load_dissection(str(WORK_DIR), sample_id)
+    if cached is not None:
+        return {"manifest": cached.get("manifest", {})}
+
+    apk_path = _get_sample_apk_path(sample_id)
+    if apk_path is None:
+        raise HTTPException(status_code=404, detail="APK file not found for sample")
+
+    try:
+        dissector = APKDissector(str(apk_path), work_dir=str(WORK_DIR))
+        return {"manifest": dissector.extract_manifest()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Dissection failed: {e}")
+
+
+@app.get("/api/sample/{sample_id}/dissection/permissions")
+async def api_get_dissection_permissions(sample_id: str) -> dict:
+    """Get declared permissions with risk levels."""
+    result = load_result(sample_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Sample not found")
+
+    cached = load_dissection(str(WORK_DIR), sample_id)
+    if cached is not None:
+        return {"permissions": cached.get("permissions", [])}
+
+    apk_path = _get_sample_apk_path(sample_id)
+    if apk_path is None:
+        raise HTTPException(status_code=404, detail="APK file not found for sample")
+
+    try:
+        dissector = APKDissector(str(apk_path), work_dir=str(WORK_DIR))
+        return {"permissions": dissector.extract_permissions()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Dissection failed: {e}")
+
+
+@app.get("/api/sample/{sample_id}/dissection/components")
+async def api_get_dissection_components(sample_id: str) -> dict:
+    """Get activities, services, receivers, providers."""
+    result = load_result(sample_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Sample not found")
+
+    cached = load_dissection(str(WORK_DIR), sample_id)
+    if cached is not None:
+        return {"components": cached.get("components", {})}
+
+    apk_path = _get_sample_apk_path(sample_id)
+    if apk_path is None:
+        raise HTTPException(status_code=404, detail="APK file not found for sample")
+
+    try:
+        dissector = APKDissector(str(apk_path), work_dir=str(WORK_DIR))
+        return {"components": dissector.extract_components()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Dissection failed: {e}")
+
+
+@app.get("/api/sample/{sample_id}/dissection/dex")
+async def api_get_dissection_dex(sample_id: str) -> dict:
+    """Get DEX statistics."""
+    result = load_result(sample_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Sample not found")
+
+    cached = load_dissection(str(WORK_DIR), sample_id)
+    if cached is not None:
+        return {"dex_stats": cached.get("dex_stats", {})}
+
+    apk_path = _get_sample_apk_path(sample_id)
+    if apk_path is None:
+        raise HTTPException(status_code=404, detail="APK file not found for sample")
+
+    try:
+        dissector = APKDissector(str(apk_path), work_dir=str(WORK_DIR))
+        return {"dex_stats": dissector.extract_dex_stats()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Dissection failed: {e}")
+
+
+@app.get("/api/sample/{sample_id}/dissection/classes")
+async def api_get_dissection_classes(sample_id: str) -> dict:
+    """Get list of decompiled Java class names."""
+    result = load_result(sample_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Sample not found")
+
+    apk_path = _get_sample_apk_path(sample_id)
+    if apk_path is None:
+        raise HTTPException(status_code=404, detail="APK file not found for sample")
+
+    try:
+        dissector = APKDissector(str(apk_path), work_dir=str(WORK_DIR))
+        classes = dissector.list_decompiled_classes()
+        return {"classes": classes, "total": len(classes)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Dissection failed: {e}")
+
+
+@app.get("/api/sample/{sample_id}/dissection/code/{class_name}")
+async def api_get_class_code(sample_id: str, class_name: str) -> dict:
+    """Get decompiled source for a specific Java class."""
+    result = load_result(sample_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Sample not found")
+
+    apk_path = _get_sample_apk_path(sample_id)
+    if apk_path is None:
+        raise HTTPException(status_code=404, detail="APK file not found for sample")
+
+    try:
+        dissector = APKDissector(str(apk_path), work_dir=str(WORK_DIR))
+        code = dissector.read_class_source(class_name)
+        if code is None:
+            raise HTTPException(status_code=404, detail="Class source not found")
+        return {"class_name": class_name, "code": code}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Dissection failed: {e}")
+
+
+@app.get("/api/sample/{sample_id}/dissection/strings")
+async def api_get_dissection_strings(sample_id: str) -> dict:
+    """Get extracted strings from Step 2 result."""
+    result = load_result(sample_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Sample not found")
+
+    strings_path = WORK_DIR / sample_id / "step2_strings.json"
+    if not strings_path.exists():
+        raise HTTPException(status_code=404, detail="Strings not found for sample")
+
+    try:
+        with open(strings_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to load strings: {e}")
 
 
 # Legacy endpoints (kept for backward compatibility)
