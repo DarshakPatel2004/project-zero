@@ -29,6 +29,7 @@
 # Validation reports
 !VALIDATION_REPORT.md
 !FAILURE_ANALYSIS.md
+!report.md
 
 # 7. Explicitly ignore environment and secrets files
 .env
@@ -81,3 +82,5 @@ tools/
 # OS
 .DS_Store
 Thumbs.db
+
+.ps1
