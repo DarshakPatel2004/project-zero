@@ -9,6 +9,8 @@ import json
 from pathlib import Path
 from typing import Dict, List, Any
 
+from backend.config import settings
+
 
 class CorrelationError(Exception):
     """Raised when correlation fails."""
@@ -46,7 +48,7 @@ def build_threat_chains(encodings_result: dict, payloads_result: dict,
         dict with threat chains.
     """
     sample_id = encodings_result["sample_id"]
-    work_dir = Path("analysis/work") / sample_id
+    work_dir = settings.WORK_DIR / sample_id
     work_dir.mkdir(parents=True, exist_ok=True)
 
     chains = []

@@ -2,16 +2,18 @@
 Step 1: APK Extraction & Decompilation
 
 Unpacks APK using apktool, decompiles DEX to Java using jadx-cli,
-extracts native library strings using radare2, and generates metadata.
+extracts native library strings using the `strings` utility (Windows-native
+when available via Git Bash or Sysinternals), and generates metadata.
 """
 
 import hashlib
 import json
-import os
 import shutil
 import subprocess
 from pathlib import Path
 from typing import Optional
+
+from backend.config import settings
 
 
 class APKExtractionError(Exception):
@@ -37,11 +39,17 @@ def compute_md5(file_path: str) -> str:
     return h.hexdigest()
 
 
+def _tool_cmd(path: str) -> list:
+    """Return a subprocess-ready command list from a configured tool path."""
+    tool = Path(path)
+    return [str(tool)] if tool.exists() else [path]
+
+
 def run_apktool(apk_path: str, output_dir: str) -> dict:
     """Run apktool to unpack APK. Returns result dict."""
     result = {"success": False, "output_dir": output_dir, "error": None}
     try:
-        cmd = ["apktool", "d", "-f", "-o", output_dir, apk_path]
+        cmd = _tool_cmd(settings.APKTOOL_PATH) + ["d", "-f", "-o", output_dir, apk_path]
         proc = subprocess.run(
             cmd, capture_output=True, text=True, timeout=120
         )
@@ -52,7 +60,7 @@ def run_apktool(apk_path: str, output_dir: str) -> dict:
     except subprocess.TimeoutExpired:
         result["error"] = "apktool timed out after 120s"
     except FileNotFoundError:
-        result["error"] = "apktool not found in PATH"
+        result["error"] = "apktool not found; check APKTOOL_PATH in backend/config.py"
     except Exception as e:
         result["error"] = str(e)
     return result
@@ -62,8 +70,7 @@ def run_jadx(apk_path: str, output_dir: str) -> dict:
     """Run jadx-cli to decompile DEX to Java source."""
     result = {"success": False, "output_dir": output_dir, "error": None}
     try:
-        cmd = [
-            "jadx",
+        cmd = _tool_cmd(settings.JADX_PATH) + [
             "-d", output_dir,
             "--deobf",
             "--deobf-min", "2",
@@ -79,58 +86,62 @@ def run_jadx(apk_path: str, output_dir: str) -> dict:
     except subprocess.TimeoutExpired:
         result["error"] = "jadx timed out after 300s"
     except FileNotFoundError:
-        result["error"] = "jadx not found in PATH"
+        result["error"] = "jadx not found; check JADX_PATH in backend/config.py"
     except Exception as e:
         result["error"] = str(e)
     return result
 
 
+def _extract_printable_strings(data: bytes, min_len: int = 6) -> list:
+    """Pure-Python fallback to extract printable ASCII strings."""
+    strings = []
+    current = bytearray()
+    for b in data:
+        if 32 <= b <= 126:
+            current.append(b)
+        else:
+            if len(current) >= min_len:
+                strings.append(current.decode("ascii", errors="ignore"))
+            current.clear()
+    if len(current) >= min_len:
+        strings.append(current.decode("ascii", errors="ignore"))
+    return strings
+
+
 def extract_native_strings(apk_dir: str) -> list:
-    """Extract strings from native .so libraries using radare2."""
+    """Extract strings from native .so libraries using `strings` or a Python fallback."""
     strings = []
     lib_dir = Path(apk_dir) / "lib"
     if not lib_dir.exists():
         return strings
 
+    strings_bin = shutil.which("strings")
+
     for so_file in lib_dir.rglob("*.so"):
         try:
-            cmd = ["r2", "-qq", "-c", "iz", str(so_file)]
-            proc = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=60
-            )
-            if proc.returncode == 0:
-                for line in proc.stdout.splitlines():
-                    line = line.strip()
-                    if not line:
-                        continue
-                    # r2 iz output format varies; extract quoted strings
-                    if '"' in line:
-                        parts = line.split('"')
-                        if len(parts) >= 2:
-                            s = parts[1].strip()
-                            if s:
-                                strings.append({
-                                    "value": s,
-                                    "source": str(so_file.relative_to(apk_dir)),
-                                })
-            else:
-                # Fallback: use rabin2 -zz
-                cmd = ["rabin2", "-zz", str(so_file)]
+            with open(so_file, "rb") as f:
+                data = f.read()
+
+            if strings_bin:
                 proc = subprocess.run(
-                    cmd, capture_output=True, text=True, timeout=60
+                    [strings_bin, "-n", "6", "-"],
+                    input=data,
+                    capture_output=True,
+                    timeout=60,
                 )
-                if proc.returncode == 0:
-                    for line in proc.stdout.splitlines():
-                        line = line.strip()
-                        if line.startswith("0x") and "   " in line:
-                            parts = line.split("   ", 1)
-                            if len(parts) == 2:
-                                s = parts[1].strip()
-                                if s:
-                                    strings.append({
-                                        "value": s,
-                                        "source": str(so_file.relative_to(apk_dir)),
-                                    })
+                text = proc.stdout.decode("utf-8", errors="ignore")
+                lines = text.splitlines()
+            else:
+                lines = _extract_printable_strings(data, min_len=6)
+
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+                strings.append({
+                    "value": line,
+                    "source": str(so_file.relative_to(apk_dir)),
+                })
         except Exception:
             continue
     return strings
@@ -161,13 +172,14 @@ def count_decompiled_classes(output_dir: str) -> int:
     return len(list(java_dir.rglob("*.java")))
 
 
-def extract_apk(apk_path: str, work_dir: str) -> dict:
+def extract_apk(apk_path: str, work_dir: Optional[str] = None) -> dict:
     """
     Full Step 1: Extract and decompile an APK.
 
     Args:
         apk_path: Path to the APK file.
-        work_dir: Working directory for intermediate outputs.
+        work_dir: Working directory for intermediate outputs. Defaults to
+            settings.WORK_DIR.
 
     Returns:
         dict with extraction results, metadata, and status.
@@ -176,7 +188,8 @@ def extract_apk(apk_path: str, work_dir: str) -> dict:
     if not apk_path.exists():
         raise APKExtractionError(f"APK not found: {apk_path}")
 
-    work_dir = Path(work_dir).resolve()
+    work_dir = Path(work_dir) if work_dir else settings.WORK_DIR
+    work_dir = work_dir.resolve()
     work_dir.mkdir(parents=True, exist_ok=True)
 
     sample_id = compute_sha256(str(apk_path))
@@ -245,5 +258,5 @@ if __name__ == "__main__":
         print("Usage: python step1_apk_extraction.py <apk_path> [work_dir]")
         sys.exit(1)
     apk = sys.argv[1]
-    work = sys.argv[2] if len(sys.argv) > 2 else "analysis/work"
+    work = sys.argv[2] if len(sys.argv) > 2 else str(settings.WORK_DIR)
     print(json.dumps(extract_apk(apk, work), indent=2))

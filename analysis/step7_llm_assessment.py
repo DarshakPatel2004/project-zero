@@ -21,6 +21,8 @@ import time
 from pathlib import Path
 from typing import Dict, Any, Optional
 
+from backend.config import settings
+
 
 class LLMAssessmentError(Exception):
     """Raised when LLM assessment fails."""
@@ -310,7 +312,7 @@ def assess_with_llm(chains_result: dict, c2_result: dict, obfuscation_result: Op
     Prefers NVIDIA NIM if NVIDIA_NIM_API_KEY is set, otherwise falls back to Ollama.
     """
     sample_id = chains_result["sample_id"]
-    work_dir = Path("analysis/work") / sample_id
+    work_dir = settings.WORK_DIR / sample_id
     work_dir.mkdir(parents=True, exist_ok=True)
 
     context = format_threat_context(chains_result, c2_result, obfuscation_result)
@@ -339,8 +341,8 @@ def assess_with_llm(chains_result: dict, c2_result: dict, obfuscation_result: Op
                 time.sleep(1)
     else:
         # Fall back to local Ollama
-        ollama_host = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
-        ollama_model = os.environ.get("OLLAMA_MODEL", "llama3.2:3b")
+        ollama_host = os.environ.get("OLLAMA_HOST", settings.OLLAMA_HOST)
+        ollama_model = os.environ.get("OLLAMA_MODEL", settings.OLLAMA_MODEL)
         print(f"  [*] Using Ollama model: {ollama_model} at {ollama_host}")
 
         for attempt in range(max_retries):

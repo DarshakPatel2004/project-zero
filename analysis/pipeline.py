@@ -19,6 +19,7 @@ import time
 from pathlib import Path
 from typing import Callable, Optional
 
+from backend.config import settings
 from analysis.step1_apk_extraction import extract_apk
 from analysis.step2_string_enumeration import enumerate_strings
 from analysis.step3_encoding_detection import detect_encoding
@@ -48,19 +49,21 @@ def _emit(emitter: EventEmitter, event_type: str, data: dict):
             pass
 
 
-def run_pipeline(apk_path: str, work_dir: str = "analysis/work",
+def run_pipeline(apk_path: str, work_dir: Optional[str] = None,
                  event_emitter: EventEmitter = None) -> dict:
     """
     Run the full analysis pipeline on an APK.
 
     Args:
         apk_path: Path to APK file.
-        work_dir: Working directory for intermediate outputs.
+        work_dir: Working directory for intermediate outputs. Defaults to
+            settings.WORK_DIR.
         event_emitter: Optional callback for emitting events.
 
     Returns:
         dict with full analysis results.
     """
+    work_dir = str(work_dir) if work_dir else str(settings.WORK_DIR)
     start_time = time.time()
     timeline = {}
 
@@ -270,7 +273,7 @@ if __name__ == "__main__":
         print("Usage: python pipeline.py <apk_path> [work_dir]")
         sys.exit(1)
     apk = sys.argv[1]
-    work = sys.argv[2] if len(sys.argv) > 2 else "analysis/work"
+    work = sys.argv[2] if len(sys.argv) > 2 else str(settings.WORK_DIR)
 
     def print_event(event_type, data):
         print(f"[EVENT] {event_type}: {json.dumps(data, default=str)[:150]}")

@@ -8,11 +8,12 @@ each extracted value and outputs structured JSON.
 
 import json
 import math
-import os
 import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import List, Dict, Any, Optional
+
+from backend.config import settings
 
 
 class StringEnumerationError(Exception):
@@ -229,7 +230,11 @@ def enumerate_strings(extraction_result: dict) -> dict:
         dict with categorized strings and metadata.
     """
     sample_id = extraction_result["sample_id"]
-    work_dir = Path(extraction_result.get("apktool_output_dir", "analysis/work")).parent
+    apktool_output_dir = extraction_result.get("apktool_output_dir")
+    if apktool_output_dir:
+        work_dir = Path(apktool_output_dir).parent
+    else:
+        work_dir = settings.WORK_DIR / sample_id
     work_dir.mkdir(parents=True, exist_ok=True)
 
     apktool_dir = extraction_result.get("apktool_output_dir")

@@ -5,6 +5,7 @@ websockets
 
 # Data Validation
 pydantic
+pydantic-settings
 
 # HTTP Client
 requests

@@ -16,6 +16,8 @@ from urllib.parse import urlparse
 
 import phonenumbers
 
+from backend.config import settings
+
 
 class DecodingError(Exception):
     """Raised when decoding fails."""
@@ -279,7 +281,7 @@ def decode_payloads(encodings_result: dict) -> dict:
         dict with decoded payloads.
     """
     sample_id = encodings_result["sample_id"]
-    work_dir = Path("analysis/work") / sample_id
+    work_dir = settings.WORK_DIR / sample_id
     work_dir.mkdir(parents=True, exist_ok=True)
 
     payloads = []

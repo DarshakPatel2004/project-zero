@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional
 from urllib.parse import urlparse, parse_qs
 
+from backend.config import settings
 
 try:
     from backend.circl_client import CIRCLAuthError, CIRCLClient, CIRCLClientError
@@ -306,7 +307,7 @@ def extract_c2_infrastructure(payloads_result: dict, strings_result: dict) -> di
         dict with C2 records.
     """
     sample_id = payloads_result["sample_id"]
-    work_dir = Path("analysis/work") / sample_id
+    work_dir = settings.WORK_DIR / sample_id
     work_dir.mkdir(parents=True, exist_ok=True)
 
     c2_records = []
