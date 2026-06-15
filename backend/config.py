@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     NIM_MODEL: Optional[str] = None
     NIM_API_KEY: Optional[str] = None
 
+    # LLM provider selection: "auto" (default), "nvidia", or "ollama".
+    # "auto" prefers NVIDIA NIM if NVIDIA_NIM_API_KEY is set, otherwise Ollama.
+    LLM_PROVIDER: str = "auto"
+
     # Pipeline settings
     STEP_TIMEOUT: int = 300  # seconds per step
     MAX_UPLOAD_SIZE_MB: int = 100
