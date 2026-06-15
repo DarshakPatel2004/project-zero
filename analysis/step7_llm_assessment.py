@@ -320,11 +320,15 @@ def assess_with_llm(chains_result: dict, c2_result: dict, obfuscation_result: Op
     raw_output = ""
     max_retries = 3
 
-    # Prefer NVIDIA NIM if API key is configured
+    # Determine provider: explicit setting overrides auto-detection.
+    provider = (os.environ.get("LLM_PROVIDER") or settings.LLM_PROVIDER or "auto").lower()
     nim_api_key = os.environ.get("NVIDIA_NIM_API_KEY")
-    if nim_api_key:
-        nim_model = os.environ.get("NVIDIA_NIM_MODEL", "nvidia/nvidia-nemotron-nano-9b-v2")
-        nim_base_url = os.environ.get("NVIDIA_NIM_BASE_URL", "https://integrate.api.nvidia.com/v1")
+    use_nvidia = provider == "nvidia" or (provider == "auto" and nim_api_key)
+
+    if use_nvidia:
+        # NVIDIA NIM path
+        nim_model = os.environ.get("NVIDIA_NIM_MODEL", settings.NIM_MODEL or "nvidia/nemotron-nano-9b-v2")
+        nim_base_url = os.environ.get("NVIDIA_NIM_BASE_URL", settings.NIM_HOST or "https://integrate.api.nvidia.com/v1")
         print(f"  [*] Using NVIDIA NIM model: {nim_model}")
 
         for attempt in range(max_retries):
@@ -340,7 +344,7 @@ def assess_with_llm(chains_result: dict, c2_result: dict, obfuscation_result: Op
                 context = messages_note + context
                 time.sleep(1)
     else:
-        # Fall back to local Ollama
+        # Local Ollama path
         ollama_host = os.environ.get("OLLAMA_HOST", settings.OLLAMA_HOST)
         ollama_model = os.environ.get("OLLAMA_MODEL", settings.OLLAMA_MODEL)
         print(f"  [*] Using Ollama model: {ollama_model} at {ollama_host}")
