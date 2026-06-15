@@ -8,6 +8,7 @@ when available via Git Bash or Sysinternals), and generates metadata.
 
 import hashlib
 import json
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -51,7 +52,7 @@ def run_apktool(apk_path: str, output_dir: str) -> dict:
     try:
         cmd = _tool_cmd(settings.APKTOOL_PATH) + ["d", "-f", "-o", output_dir, apk_path]
         proc = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=120
+            cmd, capture_output=True, text=True, timeout=120, shell=(os.name == "nt")
         )
         if proc.returncode == 0:
             result["success"] = True
@@ -77,7 +78,7 @@ def run_jadx(apk_path: str, output_dir: str) -> dict:
             apk_path,
         ]
         proc = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=300
+            cmd, capture_output=True, text=True, timeout=300, shell=(os.name == "nt")
         )
         if proc.returncode == 0:
             result["success"] = True
@@ -109,16 +110,61 @@ def _extract_printable_strings(data: bytes, min_len: int = 6) -> list:
 
 
 def extract_native_strings(apk_dir: str) -> list:
-    """Extract strings from native .so libraries using `strings` or a Python fallback."""
+    """Extract strings from native .so libraries using r2, rabin2, strings, or a Python fallback."""
     strings = []
     lib_dir = Path(apk_dir) / "lib"
     if not lib_dir.exists():
         return strings
 
     strings_bin = shutil.which("strings")
+    r2_bin = shutil.which("r2")
+    rabin2_bin = shutil.which("rabin2")
 
     for so_file in lib_dir.rglob("*.so"):
         try:
+            # Method 1: radare2 (r2)
+            if r2_bin:
+                cmd = [r2_bin, "-qq", "-c", "iz", str(so_file)]
+                proc = subprocess.run(
+                    cmd, capture_output=True, text=True, timeout=60, shell=(os.name == "nt")
+                )
+                if proc.returncode == 0:
+                    for line in proc.stdout.splitlines():
+                        line = line.strip()
+                        if not line:
+                            continue
+                        if '"' in line:
+                            parts = line.split('"')
+                            if len(parts) >= 2:
+                                s = parts[1].strip()
+                                if s:
+                                    strings.append({
+                                        "value": s,
+                                        "source": so_file.relative_to(apk_dir).as_posix(),
+                                    })
+                    continue
+
+            # Method 2: rabin2
+            if rabin2_bin:
+                cmd = [rabin2_bin, "-zz", str(so_file)]
+                proc = subprocess.run(
+                    cmd, capture_output=True, text=True, timeout=60, shell=(os.name == "nt")
+                )
+                if proc.returncode == 0:
+                    for line in proc.stdout.splitlines():
+                        line = line.strip()
+                        if line.startswith("0x") and "   " in line:
+                            parts = line.split("   ", 1)
+                            if len(parts) == 2:
+                                s = parts[1].strip()
+                                if s:
+                                    strings.append({
+                                        "value": s,
+                                        "source": so_file.relative_to(apk_dir).as_posix(),
+                                    })
+                    continue
+
+            # Method 3: strings command or Python fallback
             with open(so_file, "rb") as f:
                 data = f.read()
 
@@ -140,7 +186,7 @@ def extract_native_strings(apk_dir: str) -> list:
                     continue
                 strings.append({
                     "value": line,
-                    "source": str(so_file.relative_to(apk_dir)),
+                    "source": so_file.relative_to(apk_dir).as_posix(),
                 })
         except Exception:
             continue

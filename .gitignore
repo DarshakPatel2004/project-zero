@@ -9,30 +9,6 @@
 # 2. Allow traversing directories to find allowed files
 !**/
 
-# 3. Do not traverse or allow anything in these specific directories
-.git/
-.venv/
-venv/
-node_modules/
-.pytest_cache/
-.code-review-graph/
-graphify-out/
-claude_files/
-reports/
-data/
-samples/
-CICAndMal2017/
-koodous/
-__pycache__/
-analysis/work/
-
-# 4. Allow Project Source Files
-!**/*.py
-!**/*.js
-!**/*.jsx
-!**/*.html
-!**/*.css
-
 # 5. Allow Assets
 !**/*.svg
 !**/*.png
@@ -55,3 +31,49 @@ analysis/work/
 .env.*
 keys.txt
 setenv.sh
+
+# 3. Do not traverse or allow anything in these specific directories
+.git/
+.venv/
+venv/
+node_modules/
+.pytest_cache/
+.code-review-graph/
+graphify-out/
+claude_files/
+reports/
+data/
+samples/
+CICAndMal2017/
+koodous/
+__pycache__/
+analysis/work/
+
+# IDE & Editor files
+.vscode/
+.idea/
+.mcp.json
+.windsurfrules
+.cursor/
+.jetro/
+.claude/
+.gemini/
+.kiro/
+.qoder/
+.agents/
+.cursorrules
+.github/code-review-graph.instruction.md
+.opencode.json
+AGENTS.md
+GEMINI.md
+QODER.md
+
+# Added by code-review-graph
+.code-review-graph/
+
+# Local tools bin directory
+tools/
+
+# OS
+.DS_Store
+Thumbs.db
