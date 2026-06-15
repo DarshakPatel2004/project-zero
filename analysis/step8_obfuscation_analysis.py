@@ -122,6 +122,25 @@ DANGEROUS_PERMISSIONS = [
     "WRITE_EXTERNAL_STORAGE",
 ]
 
+# Benign framework / support-library class prefixes. Reflection and dynamic
+# loading usages inside these packages are overwhelmingly legitimate framework
+# boilerplate (e.g. Fragment lifecycle, View inflation, Parcelable restoration)
+# and inflate the obfuscation score for benign apps.
+BENIGN_CLASS_PREFIXES = (
+    "Landroid/support/",
+    "Landroidx/",
+    "Lcom/google/android/",
+    "Lcom/android/",
+    "Lorg/apache/",
+    "Lkotlin/",
+    "Lkotlinx/",
+    "Ljunit/",
+    "Lokhttp3/",
+    "Lretrofit2/",
+    "Lcom/squareup/",
+    "Lio/reactivex/",
+)
+
 URL_RE = re.compile(r'https?://[^\s"\'<>]+', re.IGNORECASE)
 IP_RE = re.compile(r'\b(?:(?:25[0-5]|2[0-4]\d|[01]?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d?\d)\b')
 DOMAIN_RE = re.compile(r'\b(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}\b')
@@ -130,6 +149,14 @@ DOMAIN_RE = re.compile(r'\b(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def is_benign_framework_method(method_name: str) -> bool:
+    """Return True if method belongs to a known benign framework/library class."""
+    for prefix in BENIGN_CLASS_PREFIXES:
+        if method_name.startswith(prefix):
+            return True
+    return False
+
 
 def shannon_entropy(data: bytes) -> float:
     """Calculate Shannon entropy of bytes."""
@@ -276,6 +303,10 @@ def analyze_with_androguard(apk_path: Path) -> Dict[str, Any]:
         try:
             method_name = method.full_name
             if not method_name:
+                continue
+
+            # Skip framework/library boilerplate that skews benign app scores
+            if is_benign_framework_method(method_name):
                 continue
 
             for pattern in REFLECTION_PATTERNS:
