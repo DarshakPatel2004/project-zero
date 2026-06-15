@@ -10,9 +10,12 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Dict, List, Optional, Set
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+import hashlib
+import uuid
 
 from analysis.pipeline import run_pipeline
 from backend.config import settings
@@ -63,8 +66,8 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-# In-memory store for sample results
-sample_results: Dict[str, dict] = {}
+# In-memory store for upload -> sample mapping and analysis status
+upload_registry: Dict[str, dict] = {}
 sample_status: Dict[str, dict] = {}
 
 
@@ -126,7 +129,7 @@ app = FastAPI(title="DroidForensix Backend", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
@@ -203,6 +206,8 @@ def _get_sample_apk_path(sample_id: str) -> Optional[Path]:
     # Fast paths: common locations
     candidates = [
         WORK_DIR / sample_id / sample_name,
+        settings.UPLOADS_DIR / sample_id / sample_name,
+        settings.UPLOADS_DIR / sample_id / "file.apk",
         settings.SAMPLES_DIR / "malware" / sample_name,
         settings.SAMPLES_DIR / "malware" / "androzoo_drebin" / sample_name,
         settings.SAMPLES_DIR / "malware" / "bazaar" / sample_name,
@@ -215,23 +220,21 @@ def _get_sample_apk_path(sample_id: str) -> Optional[Path]:
         if candidate.exists():
             return candidate
 
-    # Fallback: recursive search under samples/ (slower but thorough)
-    if settings.SAMPLES_DIR.exists():
-        for candidate in settings.SAMPLES_DIR.rglob(sample_name):
-            if candidate.is_file():
-                return candidate
+    # Fallback: recursive search under samples/ and uploads/ (slower but thorough)
+    for base_dir in (settings.SAMPLES_DIR, settings.UPLOADS_DIR):
+        if base_dir.exists():
+            for candidate in base_dir.rglob(sample_name):
+                if candidate.is_file():
+                    return candidate
+            for candidate in base_dir.rglob("file.apk"):
+                if candidate.is_file():
+                    return candidate
 
     return None
 
 
-@app.get("/api/sample/{sample_id}/dissection")
-async def api_get_dissection(sample_id: str) -> dict:
-    """Get full dissected APK structure (cached or on-demand)."""
-    result = load_result(sample_id)
-    if result is None:
-        raise HTTPException(status_code=404, detail="Sample not found")
-
-    # Prefer cached dissection.json
+def _get_or_create_dissection(sample_id: str) -> dict:
+    """Return cached dissection.json or generate and cache it."""
     cached = load_dissection(str(WORK_DIR), sample_id)
     if cached is not None:
         return cached
@@ -242,9 +245,27 @@ async def api_get_dissection(sample_id: str) -> dict:
 
     try:
         dissector = APKDissector(str(apk_path), work_dir=str(WORK_DIR))
-        return dissector.dissect()
+        data = dissector.dissect()
+        # Cache for future requests
+        dissection_path = WORK_DIR / sample_id / "dissection.json"
+        try:
+            with open(dissection_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, default=str)
+        except Exception:
+            pass
+        return data
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Dissection failed: {e}")
+
+
+@app.get("/api/sample/{sample_id}/dissection")
+async def api_get_dissection(sample_id: str) -> dict:
+    """Get full dissected APK structure (cached or on-demand)."""
+    result = load_result(sample_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Sample not found")
+
+    return _get_or_create_dissection(sample_id)
 
 
 @app.get("/api/sample/{sample_id}/dissection/manifest")
@@ -254,19 +275,8 @@ async def api_get_dissection_manifest(sample_id: str) -> dict:
     if result is None:
         raise HTTPException(status_code=404, detail="Sample not found")
 
-    cached = load_dissection(str(WORK_DIR), sample_id)
-    if cached is not None:
-        return {"manifest": cached.get("manifest", {})}
-
-    apk_path = _get_sample_apk_path(sample_id)
-    if apk_path is None:
-        raise HTTPException(status_code=404, detail="APK file not found for sample")
-
-    try:
-        dissector = APKDissector(str(apk_path), work_dir=str(WORK_DIR))
-        return {"manifest": dissector.extract_manifest()}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Dissection failed: {e}")
+    data = _get_or_create_dissection(sample_id)
+    return {"manifest": data.get("manifest", {})}
 
 
 @app.get("/api/sample/{sample_id}/dissection/permissions")
@@ -276,19 +286,8 @@ async def api_get_dissection_permissions(sample_id: str) -> dict:
     if result is None:
         raise HTTPException(status_code=404, detail="Sample not found")
 
-    cached = load_dissection(str(WORK_DIR), sample_id)
-    if cached is not None:
-        return {"permissions": cached.get("permissions", [])}
-
-    apk_path = _get_sample_apk_path(sample_id)
-    if apk_path is None:
-        raise HTTPException(status_code=404, detail="APK file not found for sample")
-
-    try:
-        dissector = APKDissector(str(apk_path), work_dir=str(WORK_DIR))
-        return {"permissions": dissector.extract_permissions()}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Dissection failed: {e}")
+    data = _get_or_create_dissection(sample_id)
+    return {"permissions": data.get("permissions", [])}
 
 
 @app.get("/api/sample/{sample_id}/dissection/components")
@@ -298,19 +297,8 @@ async def api_get_dissection_components(sample_id: str) -> dict:
     if result is None:
         raise HTTPException(status_code=404, detail="Sample not found")
 
-    cached = load_dissection(str(WORK_DIR), sample_id)
-    if cached is not None:
-        return {"components": cached.get("components", {})}
-
-    apk_path = _get_sample_apk_path(sample_id)
-    if apk_path is None:
-        raise HTTPException(status_code=404, detail="APK file not found for sample")
-
-    try:
-        dissector = APKDissector(str(apk_path), work_dir=str(WORK_DIR))
-        return {"components": dissector.extract_components()}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Dissection failed: {e}")
+    data = _get_or_create_dissection(sample_id)
+    return {"components": data.get("components", {})}
 
 
 @app.get("/api/sample/{sample_id}/dissection/dex")
@@ -320,19 +308,8 @@ async def api_get_dissection_dex(sample_id: str) -> dict:
     if result is None:
         raise HTTPException(status_code=404, detail="Sample not found")
 
-    cached = load_dissection(str(WORK_DIR), sample_id)
-    if cached is not None:
-        return {"dex_stats": cached.get("dex_stats", {})}
-
-    apk_path = _get_sample_apk_path(sample_id)
-    if apk_path is None:
-        raise HTTPException(status_code=404, detail="APK file not found for sample")
-
-    try:
-        dissector = APKDissector(str(apk_path), work_dir=str(WORK_DIR))
-        return {"dex_stats": dissector.extract_dex_stats()}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Dissection failed: {e}")
+    data = _get_or_create_dissection(sample_id)
+    return {"dex_stats": data.get("dex_stats", {})}
 
 
 @app.get("/api/sample/{sample_id}/dissection/classes")
@@ -408,26 +385,143 @@ async def get_sample(sample_id: str) -> dict:
     return await api_get_sample(sample_id)
 
 
-@app.post("/analyze")
-async def analyze(request: AnalyzeRequest) -> dict:
-    """Trigger analysis of an APK (REST fallback)."""
-    apk_path = request.apk_path
+# ---------------------------------------------------------------------------
+# Upload and analysis endpoints
+# ---------------------------------------------------------------------------
+
+@app.post("/api/upload")
+async def api_upload_file(file: UploadFile = File(...)) -> dict:
+    """Upload an APK file and return an upload ID for analysis."""
+    upload_id = str(uuid.uuid4())
+    upload_dir = settings.UPLOADS_DIR / upload_id
+    upload_dir.mkdir(parents=True, exist_ok=True)
+
+    dest_path = upload_dir / "file.apk"
+    try:
+        with open(dest_path, "wb") as f:
+            content = await file.read()
+            f.write(content)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save uploaded file: {e}")
+
+    # Compute SHA256 for client-side preview
+    sha256 = hashlib.sha256(dest_path.read_bytes()).hexdigest()
+
+    upload_registry[upload_id] = {
+        "upload_id": upload_id,
+        "filename": file.filename,
+        "sha256": sha256,
+        "path": str(dest_path),
+        "status": "uploaded",
+    }
+
+    return {
+        "upload_id": upload_id,
+        "filename": file.filename,
+        "sha256": sha256,
+        "status": "uploaded",
+        "message": "File uploaded successfully. Use POST /api/analyze/{upload_id} to start analysis.",
+    }
+
+
+@app.post("/api/analyze/{upload_id}")
+async def api_analyze_upload(upload_id: str) -> dict:
+    """Trigger analysis for a previously uploaded APK."""
+    upload = upload_registry.get(upload_id)
+    if upload is None:
+        raise HTTPException(status_code=404, detail="Upload not found")
+
+    apk_path = upload["path"]
     if not Path(apk_path).exists():
-        raise HTTPException(status_code=400, detail=f"APK not found: {apk_path}")
+        raise HTTPException(status_code=400, detail="Uploaded APK file no longer exists")
 
     loop = asyncio.get_event_loop()
 
     def run_analysis():
         emitter = make_event_emitter(loop)
-        return run_pipeline(apk_path, event_emitter=emitter)
+        try:
+            sample_status[upload_id] = {"status": "analyzing", "sample_id": None, "error": None}
+            result = run_pipeline(apk_path, event_emitter=emitter)
+            sample_id = result.get("sample_id")
+            # Map upload_id to final sample_id for status lookups
+            sample_status[upload_id] = {"status": "completed", "sample_id": sample_id, "error": None}
+            if sample_id:
+                upload["sample_id"] = sample_id
+            return result
+        except Exception as e:
+            sample_status[upload_id] = {"status": "failed", "sample_id": None, "error": str(e)}
+            raise
 
     async def run_analysis_async():
         return await loop.run_in_executor(None, run_analysis)
 
-    # Run pipeline in thread pool to avoid blocking
-    task = asyncio.create_task(run_analysis_async())
+    asyncio.create_task(run_analysis_async())
+    upload["status"] = "queued"
 
-    return {"message": "Analysis started", "task": str(task)}
+    return {
+        "upload_id": upload_id,
+        "status": "queued",
+        "message": "Analysis started. Poll GET /api/sample/{sample_id}/status or listen on /ws for progress.",
+    }
+
+
+@app.post("/analyze")
+async def analyze(request: AnalyzeRequest) -> dict:
+    """Trigger analysis of an APK by local path (REST fallback / backward compatibility)."""
+    apk_path = request.apk_path
+    if not Path(apk_path).exists():
+        raise HTTPException(status_code=400, detail=f"APK not found: {apk_path}")
+
+    loop = asyncio.get_event_loop()
+    job_id = str(uuid.uuid4())
+
+    def run_analysis():
+        emitter = make_event_emitter(loop)
+        try:
+            sample_status[job_id] = {"status": "analyzing", "sample_id": None, "error": None}
+            result = run_pipeline(apk_path, event_emitter=emitter)
+            sample_id = result.get("sample_id")
+            sample_status[job_id] = {"status": "completed", "sample_id": sample_id, "error": None}
+            return result
+        except Exception as e:
+            sample_status[job_id] = {"status": "failed", "sample_id": None, "error": str(e)}
+            raise
+
+    async def run_analysis_async():
+        return await loop.run_in_executor(None, run_analysis)
+
+    asyncio.create_task(run_analysis_async())
+
+    return {
+        "job_id": job_id,
+        "status": "queued",
+        "message": "Analysis started. Poll GET /api/sample/{sample_id}/status or listen on /ws for progress.",
+    }
+
+
+@app.get("/api/sample/{sample_id}/status")
+async def api_get_sample_status(sample_id: str) -> dict:
+    """Get analysis status for a sample or upload/job ID."""
+    # Check upload/job status first
+    if sample_id in sample_status:
+        info = sample_status[sample_id]
+        return {
+            "sample_id": info.get("sample_id") or sample_id,
+            "status": info["status"],
+            "error": info.get("error"),
+        }
+
+    # Check if final result exists
+    result = load_result(sample_id)
+    if result is not None:
+        return {
+            "sample_id": sample_id,
+            "status": "completed",
+            "severity": result.get("llm_assessment", {}).get("severity"),
+            "risk_score": result.get("llm_assessment", {}).get("risk_score"),
+        }
+
+    raise HTTPException(status_code=404, detail="Sample or job not found")
 
 
 # ---------------------------------------------------------------------------

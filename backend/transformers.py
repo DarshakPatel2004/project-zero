@@ -7,6 +7,7 @@ Converts pipeline_result.json into frontend-friendly formats:
 - Timeline data (attack progression)
 """
 
+import hashlib
 import json
 import math
 from pathlib import Path
@@ -100,8 +101,8 @@ def transform_graph(result: Dict[str, Any]) -> Dict[str, Any]:
             confidence = step.get("confidence", 0.5)
             source = step.get("source_location", "")
 
-            # Create unique node ID
-            node_id = f"{step_type}:{hash(artifact + source) & 0xFFFFFFFF}"
+            # Create deterministic unique node ID
+            node_id = f"{step_type}:{hashlib.md5((artifact + source).encode('utf-8')).hexdigest()[:16]}"
             if node_id not in node_ids:
                 node_ids.add(node_id)
                 nodes.append({
