@@ -2,7 +2,7 @@
 JSON schema validation for backend events and API payloads.
 """
 
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -14,10 +14,26 @@ class AnalyzeRequest(BaseModel):
 
 class SampleStatus(BaseModel):
     """Sample status response."""
-    id: str
-    name: str
+    sample_id: str
     status: str
-    timestamp: str
+    error: Optional[str] = None
+
+
+class UploadResponse(BaseModel):
+    """Response for file upload endpoint."""
+    upload_id: str
+    filename: str
+    sha256: str
+    status: str
+    message: str
+
+
+class AnalyzeResponse(BaseModel):
+    """Response for analysis trigger endpoints."""
+    upload_id: Optional[str] = None
+    job_id: Optional[str] = None
+    status: str
+    message: str
 
 
 class WebSocketEventValidator(BaseModel):

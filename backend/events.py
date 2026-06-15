@@ -13,7 +13,7 @@ class WebSocketEvent:
     """Base WebSocket event."""
     event_type: str
     data: Dict[str, Any]
-    timestamp: str = field(default_factory=lambda: datetime.utcnow().isoformat() + "Z")
+    timestamp: str = field(default_factory=lambda: datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"))
 
     def to_dict(self) -> dict:
         return {

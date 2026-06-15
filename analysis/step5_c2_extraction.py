@@ -271,8 +271,6 @@ BENIGN_DOMAINS = {
     "llvm.googlesource.com",
     "wikipedia.org",
     "ja.wikipedia.org",
-    "example.com",
-    "www.example.com",
     "tenki.jp",
     # Search engines / portals observed in browsers
     "qwant.com",

@@ -134,3 +134,45 @@ def test_full_pipeline_writes_to_work_dir(client, test_apk_path):
     data = response.json()
     assert data["sample_id"] == sample_id
     assert "metadata" in data
+
+
+def test_api_upload_and_status(client, test_apk_path):
+    """Upload an APK and verify status endpoint returns uploaded state."""
+    with open(test_apk_path, "rb") as f:
+        response = client.post("/api/upload", files={"file": ("test.apk", f, "application/vnd.android.package-archive")})
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert "upload_id" in data
+    assert data["sha256"]
+    assert data["status"] == "uploaded"
+
+    upload_id = data["upload_id"]
+    response = client.get(f"/api/sample/{upload_id}/status")
+    assert response.status_code == 404  # not analyzed yet
+
+
+def test_api_graph_node_ids_are_deterministic(client):
+    """Graph endpoint should return stable node IDs across calls."""
+    samples = client.get("/api/samples").json()["samples"]
+    if not samples:
+        pytest.skip("No analyzed samples available")
+    sample_id = samples[0]["id"]
+    resp1 = client.get(f"/api/graph/{sample_id}").json()
+    resp2 = client.get(f"/api/graph/{sample_id}").json()
+    assert resp1["total_nodes"] == resp2["total_nodes"]
+    assert [n["id"] for n in resp1["nodes"]] == [n["id"] for n in resp2["nodes"]]
+
+
+def test_api_dissection_caches_on_demand(client):
+    """Dissection endpoint should generate and cache dissection.json if missing."""
+    samples = client.get("/api/samples").json()["samples"]
+    if not samples:
+        pytest.skip("No analyzed samples available")
+    sample_id = samples[0]["id"]
+    dissection_path = settings.WORK_DIR / sample_id / "dissection.json"
+    if dissection_path.exists():
+        dissection_path.unlink()
+
+    response = client.get(f"/api/sample/{sample_id}/dissection")
+    assert response.status_code == 200
+    assert dissection_path.exists(), "dissection.json should be cached after on-demand generation"
