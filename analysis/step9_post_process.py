@@ -35,6 +35,8 @@ BENIGN_PACKAGE_PATTERNS = {
 
 def _package_match(package: str, patterns: Dict[str, str]) -> str:
     """Return the family label if package matches any pattern, else ''."""
+    if not package:
+        return ""
     package_lower = package.lower()
     for pattern, label in patterns.items():
         if pattern in package_lower:

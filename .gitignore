@@ -26,6 +26,10 @@
 !**/eslint.config.js
 !**/opencode.json
 
+# Validation reports
+!VALIDATION_REPORT.md
+!FAILURE_ANALYSIS.md
+
 # 7. Explicitly ignore environment and secrets files
 .env
 .env.*

@@ -45,15 +45,16 @@ class ObfuscationAnalysisError(Exception):
 # Patterns
 # ---------------------------------------------------------------------------
 
+# API signatures applied to cross-reference targets. An app method is flagged
+# only when it actually calls/uses one of these APIs, not merely because the
+# APK contains a framework stub with a matching name.
 REFLECTION_PATTERNS = [
-    r"Ljava/lang/reflect/",
-    r"invoke",
-    r"getMethod",
-    r"getDeclaredMethod",
-    r"getConstructor",
-    r"getDeclaredConstructor",
-    r"newInstance",
-    r"setAccessible",
+    r"Ljava/lang/reflect/Method;->invoke",
+    r"Ljava/lang/reflect/Constructor;->newInstance",
+    r"Ljava/lang/reflect/Field;->(?:get|set)",
+    r"Ljava/lang/reflect/AccessibleObject;->setAccessible",
+    r"Ljava/lang/Class;->forName",
+    r"Ljava/lang/Class;->(?:getMethod|getDeclaredMethod|getConstructor|getDeclaredConstructor|getField|getDeclaredField)",
 ]
 
 DYNAMIC_LOADING_PATTERNS = [
@@ -62,7 +63,7 @@ DYNAMIC_LOADING_PATTERNS = [
     r"Ldalvik/system/InMemoryClassLoader",
     r"Ldalvik/system/DelegateLastClassLoader",
     r"Landroid/app/DexClassLoader",
-    r"Ljava/lang/ClassLoader",
+    r"Ljava/lang/ClassLoader;->",
 ]
 
 NATIVE_LOADING_PATTERNS = [
@@ -73,15 +74,12 @@ NATIVE_LOADING_PATTERNS = [
 
 CRYPTO_PATTERNS = [
     r"Ljavax/crypto/",
-    r"Ljava/security/",
+    r"Ljava/security/MessageDigest",
+    r"Ljava/security/SecureRandom",
+    r"Ljava/security/Signature",
+    r"Ljava/security/Mac",
+    r"Ljava/security/Key(?:Generator|PairGenerator|Store)?",
     r"Landroid/security/",
-    r"MessageDigest",
-    r"Cipher",
-    r"SecretKey",
-    r"KeyGenerator",
-    r"IvParameterSpec",
-    r"Mac",
-    r"Signature",
 ]
 
 SUSPICIOUS_APIS = [
@@ -99,9 +97,6 @@ SUSPICIOUS_APIS = [
     r"Landroid/content/pm/PackageManager;->setComponentEnabledSetting",
     r"Landroid/os/PowerManager\$WakeLock;->acquire",
     r"Landroid/net/wifi/WifiManager",
-    r"Ljava/net/HttpURLConnection",
-    r"Lokhttp3/",
-    r"Lretrofit2/",
 ]
 
 DANGEROUS_PERMISSIONS = [
@@ -122,16 +117,30 @@ DANGEROUS_PERMISSIONS = [
     "WRITE_EXTERNAL_STORAGE",
 ]
 
-# Benign framework / support-library class prefixes. Reflection and dynamic
-# loading usages inside these packages are overwhelmingly legitimate framework
-# boilerplate (e.g. Fragment lifecycle, View inflation, Parcelable restoration)
-# and inflate the obfuscation score for benign apps.
+# Benign framework / support-library class prefixes. Reflection, crypto, and
+# dynamic-loading usages inside these packages are overwhelmingly legitimate
+# framework boilerplate (e.g. Fragment lifecycle, View inflation, Kotlin
+# lambdas, Glide image hashing) and inflate the obfuscation score for benign
+# apps. We filter the *source* method with these prefixes; the *called* API
+# patterns below can still match framework methods (e.g. SmsManager) because
+# they are applied to cross-reference targets, not to the source.
 BENIGN_CLASS_PREFIXES = (
+    "Landroid/",
     "Landroid/support/",
     "Landroidx/",
-    "Lcom/google/android/",
+    "Ldalvik/",
+    "Ljava/",
+    "Ljavax/",
+    "Lsun/",
     "Lcom/android/",
+    "Lcom/google/android/",
+    "Lcom/bumptech/glide/",
     "Lorg/apache/",
+    "Lorg/bouncycastle/",
+    "Lorg/json/",
+    "Lorg/xml/",
+    "Lorg/w3c/",
+    "Lorg/xmlpull/",
     "Lkotlin/",
     "Lkotlinx/",
     "Ljunit/",
@@ -156,6 +165,30 @@ def is_benign_framework_method(method_name: str) -> bool:
         if method_name.startswith(prefix):
             return True
     return False
+
+
+def _method_matches_any(method_name: str, patterns: List[str]) -> bool:
+    """Return True if method_name matches any regex pattern."""
+    for pattern in patterns:
+        if re.search(pattern, method_name):
+            return True
+    return False
+
+
+def _get_called_method_names(method: Any) -> List[str]:
+    """Return full names of methods called by the given method."""
+    names = []
+    try:
+        for xref in method.get_xref_to():
+            # xref is typically (class_analysis, method_analysis, offset)
+            if len(xref) >= 2:
+                called = xref[1]
+                called_name = getattr(called, "full_name", "")
+                if called_name:
+                    names.append(called_name)
+    except Exception:
+        pass
+    return names
 
 
 def shannon_entropy(data: bytes) -> float:
@@ -298,7 +331,10 @@ def analyze_with_androguard(apk_path: Path) -> Dict[str, Any]:
     except Exception:
         methods = []
 
-    # Analyze methods for obfuscation indicators
+    # Analyze methods for obfuscation indicators via cross-references.
+    # We count an app method only when it actually calls/uses a sensitive API,
+    # which eliminates false positives from framework method stubs and Kotlin
+    # functional-interface boilerplate.
     for method in methods:
         try:
             method_name = method.full_name
@@ -309,30 +345,24 @@ def analyze_with_androguard(apk_path: Path) -> Dict[str, Any]:
             if is_benign_framework_method(method_name):
                 continue
 
-            for pattern in REFLECTION_PATTERNS:
-                if re.search(pattern, method_name):
-                    indicators["reflection"].append(method_name)
-                    break
+            called_names = _get_called_method_names(method)
+            if not called_names:
+                continue
 
-            for pattern in DYNAMIC_LOADING_PATTERNS:
-                if re.search(pattern, method_name):
-                    indicators["dynamic_loading"].append(method_name)
-                    break
+            if any(_method_matches_any(called, REFLECTION_PATTERNS) for called in called_names):
+                indicators["reflection"].append(method_name)
 
-            for pattern in NATIVE_LOADING_PATTERNS:
-                if re.search(pattern, method_name):
-                    indicators["native_loading"].append(method_name)
-                    break
+            if any(_method_matches_any(called, DYNAMIC_LOADING_PATTERNS) for called in called_names):
+                indicators["dynamic_loading"].append(method_name)
 
-            for pattern in CRYPTO_PATTERNS:
-                if re.search(pattern, method_name):
-                    indicators["crypto_apis"].append(method_name)
-                    break
+            if any(_method_matches_any(called, NATIVE_LOADING_PATTERNS) for called in called_names):
+                indicators["native_loading"].append(method_name)
 
-            for pattern in SUSPICIOUS_APIS:
-                if re.search(pattern, method_name):
-                    indicators["suspicious_apis"].append(method_name)
-                    break
+            if any(_method_matches_any(called, CRYPTO_PATTERNS) for called in called_names):
+                indicators["crypto_apis"].append(method_name)
+
+            if any(_method_matches_any(called, SUSPICIOUS_APIS) for called in called_names):
+                indicators["suspicious_apis"].append(method_name)
         except Exception:
             continue
 
