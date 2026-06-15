@@ -25,6 +25,8 @@ import zipfile
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 
+from backend.config import settings
+
 # Suppress verbose Androguard logging
 logging.getLogger("androguard").setLevel(logging.WARNING)
 try:
@@ -327,13 +329,14 @@ def calculate_obfuscation_score(indicators: Dict[str, Any], dex_entropy: List[Di
     return round(min(100, score), 2)
 
 
-def analyze_obfuscation(apk_path: str, work_dir: str = "analysis/work", sample_id: Optional[str] = None) -> Dict[str, Any]:
+def analyze_obfuscation(apk_path: str, work_dir: Optional[str] = None, sample_id: Optional[str] = None) -> Dict[str, Any]:
     """
     Full Step 8: Advanced obfuscation analysis.
 
     Args:
         apk_path: Path to APK file.
-        work_dir: Working directory for intermediate outputs.
+        work_dir: Working directory for intermediate outputs. Defaults to
+            settings.WORK_DIR.
         sample_id: Optional sample identifier; falls back to APK filename stem.
 
     Returns:
@@ -342,7 +345,7 @@ def analyze_obfuscation(apk_path: str, work_dir: str = "analysis/work", sample_i
     apk_path = Path(apk_path)
     if sample_id is None:
         sample_id = apk_path.stem
-    out_dir = Path(work_dir) / sample_id
+    out_dir = (Path(work_dir) if work_dir else settings.WORK_DIR) / sample_id
     out_dir.mkdir(parents=True, exist_ok=True)
 
     result = {
@@ -404,5 +407,5 @@ if __name__ == "__main__":
         print("Usage: python step8_obfuscation_analysis.py <apk_path> [work_dir]")
         sys.exit(1)
     apk = sys.argv[1]
-    work = sys.argv[2] if len(sys.argv) > 2 else "analysis/work"
+    work = sys.argv[2] if len(sys.argv) > 2 else str(settings.WORK_DIR)
     print(json.dumps(analyze_obfuscation(apk, work), indent=2, default=str))

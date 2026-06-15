@@ -15,6 +15,8 @@ from typing import Any, Dict, List, Optional
 from androguard.core.apk import APK
 from androguard.core.dex import DEX
 
+from backend.config import settings
+
 
 # Android namespace used in binary XML manifests
 ANDROID_NS = "{http://schemas.android.com/apk/res/android}"
@@ -100,9 +102,9 @@ def _shannon_entropy(data: bytes) -> float:
 class APKDissector:
     """Fast APK structural dissection."""
 
-    def __init__(self, apk_path: str, work_dir: str = "analysis/work"):
+    def __init__(self, apk_path: str, work_dir: str = None):
         self.apk_path = Path(apk_path)
-        self.work_dir = Path(work_dir)
+        self.work_dir = Path(work_dir) if work_dir else settings.WORK_DIR
         self._apk: Optional[APK] = None
 
     def _get_apk(self) -> APK:
@@ -431,6 +433,6 @@ def load_dissection(work_dir: str, sample_id: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-def dissect_apk(apk_path: str, work_dir: str = "analysis/work") -> Dict[str, Any]:
+def dissect_apk(apk_path: str, work_dir: str = None) -> Dict[str, Any]:
     """Convenience function to dissect an APK."""
     return APKDissector(apk_path, work_dir).dissect()

@@ -6,7 +6,6 @@ Provides REST API and WebSocket endpoint for real-time analysis streaming.
 
 import asyncio
 import json
-import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Dict, List, Optional, Set
@@ -16,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from analysis.pipeline import run_pipeline
+from backend.config import settings
 from backend.events import WebSocketEvent, VALID_EVENT_TYPES
 from backend.validators import validate_event
 from backend.transformers import (
@@ -109,8 +109,10 @@ class SampleInfo(BaseModel):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    Path("analysis/work").mkdir(parents=True, exist_ok=True)
-    Path("reports").mkdir(parents=True, exist_ok=True)
+    settings.WORK_DIR.mkdir(parents=True, exist_ok=True)
+    settings.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    settings.SAMPLES_DIR.mkdir(parents=True, exist_ok=True)
+    settings.UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
     yield
     # Shutdown
     manager.active_connections.clear()
@@ -186,7 +188,7 @@ async def api_get_timeline(sample_id: str) -> dict:
 # APK dissection endpoints
 # ---------------------------------------------------------------------------
 
-WORK_DIR = Path("analysis/work")
+WORK_DIR = settings.WORK_DIR
 
 
 def _get_sample_apk_path(sample_id: str) -> Optional[Path]:
@@ -201,22 +203,21 @@ def _get_sample_apk_path(sample_id: str) -> Optional[Path]:
     # Fast paths: common locations
     candidates = [
         WORK_DIR / sample_id / sample_name,
-        Path("samples") / "malware" / sample_name,
-        Path("samples") / "malware" / "androzoo_drebin" / sample_name,
-        Path("samples") / "malware" / "bazaar" / sample_name,
-        Path("samples") / "malware" / "contagio" / sample_name,
-        Path("samples") / "malware" / "github" / sample_name,
-        Path("samples") / "malware" / "koodous" / sample_name,
-        Path("samples") / "legitimate" / sample_name,
+        settings.SAMPLES_DIR / "malware" / sample_name,
+        settings.SAMPLES_DIR / "malware" / "androzoo_drebin" / sample_name,
+        settings.SAMPLES_DIR / "malware" / "bazaar" / sample_name,
+        settings.SAMPLES_DIR / "malware" / "contagio" / sample_name,
+        settings.SAMPLES_DIR / "malware" / "github" / sample_name,
+        settings.SAMPLES_DIR / "malware" / "koodous" / sample_name,
+        settings.SAMPLES_DIR / "legitimate" / sample_name,
     ]
     for candidate in candidates:
         if candidate.exists():
             return candidate
 
     # Fallback: recursive search under samples/ (slower but thorough)
-    samples_root = Path("samples")
-    if samples_root.exists():
-        for candidate in samples_root.rglob(sample_name):
+    if settings.SAMPLES_DIR.exists():
+        for candidate in settings.SAMPLES_DIR.rglob(sample_name):
             if candidate.is_file():
                 return candidate
 
@@ -411,7 +412,7 @@ async def get_sample(sample_id: str) -> dict:
 async def analyze(request: AnalyzeRequest) -> dict:
     """Trigger analysis of an APK (REST fallback)."""
     apk_path = request.apk_path
-    if not os.path.exists(apk_path):
+    if not Path(apk_path).exists():
         raise HTTPException(status_code=400, detail=f"APK not found: {apk_path}")
 
     loop = asyncio.get_event_loop()
@@ -420,8 +421,11 @@ async def analyze(request: AnalyzeRequest) -> dict:
         emitter = make_event_emitter(loop)
         return run_pipeline(apk_path, event_emitter=emitter)
 
+    async def run_analysis_async():
+        return await loop.run_in_executor(None, run_analysis)
+
     # Run pipeline in thread pool to avoid blocking
-    task = asyncio.create_task(loop.run_in_executor(None, run_analysis))
+    task = asyncio.create_task(run_analysis_async())
 
     return {"message": "Analysis started", "task": str(task)}
 

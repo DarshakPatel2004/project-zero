@@ -12,8 +12,10 @@ import math
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 
+from backend.config import settings
 
-WORK_DIR = Path("analysis/work")
+
+WORK_DIR = settings.WORK_DIR
 
 
 # ---------------------------------------------------------------------------

@@ -14,6 +14,8 @@ import re
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
 
+from backend.config import settings
+
 
 class EncodingDetectionError(Exception):
     """Raised when encoding detection fails."""
@@ -220,7 +222,7 @@ def detect_encoding(strings_result: dict) -> dict:
         dict with detected encodings.
     """
     sample_id = strings_result["sample_id"]
-    work_dir = Path("analysis/work") / sample_id
+    work_dir = settings.WORK_DIR / sample_id
     work_dir.mkdir(parents=True, exist_ok=True)
 
     encodings = []

@@ -1,9 +1,8 @@
-#!/usr/bin/env python3
 """
 Download Drebin malware samples from AndroZoo using sha256_family.csv.
 
-Usage:
-    source .env
+Usage (Windows):
+    .\venv\Scripts\Activate.ps1
     python scripts/download_drebin_androzoo.py <hash_csv> [count]
 
 Example:

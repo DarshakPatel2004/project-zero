@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Validate the DroidForensix sample collection.
 
@@ -10,8 +9,8 @@ Checks:
 - No empty files
 - Every file is a valid ZIP/APK
 
-Usage:
-    source venv/bin/activate
+Usage (Windows):
+    .\venv\Scripts\Activate.ps1
     python scripts/check_samples.py
 """
 

@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from backend.config import settings
 from backend.main import app
 from backend.dissection import APKDissector, load_dissection
 from backend.transformers import load_all_results
@@ -41,8 +42,8 @@ def existing_sample_id() -> str:
             continue
         # Check whether the APK is locatable
         candidates = [
-            Path("samples") / "malware" / "androzoo_drebin" / sample_name,
-            Path("samples") / "malware" / sample_name,
+            settings.SAMPLES_DIR / "malware" / "androzoo_drebin" / sample_name,
+            settings.SAMPLES_DIR / "malware" / sample_name,
         ]
         for candidate in candidates:
             if candidate.exists():
@@ -103,7 +104,7 @@ class TestAPKDissector:
         json.dumps(data)
 
     def test_load_dissection_missing(self):
-        assert load_dissection("analysis/work", "nonexistent_sample_id") is None
+        assert load_dissection(str(settings.WORK_DIR), "nonexistent_sample_id") is None
 
 
 class TestDissectionEndpoints:

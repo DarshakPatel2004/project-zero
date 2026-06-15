@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Batch analysis runner for DroidForensix.
 
@@ -17,10 +16,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from analysis.pipeline import run_pipeline
+from backend.config import settings
 
-SAMPLES_DIR = Path(__file__).parent.parent / "samples"
+SAMPLES_DIR = settings.SAMPLES_DIR
 META_PATH = Path(__file__).parent.parent / "sample_metadata.csv"
-WORK_DIR = Path(__file__).parent.parent / "analysis" / "work"
+WORK_DIR = settings.WORK_DIR
 
 # Default timeout per APK size tier (seconds)
 DEFAULT_SMALL_TIMEOUT = 180   # 3 minutes for APKs < 10 MB
