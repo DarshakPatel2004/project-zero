@@ -28,6 +28,7 @@ from analysis.step5_c2_extraction import extract_c2_infrastructure
 from analysis.step6_correlation import build_threat_chains
 from analysis.step7_llm_assessment import assess_with_llm
 from analysis.step8_obfuscation_analysis import analyze_obfuscation
+from analysis.step9_post_process import post_process_result
 from backend.dissection import APKDissector
 
 
@@ -247,6 +248,15 @@ def run_pipeline(apk_path: str, work_dir: Optional[str] = None,
         "obfuscation_analysis": obfuscation_result,
         "timeline": timeline,
     }
+
+    # Step 9: Post-processing sanity corrections
+    try:
+        result = post_process_result(result)
+    except Exception as e:
+        _emit(event_emitter, "error", {
+            "sample_id": sample_id,
+            "message": f"Post-processing failed: {e}",
+        })
 
     # Save full result
     result_path = Path(work_dir) / sample_id / "pipeline_result.json"
