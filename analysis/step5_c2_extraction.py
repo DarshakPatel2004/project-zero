@@ -51,6 +51,13 @@ BENIGN_DOMAINS = {
     "youtube.com",
     "android.com",
     "www.android.com",
+    "gstatic.com",
+    # Java / Sun / Oracle
+    "java.sun.com",
+    "sun.com",
+    "oracle.com",
+    "openjdk.java.net",
+    "javaee.github.io",
     # W3C / XML
     "www.w3.org",
     "xml.org",
@@ -59,6 +66,7 @@ BENIGN_DOMAINS = {
     "xmlns.org",
     # Development platforms / libraries
     "github.com",
+    "githubusercontent.com",
     "gitlab.com",
     "bitbucket.org",
     "www.slf4j.org",
@@ -110,6 +118,28 @@ BENIGN_URL_PATHS = {
     "/apk/res-auto",
 }
 
+# Known DTD / XML Schema / namespace URIs that are library/documentation
+# references, never actual network C2 traffic.
+BENIGN_URIS = {
+    "http://java.sun.com/dtd/properties.dtd",
+    "http://java.sun.com/xml/ns/javaee",
+    "http://java.sun.com/jsp/jstl/core",
+    "http://www.w3.org/2000/xmlns",
+    "http://www.w3.org/2001/XMLSchema",
+    "http://www.w3.org/2001/XMLSchema-instance",
+    "http://www.w3.org/1999/xlink",
+    "http://www.w3.org/1999/xhtml",
+    "http://www.w3.org/2005/Atom",
+    "http://www.w3.org/2000/svg",
+    "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+    "http://purl.org/rss/1.0/",
+    "http://www.opml.org/spec2",
+    "http://www.springframework.org/schema/beans",
+    "http://maven.apache.org/xsd/maven-4.0.0.xsd",
+    "http://schemas.android.com/apk/res/android",
+    "http://schemas.android.com/apk/res-auto",
+}
+
 # Known VPN/proxy ranges (common examples, not exhaustive)
 VPN_RANGES = [
     ipaddress.ip_network("10.0.0.0/8"),
@@ -132,9 +162,28 @@ def is_valid_ip(ip: str) -> bool:
         return False
 
 
+def is_benign_uri_reference(url: str) -> bool:
+    """Return True if the URL is a known DTD, XML schema, or namespace URI."""
+    try:
+        url_lower = url.strip().lower()
+        if url_lower in BENIGN_URIS:
+            return True
+        if any(url_lower.startswith(uri.lower()) for uri in BENIGN_URIS):
+            return True
+        parsed = urlparse(url)
+        path = parsed.path.lower()
+        if path.endswith((".dtd", ".xsd", ".xsl", ".xml")):
+            return True
+    except Exception:
+        pass
+    return False
+
+
 def is_benign_url(url: str) -> bool:
     """Return True if URL belongs to a known benign SDK/documentation endpoint."""
     try:
+        if is_benign_uri_reference(url):
+            return True
         parsed = urlparse(url)
         if parsed.hostname:
             hostname = parsed.hostname.lower().lstrip("www.")
