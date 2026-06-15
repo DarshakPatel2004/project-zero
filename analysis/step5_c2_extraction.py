@@ -102,6 +102,13 @@ BENIGN_DOMAINS = {
     "dmfs.org",
     "schema.dmfs.org",
     "t.me",
+    # Search / portals (legitimate, often embedded in browsers or regional apps)
+    "yandex.ru",
+    "yandex.com",
+    "yahoo.com",
+    "bing.com",
+    "duckduckgo.com",
+    "baidu.com",
     # PDF/file converter services (legitimate, often embedded in readers)
     "cloudconvert.com",
     "www.zamzar.com",
@@ -116,6 +123,48 @@ BENIGN_DOMAINS = {
 BENIGN_URL_PATHS = {
     "/apk/res/android",
     "/apk/res-auto",
+}
+
+# Mobile advertising and analytics networks. These are legitimate monetization
+# endpoints, but they frequently appear in adware / grayware. They should not
+# be treated as high-confidence malware C2s.
+AD_NETWORK_DOMAINS = {
+    # Ad networks
+    "airpush.com",
+    "leadbolt.net",
+    "leadboltapps.net",
+    "searchmobileonline.com",
+    "mobpartner.com",
+    "tapjoy.com",
+    "chartboost.com",
+    "applovin.com",
+    "fyber.com",
+    "inneractive.com",
+    "inmobi.com",
+    "admob.com",
+    "googleadservices.com",
+    "doubleclick.net",
+    "mopub.com",
+    "millennialmedia.com",
+    "supersonicads.com",
+    "ironsource.com",
+    "unity3d.com",
+    "vungle.com",
+    "adcolony.com",
+    "startapp.com",
+    "appnext.com",
+    "digitalturbine.com",
+    "superrewards.com",
+    "flurry.com",
+    "crashlytics.com",
+    "appsflyer.com",
+    "adjust.com",
+    "kochava.com",
+    # Shorteners / redirectors commonly used by ad SDKs
+    "bit.ly",
+    "tinyurl.com",
+    "goo.gl",
+    "ow.ly",
 }
 
 # Known DTD / XML Schema / namespace URIs that are library/documentation
@@ -202,6 +251,21 @@ def is_benign_url(url: str) -> bool:
     return False
 
 
+def is_ad_network(domain: str) -> bool:
+    """Return True if domain belongs to a known ad/analytics network."""
+    if not domain:
+        return False
+    domain_lower = domain.lower().lstrip("www.")
+    if domain_lower in AD_NETWORK_DOMAINS:
+        return True
+    # Match subdomains (e.g. api.airpush.com -> airpush.com)
+    parts = domain_lower.split(".")
+    for i in range(len(parts)):
+        if ".".join(parts[i:]) in AD_NETWORK_DOMAINS:
+            return True
+    return False
+
+
 def classify_ip(ip: str) -> str:
     """Classify IP as private, loopback, vpn, or public."""
     if not is_valid_ip(ip):
@@ -280,13 +344,13 @@ def calculate_c2_confidence(parsed: dict, source_context: str) -> float:
     if parsed["protocol"] in ("http", "https"):
         score += 0.2
 
-    # Boost for public IP or real domain
+    # Boost for public IP, private IP (VPN/proxy C2s), or real domain.
+    # FIX: do not penalize private IPs — real C2 infrastructure frequently uses
+    # them (e.g. Metasploit stagers behind VPNs).
     if parsed["ip"]:
         ip_class = classify_ip(parsed["ip"])
-        if ip_class == "public":
-            score += 0.2
-        elif ip_class == "private":
-            score -= 0.1
+        if ip_class in ("public", "private", "vpn"):
+            score += 0.25
         elif ip_class == "loopback":
             score -= 0.2
     elif parsed["domain"]:
@@ -296,7 +360,13 @@ def calculate_c2_confidence(parsed: dict, source_context: str) -> float:
 
     # Boost for non-default path (suggests C2 endpoint)
     if parsed["path"] and parsed["path"] != "/":
-        score += 0.1
+        score += 0.15
+
+    # Reduce confidence for known ad/analytics networks. These endpoints are
+    # legitimate monetization infrastructure, but they commonly appear in
+    # adware / grayware samples and should not be scored like malware C2s.
+    if parsed["domain"] and is_ad_network(parsed["domain"]):
+        score *= 0.5
 
     return round(min(1.0, max(0.0, score)), 4)
 
@@ -379,6 +449,7 @@ def extract_c2_infrastructure(payloads_result: dict, strings_result: dict) -> di
                 if parsed is None or is_benign_url(url):
                     continue
 
+                confidence = calculate_c2_confidence(parsed, source_location)
                 c2_records.append({
                     "c2_id": f"c2_{c2_id:03d}",
                     "payload_id": payload_id,
@@ -393,7 +464,8 @@ def extract_c2_infrastructure(payloads_result: dict, strings_result: dict) -> di
                     "communication_type": infer_communication_type(url, source_location),
                     "is_fallback": False,
                     "source_location": source_location,
-                    "confidence": calculate_c2_confidence(parsed, source_location),
+                    "confidence": confidence,
+                    "threat_category": "adware" if parsed["domain"] and is_ad_network(parsed["domain"]) else "malware",
                 })
                 c2_id += 1
 
@@ -414,6 +486,7 @@ def extract_c2_infrastructure(payloads_result: dict, strings_result: dict) -> di
                 if parsed is None or is_benign_url(url):
                     continue
 
+                confidence = round(calculate_c2_confidence(parsed, source_location), 4)
                 c2_records.append({
                     "c2_id": f"c2_{c2_id:03d}",
                     "payload_id": None,
@@ -428,7 +501,8 @@ def extract_c2_infrastructure(payloads_result: dict, strings_result: dict) -> di
                     "communication_type": infer_communication_type(url, source_location),
                     "is_fallback": False,
                     "source_location": source_location,
-                    "confidence": round(calculate_c2_confidence(parsed, source_location) * 0.9, 4),
+                    "confidence": confidence,
+                    "threat_category": "adware" if parsed["domain"] and is_ad_network(parsed["domain"]) else "malware",
                 })
                 c2_id += 1
 

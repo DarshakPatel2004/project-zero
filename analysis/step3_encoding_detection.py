@@ -39,6 +39,45 @@ HIGH_ENTROPY_THRESHOLD = 5.0
 CUSTOM_ENCODING_THRESHOLD = 7.0
 XOR_PRINTABLE_THRESHOLD = 0.70
 
+# Source locations that are framework / support-library boilerplate.
+# Encodings found here are overwhelmingly false positives (class names, method
+# names, constants) unless the decoded content itself is clearly malicious.
+BENIGN_SOURCE_PATTERNS = [
+    re.compile(r"android[\\/]support[\\/]", re.IGNORECASE),
+    re.compile(r"androidx[\\/]", re.IGNORECASE),
+    re.compile(r"com[\\/]google[\\/]", re.IGNORECASE),
+    re.compile(r"com[\\/]android[\\/]", re.IGNORECASE),
+    re.compile(r"org[\\/]apache[\\/]", re.IGNORECASE),
+    re.compile(r"junit[\\/]", re.IGNORECASE),
+    re.compile(r"okhttp[\\/]", re.IGNORECASE),
+    re.compile(r"retrofit[\\/]", re.IGNORECASE),
+    # Android resource files are not obfuscated payload sources.
+    re.compile(r"res[\\/]raw[\\/]", re.IGNORECASE),
+    re.compile(r"res[\\/]values[\\/]", re.IGNORECASE),
+    re.compile(r"res[\\/]xml[\\/]", re.IGNORECASE),
+    re.compile(r"AndroidManifest\.xml", re.IGNORECASE),
+]
+
+# Source locations that suggest the string is actually used as an obfuscated
+# payload (decode/decrypt calls, reflection, dynamic loading, network, etc.).
+SUSPICIOUS_SOURCE_PATTERNS = [
+    re.compile(r"reflect", re.IGNORECASE),
+    re.compile(r"crypto|cipher|encrypt|decrypt|decode|decipher", re.IGNORECASE),
+    re.compile(r"loader|DexClassLoader|PathClassLoader", re.IGNORECASE),
+    re.compile(r"payload|exploit|shell|command|exec", re.IGNORECASE),
+    re.compile(r"network|http|socket|inet|urlconnection", re.IGNORECASE),
+]
+
+# Benign string patterns that are commonly misclassified as encodings.
+BENIGN_VALUE_PATTERNS = [
+    re.compile(r"^[0-9a-fA-F]{16}$"),  # Hex constants like 0123456789abcdef
+    re.compile(r"^[A-Za-z][A-Za-z0-9_]*$"),  # CamelCase / PascalCase identifiers
+    re.compile(r"^[a-z][a-z0-9_]*$"),  # snake_case identifiers
+    re.compile(r"^[A-Z][A-Z0-9_]*$"),  # UPPER_SNAKE_CASE constants
+    re.compile(r"^[a-z]+(_[a-z]+)+$"),  # lowercase_snake_case
+    re.compile(r"^[A-Za-z0-9_]+\.[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)*$"),  # Dotted names
+]
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -110,6 +149,65 @@ def looks_like_hex(s: str) -> bool:
         return False
     allowed = set("0123456789ABCDEFabcdef")
     return set(s).issubset(allowed)
+
+
+def is_benign_source(source: str) -> bool:
+    """Return True if the source location is framework/library boilerplate."""
+    if not source:
+        return False
+    source_lower = source.lower()
+    return any(p.search(source_lower) for p in BENIGN_SOURCE_PATTERNS)
+
+
+def is_suspicious_source(source: str) -> bool:
+    """Return True if the source location suggests obfuscated payload use."""
+    if not source:
+        return False
+    source_lower = source.lower()
+    return any(p.search(source_lower) for p in SUSPICIOUS_SOURCE_PATTERNS)
+
+
+def is_benign_value_pattern(value: str) -> bool:
+    """Return True for common code identifiers/constants misclassified as encodings."""
+    if not value:
+        return False
+    for pat in BENIGN_VALUE_PATTERNS:
+        if pat.match(value):
+            return True
+    return False
+
+
+def is_likely_obfuscated_payload(value: str, decoded: str, source: str,
+                                  entropy: float) -> bool:
+    """
+    Decide whether a decoded candidate is a real obfuscated payload or a
+    false positive. We require at least one strong signal:
+      - decoded content contains URLs, IPs, domains, or emails; OR
+      - the source context looks suspicious (reflection, crypto, loading, etc.)
+
+    Benign framework/library sources are demoted unless one of the strong
+    signals is present, and obvious code-identifier shapes are rejected.
+    """
+    meaningful = has_meaningful_content(decoded)
+    suspicious = is_suspicious_source(source)
+
+    # Strong signals: always keep.
+    if meaningful or suspicious:
+        return True
+
+    # Benign framework / library code without meaningful decode -> likely FP.
+    if is_benign_source(source):
+        return False
+
+    # Common identifier shapes without meaningful decode -> likely FP.
+    if is_benign_value_pattern(value):
+        return False
+
+    # Keep high-entropy unknowns as uncertain candidates.
+    if entropy > HIGH_ENTROPY_THRESHOLD:
+        return True
+
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -265,6 +363,8 @@ def detect_encoding(strings_result: dict) -> dict:
             decoded = try_base64_decode(clean)
             if decoded is not None:
                 meaningful = 1.0 if has_meaningful_content(decoded) else 0.3
+                if not is_likely_obfuscated_payload(clean, decoded, source, entropy):
+                    continue
                 encodings.append({
                     "encoding_id": f"enc_{encoding_id:03d}",
                     "type": "base64",
@@ -284,6 +384,8 @@ def detect_encoding(strings_result: dict) -> dict:
             decoded = try_hex_decode(clean)
             if decoded is not None:
                 meaningful = 1.0 if has_meaningful_content(decoded) else 0.3
+                if not is_likely_obfuscated_payload(clean, decoded, source, entropy):
+                    continue
                 encodings.append({
                     "encoding_id": f"enc_{encoding_id:03d}",
                     "type": "hex",
@@ -303,6 +405,8 @@ def detect_encoding(strings_result: dict) -> dict:
             decoded = try_urlsafe_base64_decode(clean)
             if decoded is not None:
                 meaningful = 1.0 if has_meaningful_content(decoded) else 0.3
+                if not is_likely_obfuscated_payload(clean, decoded, source, entropy):
+                    continue
                 encodings.append({
                     "encoding_id": f"enc_{encoding_id:03d}",
                     "type": "base64_urlsafe",
@@ -326,6 +430,8 @@ def detect_encoding(strings_result: dict) -> dict:
                     if candidates:
                         best_key, best_text, best_score = candidates[0]
                         meaningful = 1.0 if has_meaningful_content(best_text) else 0.4
+                        if not is_likely_obfuscated_payload(clean, best_text, source, entropy):
+                            continue
                         encodings.append({
                             "encoding_id": f"enc_{encoding_id:03d}",
                             "type": "xor",
@@ -344,8 +450,9 @@ def detect_encoding(strings_result: dict) -> dict:
             except Exception:
                 pass
 
-        # Custom encoding flag for very high entropy failures
-        if entropy > CUSTOM_ENCODING_THRESHOLD:
+        # Custom encoding flag for very high entropy failures.
+        # Require a suspicious source context; otherwise this is just noise.
+        if entropy > CUSTOM_ENCODING_THRESHOLD and is_suspicious_source(source):
             encodings.append({
                 "encoding_id": f"enc_{encoding_id:03d}",
                 "type": "custom",

@@ -4,6 +4,9 @@ from analysis.step3_encoding_detection import (
     try_base64_decode,
     try_hex_decode,
     has_meaningful_content,
+    is_benign_source,
+    is_suspicious_source,
+    is_likely_obfuscated_payload,
 )
 from analysis.step4_decoding import decode_payloads, extract_artifacts
 
@@ -35,7 +38,8 @@ def test_base64_detection():
 
 
 def test_hex_detection():
-    # Hex of "hello world"
+    # Hex of "hello world" in a suspicious decoder context. The string length is
+    # not a multiple of 4, so it fails the Base64 check and is detected as hex.
     original = "68656c6c6f20776f726c64"
     strings_result = {
         "sample_id": "test_sample",
@@ -44,7 +48,7 @@ def test_hex_detection():
                 {
                     "value": original,
                     "entropy": 3.2,
-                    "source": "Test.java:20",
+                    "source": "com\\malware\\decoder\\PayloadDecoder.smali:20",
                 }
             ],
             "byte_arrays": [],
@@ -115,3 +119,108 @@ def test_has_meaningful_content():
     assert has_meaningful_content("Visit https://evil.com/path") is True
     assert has_meaningful_content("Contact admin@example.com") is True
     assert has_meaningful_content("just some random text") is False
+
+
+# ---------------------------------------------------------------------------
+# Repair regression tests
+# ---------------------------------------------------------------------------
+
+
+def test_benign_support_library_strings_not_flagged():
+    """Android support-library identifiers should not be treated as encodings."""
+    strings_result = {
+        "sample_id": "test_benign_support",
+        "categories": {
+            "string_literals": [
+                {
+                    "value": "setHomeAsUpIndicator",  # Base64-decodes to garbage
+                    "entropy": 4.0,
+                    "source": "android\\support\\v7\\app\\ActionBarDrawerToggleHoneycomb.smali:40",
+                },
+                {
+                    "value": "0123456789abcdef",  # Hex constant
+                    "entropy": 4.0,
+                    "source": "com\\jovial\\jrpn\\BigInt.smali:453",
+                },
+            ],
+            "byte_arrays": [],
+            "numeric_constants": [],
+            "resource_strings": [],
+            "native_strings": [],
+        },
+    }
+    result = detect_encoding(strings_result)
+    assert result["total_encodings"] == 0
+
+
+def test_benign_resource_strings_not_flagged():
+    """XML resource content should not be treated as an obfuscated payload."""
+    xml_content = '<?xml version="1.0" encoding="utf-8"?>\n<properties></properties>'
+    strings_result = {
+        "sample_id": "test_benign_resource",
+        "categories": {
+            "resource_strings": [
+                {
+                    "value": xml_content,
+                    "entropy": 5.2,
+                    "source": "res/raw/config.xml:1",
+                }
+            ],
+            "string_literals": [],
+            "byte_arrays": [],
+            "numeric_constants": [],
+            "native_strings": [],
+        },
+    }
+    result = detect_encoding(strings_result)
+    assert result["total_encodings"] == 0
+
+
+def test_suspicious_context_keeps_encoding_without_meaningful_decode():
+    """High-entropy strings in suspicious contexts should still be flagged."""
+    strings_result = {
+        "sample_id": "test_suspicious",
+        "categories": {
+            "string_literals": [
+                {
+                    "value": "QUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFB",  # 'A' repeated
+                    "entropy": 5.5,
+                    "source": "com\\evil\\loader\\PayloadDecoder.smali:42",
+                }
+            ],
+            "byte_arrays": [],
+            "numeric_constants": [],
+            "resource_strings": [],
+            "native_strings": [],
+        },
+    }
+    result = detect_encoding(strings_result)
+    assert result["total_encodings"] >= 1
+
+
+def test_is_likely_obfuscated_payload_logic():
+    # Meaningful decoded content -> keep
+    assert is_likely_obfuscated_payload(
+        "dummy", "https://evil.com", "Foo.java:1", 4.0
+    ) is True
+    # Benign source without meaningful decode -> drop
+    assert is_likely_obfuscated_payload(
+        "setHomeAsUpIndicator", "garbage", "android\\support\\v7\\app\\X.smali:1", 4.0
+    ) is False
+    # Suspicious source without meaningful decode -> keep
+    assert is_likely_obfuscated_payload(
+        "AAAA", "garbage", "com\\evil\\loader\\Decoder.smali:1", 4.0
+    ) is True
+
+
+def test_is_benign_source():
+    assert is_benign_source("android\\support\\v7\\app\\Foo.smali:1") is True
+    assert is_benign_source("androidx\\core\\Bar.java:10") is True
+    assert is_benign_source("res\\raw\\config.xml:1") is True
+    assert is_benign_source("com\\evil\\payload\\Loader.smali:1") is False
+
+
+def test_is_suspicious_source():
+    assert is_suspicious_source("com\\evil\\loader\\Decoder.smali:1") is True
+    assert is_suspicious_source("com\\malware\\reflect\\Hide.smali:1") is True
+    assert is_suspicious_source("android\\support\\v7\\app\\Foo.smali:1") is False
