@@ -497,6 +497,21 @@
   font-weight: 600;
 }
 
+.view-source-btn {
+  background: var(--accent-cyan, #06b6d4);
+  color: #fff;
+  border: none;
+  border-radius: 0.25rem;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+.view-source-btn:hover {
+  filter: brightness(1.1);
+}
+
 @media (max-width: 700px) {
   .dissection-toolbar {
     flex-direction: column;
