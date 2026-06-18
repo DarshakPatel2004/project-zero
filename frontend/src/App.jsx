@@ -254,6 +254,19 @@ function App() {
       setSelectedSample(newSample)
       setActiveTab('analysis')
 
+      // Optimistically start the running state so the UI shows the loading
+      // screen immediately while the backend begins the pipeline.
+      dispatch({
+        type: 'ANALYSIS_STARTED',
+        payload: {
+          sample_id: data.upload_id,
+          sample_name: file.name,
+          file_size_bytes: file.size,
+          total_steps: 9,
+          predicted_eta_seconds: null,
+        },
+      })
+
       // Start analysis
       analyzeUpload(data.upload_id)
     } catch (error) {
@@ -280,8 +293,26 @@ function App() {
     setSelectedSample(sample)
     setActiveTab('analysis')
     setSidebarOpen(false)
-    // Reset analysis state when switching samples
-    dispatch({ type: 'RESET' })
+
+    const sampleId = sample?.sampleId || sample?.sha256 || sample?.uploadId
+    const isAnalyzed = sample?.status === 'analyzed' || sample?.status === 'completed'
+
+    if (isAnalyzed && sampleId) {
+      // Show the completed result view immediately for previously analyzed samples
+      dispatch({
+        type: 'ANALYSIS_COMPLETE',
+        payload: {
+          sample_id: sampleId,
+          total_duration_seconds: null,
+          step_timings: {},
+          final_verdict: sample?.severity || 'unknown',
+          risk_score: sample?.risk_score || 0,
+        },
+      })
+    } else {
+      // Reset analysis state when switching to a fresh/uploaded sample
+      dispatch({ type: 'RESET' })
+    }
   }
 
   const activeLabel = NAV_ITEMS.find(n => n.id === activeTab)?.label || ''
