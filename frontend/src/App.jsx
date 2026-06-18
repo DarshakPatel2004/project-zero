@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useReducer } from 'react'
 import './App.css'
 import UploadPanel from './components/UploadPanel'
 import AnalysisView from './components/AnalysisView'
@@ -13,17 +13,117 @@ const NAV_ITEMS = [
   { id: 'threat-intel', label: 'Threat Intelligence', icon: '🌐' },
 ]
 
+/**
+ * Analysis state reducer: maintains single source of truth for live analysis.
+ * Replaces the old "liveEvents" array with a compact state dict.
+ */
+function analysisReducer(state, action) {
+  switch (action.type) {
+    case 'RESET':
+      return {
+        sampleId: null,
+        status: null,
+        progress: 0,
+        eta: null,
+        startTime: null,
+        metrics: {
+          c2_count: 0,
+          encoding_count: 0,
+          payload_count: 0,
+          threat_chain_count: 0,
+        },
+        stepTimings: {},
+        verdictData: null,
+        error: null,
+      }
+
+    case 'ANALYSIS_STARTED':
+      return {
+        ...state,
+        sampleId: action.payload.sample_id,
+        status: 'running',
+        progress: 0,
+        eta: action.payload.predicted_eta_seconds || null,
+        startTime: Date.now(),
+        stepTimings: {},
+        error: null,
+      }
+
+    case 'STEP_COMPLETED':
+      const { step_number, duration_seconds, remaining_eta_seconds, progress_percent, step_name } = action.payload
+      return {
+        ...state,
+        progress: progress_percent || step_number / 9 * 100,
+        eta: remaining_eta_seconds,
+        stepTimings: {
+          ...state.stepTimings,
+          [step_name]: duration_seconds,
+        },
+      }
+
+    case 'METRIC_UPDATED':
+      const { metric_name, metric_value } = action.payload
+      return {
+        ...state,
+        metrics: {
+          ...state.metrics,
+          [metric_name]: metric_value,
+        },
+      }
+
+    case 'ANALYSIS_COMPLETE':
+      return {
+        ...state,
+        status: 'complete',
+        progress: 100,
+        eta: 0,
+        verdictData: {
+          verdict: action.payload.final_verdict,
+          riskScore: action.payload.risk_score,
+          totalDuration: action.payload.total_duration_seconds,
+        },
+      }
+
+    case 'ERROR':
+      return {
+        ...state,
+        status: 'error',
+        error: action.payload.error_message,
+      }
+
+    default:
+      return state
+  }
+}
+
 function App() {
   const [activeTab, setActiveTab] = useState('upload')
   const [samples, setSamples] = useState([])
   const [selectedSample, setSelectedSample] = useState(null)
-  const [analysisStatus, setAnalysisStatus] = useState({})
-  const [liveEvents, setLiveEvents] = useState({})
   const [wsState, setWsState] = useState('connecting')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [backendReady, setBackendReady] = useState(true)
   const wsRef = useRef(null)
 
+  // Unified analysis state (replaces liveEvents + analysisStatus)
+  const [analysisState, dispatch] = useReducer(analysisReducer, {
+    sampleId: null,
+    status: null,
+    progress: 0,
+    eta: null,
+    startTime: null,
+    metrics: {
+      c2_count: 0,
+      encoding_count: 0,
+      payload_count: 0,
+      threat_chain_count: 0,
+    },
+    stepTimings: {},
+    verdictData: null,
+    error: null,
+  })
+
+  // Check backend health on mount
   useEffect(() => {
     fetch(`${API_URL}/`)
       .then(r => setBackendReady(r.ok))
@@ -45,6 +145,7 @@ function App() {
         ws.onopen = () => {
           console.log('[WS] Connected')
           setWsState('connected')
+          // Send ping to keep connection alive
           ws.send(JSON.stringify({ action: 'ping' }))
           pingTimer = setInterval(() => {
             if (ws.readyState === WebSocket.OPEN) {
@@ -56,10 +157,9 @@ function App() {
         ws.onmessage = (event) => {
           try {
             const message = JSON.parse(event.data)
-            console.log('[WS] Message:', message.event_type, message.data)
             handleWsMessage(message)
           } catch (err) {
-            console.error('Failed to parse WebSocket message:', err)
+            console.error('[WS] Failed to parse message:', err)
           }
         }
 
@@ -75,7 +175,7 @@ function App() {
           setWsState('error')
         }
       } catch (err) {
-        console.error('Failed to create WebSocket:', err)
+        console.error('[WS] Failed to create WebSocket:', err)
         setWsState('error')
         reconnectTimer = setTimeout(connect, 5000)
       }
@@ -90,20 +190,43 @@ function App() {
     }
   }, [])
 
-  const handleWsMessage = (message) => {
-    if (message.event_type === 'pong') return
+  /**
+   * Unified WebSocket message handler.
+   * No event array; just update the analysis state directly.
+   */
+  const handleWsMessage = useCallback((message) => {
+    const { event_type, data } = message
 
-    const sampleId = message.data?.sample_id
-    if (!sampleId) return
+    console.log('[WS]', event_type, data?.sample_id)
 
-    setLiveEvents(prev => {
-      const existing = prev[sampleId] || []
-      return {
-        ...prev,
-        [sampleId]: [...existing, message]
-      }
-    })
-  }
+    switch (event_type) {
+      case 'pong':
+        break // Ignore pong
+
+      case 'analysis_started':
+        dispatch({ type: 'ANALYSIS_STARTED', payload: data })
+        break
+
+      case 'step_completed':
+        dispatch({ type: 'STEP_COMPLETED', payload: data })
+        break
+
+      case 'metric_updated':
+        dispatch({ type: 'METRIC_UPDATED', payload: data })
+        break
+
+      case 'analysis_complete':
+        dispatch({ type: 'ANALYSIS_COMPLETE', payload: data })
+        break
+
+      case 'error':
+        dispatch({ type: 'ERROR', payload: data })
+        break
+
+      default:
+        console.log('[WS] Unknown event:', event_type)
+    }
+  }, [])
 
   const handleUpload = useCallback(async (file) => {
     const formData = new FormData()
@@ -124,9 +247,14 @@ function App() {
         uploadedAt: new Date().toISOString(),
       }
 
+      // Reset analysis state for new sample
+      dispatch({ type: 'RESET' })
+
       setSamples(prev => [newSample, ...prev])
       setSelectedSample(newSample)
       setActiveTab('analysis')
+
+      // Start analysis
       analyzeUpload(data.upload_id)
     } catch (error) {
       console.error('Upload failed:', error)
@@ -134,77 +262,30 @@ function App() {
     }
   }, [])
 
-  const analyzeUpload = async (uploadId) => {
+  const analyzeUpload = useCallback(async (uploadId) => {
     try {
       const response = await fetch(`${API_URL}/api/analyze/${uploadId}`, {
         method: 'POST',
       })
       const data = await response.json()
-
-      setAnalysisStatus(prev => ({
-        ...prev,
-        [uploadId]: { status: 'analyzing', jobId: data.job_id }
-      }))
-
-      pollAnalysisStatus(uploadId)
+      console.log('Analysis triggered:', data)
+      // WebSocket events will drive the UI from here
     } catch (error) {
       console.error('Analysis failed:', error)
-      setAnalysisStatus(prev => ({
-        ...prev,
-        [uploadId]: { status: 'failed', error: error.message }
-      }))
+      dispatch({ type: 'ERROR', payload: { error_message: error.message } })
     }
-  }
-
-  const pollAnalysisStatus = async (uploadId) => {
-    const maxAttempts = 240
-    let attempts = 0
-
-    const checkStatus = async () => {
-      try {
-        const response = await fetch(`${API_URL}/api/sample/${uploadId}/status`)
-        const data = await response.json()
-
-        const sampleId = data.sample_id || uploadId
-
-        setAnalysisStatus(prev => ({
-          ...prev,
-          [uploadId]: { status: data.status, jobId: uploadId, sampleId, error: data.error }
-        }))
-
-        if (data.status === 'completed' || data.status === 'failed') {
-          setSamples(prev =>
-            prev.map(s => s.uploadId === uploadId
-              ? { ...s, status: data.status, sampleId: sampleId === uploadId ? null : sampleId }
-              : s
-            )
-          )
-        } else if (attempts < maxAttempts) {
-          attempts++
-          setTimeout(checkStatus, 1500)
-        }
-      } catch (error) {
-        console.error('Status check failed:', error)
-        if (attempts < maxAttempts) {
-          attempts++
-          setTimeout(checkStatus, 2000)
-        }
-      }
-    }
-
-    checkStatus()
-  }
+  }, [])
 
   const handleSelectSample = (sample) => {
     setSelectedSample(sample)
     setActiveTab('analysis')
     setSidebarOpen(false)
+    // Reset analysis state when switching samples
+    dispatch({ type: 'RESET' })
   }
 
   const activeLabel = NAV_ITEMS.find(n => n.id === activeTab)?.label || ''
-
-  const selectedSampleId = selectedSample?.sampleId || selectedSample?.sha256 || selectedSample?.uploadId
-  const selectedEvents = selectedSampleId ? (liveEvents[selectedSampleId] || []) : []
+  const selectedSampleId = selectedSample?.uploadId
 
   return (
     <div className="app-layout">
@@ -265,19 +346,17 @@ function App() {
             </div>
           )}
 
-          {activeTab === 'analysis' && (
+          {activeTab === 'analysis' && selectedSample && (
             <div className="view-wrapper">
               <AnalysisView
                 sample={selectedSample}
-                status={analysisStatus[selectedSample?.uploadId]}
-                events={selectedEvents}
-                wsState={wsState}
+                analysisState={analysisState}
                 apiUrl={API_URL}
               />
             </div>
           )}
 
-          {activeTab === 'threat-intel' && (
+          {activeTab === 'threat-intel' && selectedSample && (
             <div className="view-wrapper">
               <ThreatIntelView
                 sample={selectedSample}
