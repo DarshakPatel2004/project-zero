@@ -32,14 +32,20 @@ def create_event(event_type: str, data: Dict[str, Any]) -> WebSocketEvent:
 
 
 VALID_EVENT_TYPES = {
+    # New unified progress events
     "analysis_started",
+    "step_started",
+    "step_completed",
+    "metric_updated",
+    "analysis_complete",
+    "error",
+    "pong",
+    # Legacy events (kept for backward compatibility)
     "extraction_complete",
     "strings_enumerated",
     "encoding_detected",
     "payload_decoded",
     "c2_extracted",
     "threat_chain_created",
-    "analysis_complete",
-    "error",
     "metrics_update",
 }

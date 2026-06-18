@@ -1,17 +1,18 @@
 """
 DroidForensix Analysis Pipeline Orchestrator
 
-Coordinates the 8-step analysis pipeline:
+Coordinates the 9-step analysis pipeline:
 1. APK Extraction
 2. String Enumeration
 3. Encoding Detection
 4. Payload Decoding
 5. C2 Extraction
 6. Threat Chain Correlation
-7. LLM Assessment
-8. Obfuscation Analysis
+7. Obfuscation Analysis
+8. LLM Assessment
+9. Family Identification
 
-Emits events at key milestones for backend WebSocket broadcasting.
+Emits unified progress events for real-time frontend updates.
 """
 
 import json
@@ -42,6 +43,21 @@ class PipelineError(Exception):
 EventEmitter = Optional[Callable[[str, dict], None]]
 
 
+TOTAL_STEPS = 9
+
+STEP_NAMES = {
+    1: "APK Extraction",
+    2: "String Enumeration",
+    3: "Encoding Detection",
+    4: "Payload Decoding",
+    5: "C2 Extraction",
+    6: "Threat Chain Correlation",
+    7: "Obfuscation Analysis",
+    8: "LLM Assessment",
+    9: "Family Identification",
+}
+
+
 def _emit(emitter: EventEmitter, event_type: str, data: dict):
     """Emit an event if emitter is provided."""
     if emitter:
@@ -49,6 +65,73 @@ def _emit(emitter: EventEmitter, event_type: str, data: dict):
             emitter(event_type, data)
         except Exception:
             pass
+
+
+def _estimate_remaining_eta(apk_size: int, remaining_steps: int) -> float:
+    """
+    Estimate remaining analysis time based on APK size.
+    Buckets:
+    - < 1MB: ~2.0s per step
+    - 1-10MB: ~3.5s per step
+    - > 10MB: ~5.0s per step
+    """
+    if apk_size < 1_000_000:      # < 1MB
+        avg_per_step = 2.0
+    elif apk_size < 10_000_000:   # 1-10MB
+        avg_per_step = 3.5
+    else:                          # > 10MB
+        avg_per_step = 5.0
+    return remaining_steps * avg_per_step
+
+
+def _run_step(step_num: int, sample_id: str, apk_size: int,
+              global_start: float, emitter: EventEmitter,
+              work_dir: str, func, *args, **kwargs):
+    """
+    Run a pipeline step, emit step_started/step_completed, and return result.
+    """
+    step_name = STEP_NAMES[step_num]
+    elapsed_before = time.time() - global_start
+
+    _emit(emitter, "step_started", {
+        "sample_id": sample_id,
+        "step_number": step_num,
+        "step_name": step_name,
+        "elapsed_seconds": round(elapsed_before, 3),
+    })
+
+    step_start = time.time()
+    try:
+        result = func(*args, **kwargs)
+    except Exception as e:
+        _emit(emitter, "error", {
+            "sample_id": sample_id,
+            "step_number": step_num,
+            "step_name": step_name,
+            "error_message": str(e),
+            "severity": "high",
+        })
+        raise PipelineError(f"Step {step_num} failed: {e}")
+
+    step_duration = time.time() - step_start
+    elapsed = time.time() - global_start
+    remaining_steps = TOTAL_STEPS - step_num
+    remaining_eta = _estimate_remaining_eta(apk_size, remaining_steps)
+    progress_pct = int((step_num / TOTAL_STEPS) * 100)
+
+    _emit(emitter, "step_completed", {
+        "sample_id": sample_id,
+        "step_number": step_num,
+        "step_name": step_name,
+        "duration_seconds": round(step_duration, 3),
+        "elapsed_seconds": round(elapsed, 3),
+        "remaining_steps": remaining_steps,
+        "remaining_eta_seconds": round(remaining_eta, 3),
+        "step_status": "success",
+        "progress_percent": progress_pct,
+    })
+
+    return result, round(step_duration, 3)
 
 
 def run_pipeline(apk_path: str, work_dir: Optional[str] = None,
@@ -66,164 +149,174 @@ def run_pipeline(apk_path: str, work_dir: Optional[str] = None,
         dict with full analysis results.
     """
     work_dir = str(work_dir) if work_dir else str(settings.WORK_DIR)
-    start_time = time.time()
+    global_start = time.time()
     timeline = {}
+    apk_size = Path(apk_path).stat().st_size
 
-    # Step 1: APK Extraction
+    # Step 1: APK Extraction (special: sample_id unknown until finished)
+    step_num = 1
+    step_name = STEP_NAMES[step_num]
+    _emit(event_emitter, "step_started", {
+        "sample_id": None,
+        "step_number": step_num,
+        "step_name": step_name,
+        "elapsed_seconds": 0.0,
+    })
+
     step_start = time.time()
     try:
         extraction = extract_apk(apk_path, work_dir)
     except Exception as e:
-        raise PipelineError(f"Step 1 failed: {e}")
-    timeline["step1"] = round(time.time() - step_start, 2)
+        _emit(event_emitter, "error", {
+            "sample_id": None,
+            "step_number": step_num,
+            "step_name": step_name,
+            "error_message": str(e),
+            "severity": "high",
+        })
+        raise PipelineError(f"Step {step_num} failed: {e}")
 
+    step_duration = time.time() - step_start
+    timeline["step1"] = round(step_duration, 3)
     sample_id = extraction["sample_id"]
+    elapsed = time.time() - global_start
+    remaining_steps = TOTAL_STEPS - step_num
+    remaining_eta = _estimate_remaining_eta(apk_size, remaining_steps)
+    progress_pct = int((step_num / TOTAL_STEPS) * 100)
+
     _emit(event_emitter, "analysis_started", {
         "sample_id": sample_id,
         "sample_name": extraction["sample_name"],
-        "total_steps": 8,
+        "file_size_bytes": apk_size,
+        "total_steps": TOTAL_STEPS,
+        "predicted_eta_seconds": round(remaining_eta, 3),
     })
-    _emit(event_emitter, "extraction_complete", {
+
+    _emit(event_emitter, "step_completed", {
         "sample_id": sample_id,
-        "apktool_success": extraction["apktool_success"],
-        "jadx_success": extraction["jadx_success"],
-        "native_libs_found": extraction["native_libs_found"],
+        "step_number": step_num,
+        "step_name": step_name,
+        "duration_seconds": round(step_duration, 3),
+        "elapsed_seconds": round(elapsed, 3),
+        "remaining_steps": remaining_steps,
+        "remaining_eta_seconds": round(remaining_eta, 3),
+        "step_status": "success",
+        "progress_percent": progress_pct,
+    })
+
+    _emit(event_emitter, "metric_updated", {
+        "sample_id": sample_id,
+        "metric_name": "apktool_success",
+        "metric_value": 1 if extraction["apktool_success"] else 0,
+        "step_context": step_num,
     })
 
     # Step 2: String Enumeration
-    step_start = time.time()
-    try:
-        strings_result = enumerate_strings(extraction)
-    except Exception as e:
-        raise PipelineError(f"Step 2 failed: {e}")
-    timeline["step2"] = round(time.time() - step_start, 2)
-    _emit(event_emitter, "strings_enumerated", {
+    strings_result, timeline["step2"] = _run_step(
+        2, sample_id, apk_size, global_start, event_emitter, work_dir,
+        enumerate_strings, extraction
+    )
+    _emit(event_emitter, "metric_updated", {
         "sample_id": sample_id,
-        "total_strings": strings_result["total_strings"],
+        "metric_name": "string_count",
+        "metric_value": strings_result.get("total_strings", 0),
+        "step_context": 2,
     })
 
     # Step 3: Encoding Detection
-    step_start = time.time()
-    try:
-        encodings_result = detect_encoding(strings_result)
-    except Exception as e:
-        raise PipelineError(f"Step 3 failed: {e}")
-    timeline["step3"] = round(time.time() - step_start, 2)
-    for enc in encodings_result.get("encodings", []):
-        _emit(event_emitter, "encoding_detected", {
-            "sample_id": sample_id,
-            "encoding_id": enc["encoding_id"],
-            "type": enc["type"],
-            "original_string": enc["original_string"][:100],
-            "confidence": enc["confidence"],
-            "entropy": enc["entropy"],
-            "source_location": enc["source_location"],
-            "decoded_preview": enc["decoded_preview"][:100],
-        })
+    encodings_result, timeline["step3"] = _run_step(
+        3, sample_id, apk_size, global_start, event_emitter, work_dir,
+        detect_encoding, strings_result
+    )
+    _emit(event_emitter, "metric_updated", {
+        "sample_id": sample_id,
+        "metric_name": "encoding_count",
+        "metric_value": len(encodings_result.get("encodings", [])),
+        "step_context": 3,
+    })
 
     # Step 4: Payload Decoding
-    step_start = time.time()
-    try:
-        payloads_result = decode_payloads(encodings_result)
-    except Exception as e:
-        raise PipelineError(f"Step 4 failed: {e}")
-    timeline["step4"] = round(time.time() - step_start, 2)
-    for pld in payloads_result.get("payloads", []):
-        _emit(event_emitter, "payload_decoded", {
-            "sample_id": sample_id,
-            "payload_id": pld["payload_id"],
-            "encoding_id": pld["encoding_id"],
-            "decoded_content": pld["decoded_content"][:200],
-            "artifacts": pld["artifacts"],
-            "source_location": pld["source_location"],
-        })
+    payloads_result, timeline["step4"] = _run_step(
+        4, sample_id, apk_size, global_start, event_emitter, work_dir,
+        decode_payloads, encodings_result
+    )
+    _emit(event_emitter, "metric_updated", {
+        "sample_id": sample_id,
+        "metric_name": "payload_count",
+        "metric_value": len(payloads_result.get("payloads", [])),
+        "step_context": 4,
+    })
 
     # Step 5: C2 Extraction
-    step_start = time.time()
-    try:
-        c2_result = extract_c2_infrastructure(payloads_result, strings_result)
-    except Exception as e:
-        raise PipelineError(f"Step 5 failed: {e}")
-    timeline["step5"] = round(time.time() - step_start, 2)
-    for c2 in c2_result.get("c2_infrastructure", []):
-        _emit(event_emitter, "c2_extracted", {
-            "sample_id": sample_id,
-            "c2_id": c2["c2_id"],
-            "payload_id": c2["payload_id"],
-            "raw_url": c2["raw_url"],
-            "protocol": c2["protocol"],
-            "domain": c2["domain"],
-            "ip": c2["ip"],
-            "port": c2["port"],
-            "ip_classification": c2["ip_classification"],
-            "communication_type": c2["communication_type"],
-            "confidence": c2["confidence"],
-        })
+    c2_result, timeline["step5"] = _run_step(
+        5, sample_id, apk_size, global_start, event_emitter, work_dir,
+        extract_c2_infrastructure, payloads_result, strings_result
+    )
+    _emit(event_emitter, "metric_updated", {
+        "sample_id": sample_id,
+        "metric_name": "c2_count",
+        "metric_value": len(c2_result.get("c2_infrastructure", [])),
+        "step_context": 5,
+    })
 
     # Step 6: Threat Chain Correlation
-    step_start = time.time()
-    try:
-        chains_result = build_threat_chains(encodings_result, payloads_result, c2_result)
-    except Exception as e:
-        raise PipelineError(f"Step 6 failed: {e}")
-    timeline["step6"] = round(time.time() - step_start, 2)
-    for chain in chains_result.get("threat_chains", []):
-        _emit(event_emitter, "threat_chain_created", {
-            "sample_id": sample_id,
-            "chain_id": chain["chain_id"],
-            "severity": chain["severity"],
-            "confidence": chain["confidence"],
-            "steps": chain["steps"],
-        })
+    chains_result, timeline["step6"] = _run_step(
+        6, sample_id, apk_size, global_start, event_emitter, work_dir,
+        build_threat_chains, encodings_result, payloads_result, c2_result
+    )
+    _emit(event_emitter, "metric_updated", {
+        "sample_id": sample_id,
+        "metric_name": "threat_chain_count",
+        "metric_value": len(chains_result.get("threat_chains", [])),
+        "step_context": 6,
+    })
 
-    # Step 8: Obfuscation Analysis (run before LLM so the verdict can use it)
-    step_start = time.time()
-    try:
-        obfuscation_result = analyze_obfuscation(apk_path, work_dir, sample_id=sample_id)
-    except Exception as e:
-        obfuscation_result = {
-            "sample_id": sample_id,
-            "obfuscation_score": 0.0,
-            "obfuscation_level": "low",
-            "indicators": {},
-            "dex_entropy": [],
-            "native_library_artifacts": [],
-            "notes": [f"Obfuscation analysis failed: {e}"],
-        }
-    timeline["step8"] = round(time.time() - step_start, 2)
+    # Step 7: Obfuscation Analysis
+    def obfuscation_with_fallback():
+        try:
+            return analyze_obfuscation(apk_path, work_dir, sample_id=sample_id)
+        except Exception as e:
+            return {
+                "sample_id": sample_id,
+                "obfuscation_score": 0.0,
+                "obfuscation_level": "low",
+                "indicators": {},
+                "dex_entropy": [],
+                "native_library_artifacts": [],
+                "notes": [f"Obfuscation analysis failed: {e}"],
+            }
 
-    # Step 7: LLM Assessment
-    step_start = time.time()
-    try:
-        llm_assessment = assess_with_llm(chains_result, c2_result, obfuscation_result)
-    except Exception as e:
-        llm_assessment = {
-            "severity": "low",
-            "risk_score": 0,
-            "narrative": f"LLM assessment failed: {e}",
-            "primary_threat": "other",
-            "recommended_actions": ["Check Ollama connection", "Retry analysis"],
-            "confidence": 0.0,
-        }
-    timeline["step7"] = round(time.time() - step_start, 2)
+    obfuscation_result, timeline["step7"] = _run_step(
+        7, sample_id, apk_size, global_start, event_emitter, work_dir,
+        obfuscation_with_fallback
+    )
+    _emit(event_emitter, "metric_updated", {
+        "sample_id": sample_id,
+        "metric_name": "obfuscation_score",
+        "metric_value": obfuscation_result.get("obfuscation_score", 0),
+        "step_context": 7,
+    })
 
-    duration = round(time.time() - start_time, 2)
-    timeline["total"] = duration
+    # Step 8: LLM Assessment
+    def llm_with_fallback():
+        try:
+            return assess_with_llm(chains_result, c2_result, obfuscation_result)
+        except Exception as e:
+            return {
+                "severity": "low",
+                "risk_score": 0,
+                "narrative": f"LLM assessment failed: {e}",
+                "primary_threat": "other",
+                "recommended_actions": ["Check Ollama connection", "Retry analysis"],
+                "confidence": 0.0,
+            }
 
-    # Save structural APK dissection (fast, cached for dashboard)
-    try:
-        dissector = APKDissector(apk_path, work_dir=work_dir)
-        dissection_data = dissector.dissect()
-        dissection_path = Path(work_dir) / sample_id / "dissection.json"
-        with open(dissection_path, "w", encoding="utf-8") as f:
-            json.dump(dissection_data, f, indent=2, default=str)
-    except Exception as e:
-        # Dissection should never fail the full pipeline
-        _emit(event_emitter, "error", {
-            "sample_id": sample_id,
-            "message": f"Dissection save failed: {e}",
-        })
+    llm_assessment, timeline["step8"] = _run_step(
+        8, sample_id, apk_size, global_start, event_emitter, work_dir,
+        llm_with_fallback
+    )
 
+    # Build result dict
     manifest = extraction.get("manifest_info", {}) or {}
     result = {
         "sample_id": sample_id,
@@ -260,30 +353,55 @@ def run_pipeline(apk_path: str, work_dir: Optional[str] = None,
         "timeline": timeline,
     }
 
-    # Step 9: Post-processing sanity corrections
+    # Step 9a: Post-processing sanity corrections
     try:
         result = post_process_result(result)
     except Exception as e:
         _emit(event_emitter, "error", {
             "sample_id": sample_id,
-            "message": f"Post-processing failed: {e}",
+            "step_number": 9,
+            "step_name": "Post-processing",
+            "error_message": f"Post-processing failed: {e}",
+            "severity": "medium",
         })
 
-    # Step 10: Malware family identification (deterministic + optional LLM)
+    # Step 9b: Family identification (deterministic + optional LLM)
+    def family_with_fallback():
+        try:
+            return identify_family(sample_id, result, use_llm=True, use_cache=True)
+        except Exception as e:
+            return {
+                "family": "unknown",
+                "confidence": 0.0,
+                "method": "error",
+                "reasoning": str(e),
+                "candidates": [],
+            }
+
+    family_result, timeline["step9"] = _run_step(
+        9, sample_id, apk_size, global_start, event_emitter, work_dir,
+        family_with_fallback
+    )
+    result["family_identification"] = family_result
+
+    # Save structural APK dissection (fast, cached for dashboard)
     try:
-        result["family_identification"] = identify_family(sample_id, result, use_llm=True, use_cache=True)
+        dissector = APKDissector(apk_path, work_dir=work_dir)
+        dissection_data = dissector.dissect()
+        dissection_path = Path(work_dir) / sample_id / "dissection.json"
+        with open(dissection_path, "w", encoding="utf-8") as f:
+            json.dump(dissection_data, f, indent=2, default=str)
     except Exception as e:
         _emit(event_emitter, "error", {
             "sample_id": sample_id,
-            "message": f"Family identification failed: {e}",
+            "step_number": 9,
+            "step_name": "Dissection",
+            "error_message": f"Dissection save failed: {e}",
+            "severity": "low",
         })
-        result["family_identification"] = {
-            "family": "unknown",
-            "confidence": 0.0,
-            "method": "error",
-            "reasoning": str(e),
-            "candidates": [],
-        }
+
+    duration = round(time.time() - global_start, 3)
+    timeline["total"] = duration
 
     # Save full result
     result_path = Path(work_dir) / sample_id / "pipeline_result.json"
@@ -293,12 +411,20 @@ def run_pipeline(apk_path: str, work_dir: Optional[str] = None,
 
     _emit(event_emitter, "analysis_complete", {
         "sample_id": sample_id,
-        "total_encodings": len(encodings_result["encodings"]),
-        "total_payloads": len(payloads_result["payloads"]),
-        "total_c2s": len(c2_result["c2_infrastructure"]),
-        "total_chains": len(chains_result["threat_chains"]),
-        "duration_seconds": duration,
-        "report_path": str(result_path),
+        "total_duration_seconds": duration,
+        "step_timings": {
+            "step1_extraction": timeline.get("step1", 0),
+            "step2_strings": timeline.get("step2", 0),
+            "step3_encoding": timeline.get("step3", 0),
+            "step4_decode": timeline.get("step4", 0),
+            "step5_c2": timeline.get("step5", 0),
+            "step6_chains": timeline.get("step6", 0),
+            "step7_obfuscation": timeline.get("step7", 0),
+            "step8_llm": timeline.get("step8", 0),
+            "step9_family": timeline.get("step9", 0),
+        },
+        "final_verdict": result.get("llm_assessment", {}).get("severity", "unknown"),
+        "risk_score": result.get("llm_assessment", {}).get("risk_score", 0),
     })
 
     return result
