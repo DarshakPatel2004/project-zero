@@ -109,6 +109,12 @@ All lack network indicators. Fixing would require:
 - Dynamic execution (emulation, sandbox)
 - Encrypted payload detection (different features)
 
+**Positioning, Performance, and Dataset Coverage:**
+- Commercial multi-engine services such as VirusTotal aggregate 70+ antivirus engines, and frameworks like MobSF combine static, dynamic, and heuristic analysis. This work focuses narrowly on **C2-based static detection** to keep the contribution measurable.
+- Intended users include **enterprise app review teams**, **app-store screening workflows**, and **incident-response analysts** triaging suspicious APKs. It is a prioritization aid, not a replacement for endpoint protection or sandboxed dynamic analysis.
+- The nine-step static pipeline completes in approximately **30 seconds per sample on standard hardware** (single-threaded, commodity CPU, no GPU required), making it inexpensive for batch pre-screening.
+- The validation set is built from Drebin-family and curated AndroZoo samples—mostly 2012-era malware. Future work should validate against **modern malware from Google Play**, **alternative markets**, and **recent threat-intelligence feeds**.
+
 ## Conclusion
 
 DroidForensix successfully detects network-based malware with:

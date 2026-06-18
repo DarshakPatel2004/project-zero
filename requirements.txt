@@ -1,5 +1,8 @@
 # Web Framework & Server
-fastapi
+# fastapi>=0.119 is required for Starlette 1.x compatibility (the mcp /
+# sse-starlette deps pull Starlette >=1.0, which dropped the on_startup kwarg
+# that older FastAPI passed to Router.__init__).
+fastapi>=0.119
 uvicorn[standard]
 websockets
 python-multipart

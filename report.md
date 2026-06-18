@@ -406,7 +406,23 @@ The single warning is a Starlette/httpx deprecation notice unrelated to applicat
 - Malware using **non-standard channels** (SMS, sockets, Bluetooth).
 - Privilege-escalation exploits with minimal static footprint.
 
-### 10.3 Future Improvements
+### 10.3 Positioning, Performance, and Dataset Coverage
+
+While the pipeline is validated on the Drebin/AndroZoo ground-truth set, a few practical caveats should be noted:
+
+1. **Comparison to existing tools.**
+   Commercial multi-engine services such as VirusTotal aggregate 70+ antivirus engines, and all-in-one frameworks like MobSF combine static, dynamic, and heuristic analysis. This work intentionally narrows the scope to **C2-based static detection** so that the contribution—decoding obfuscated strings, extracting candidate C2 infrastructure, and scoring it—remains measurable and reproducible rather than competing directly with full-spectrum commercial suites.
+
+2. **Threat model and intended users.**
+   DroidForensix is designed for defenders who need a fast, explainable signal on whether an APK contains hardcoded command-and-control infrastructure. Likely users include **enterprise mobile app review teams**, **app-store screening workflows**, and **incident-response analysts** triaging suspicious APKs. It is not a replacement for endpoint protection or sandboxed dynamic analysis; it is a prioritization and investigation aid.
+
+3. **Cost and performance.**
+   The static pipeline runs nine analysis steps end-to-end in approximately **30 seconds per sample on standard hardware** (single-threaded, commodity CPU, no GPU required). This makes it cheap enough for batch pre-screening of app submissions or IR triage, but throughput is intentionally modest in this Phase 1 implementation.
+
+4. **Family and dataset coverage.**
+   The current validation relies on Drebin-family samples and a curated AndroZoo balanced set—both representative of roughly 2012-era malware families. Future work should validate the pipeline on **modern malware sourced from Google Play**, **alternative third-party markets**, and **recent threat-intelligence feeds** to confirm that current obfuscation and C2 evasion techniques are still captured.
+
+### 10.4 Future Improvements
 
 1. **Dynamic Analysis Module**
    - Execute APKs in an emulator and monitor network/API behavior.

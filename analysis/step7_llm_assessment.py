@@ -18,6 +18,7 @@ import json
 import os
 import re
 import time
+import urllib.parse
 from pathlib import Path
 from typing import Dict, Any, Optional
 
@@ -277,8 +278,44 @@ def _call_nvidia_nim(context: str, model: str, base_url: str, api_key: str, max_
     return last_error
 
 
+def _normalize_ollama_host(host: str) -> str:
+    """Normalize Ollama host so it is reachable on Windows.
+
+    On Windows, connecting to 0.0.0.0 raises [Errno 22] Invalid argument.
+    Rewrite 0.0.0.0 to 127.0.0.1 while preserving scheme and port.
+    """
+    if not host:
+        return "http://127.0.0.1:11434"
+    parsed = urllib.parse.urlparse(host)
+    hostname = parsed.hostname or "127.0.0.1"
+    if hostname in ("0.0.0.0", "::"):
+        hostname = "127.0.0.1"
+    port = parsed.port or 11434
+    scheme = parsed.scheme or "http"
+    return f"{scheme}://{hostname}:{port}"
+
+
+def _ollama_available(host: str, timeout: float = 2.0) -> bool:
+    """Quick check if Ollama is reachable before attempting a full request."""
+    host = _normalize_ollama_host(host)
+    parsed = urllib.parse.urlparse(host)
+    netloc = parsed.hostname or "127.0.0.1"
+    port = parsed.port or 11434
+    try:
+        import socket
+        s = socket.create_connection((netloc, port), timeout=timeout)
+        s.close()
+        return True
+    except (OSError, socket.error):
+        return False
+
+
 def _call_ollama(context: str, host: str, model: str, max_retries: int = 3) -> Optional[str]:
     """Call local Ollama generate endpoint and return raw response text."""
+    host = _normalize_ollama_host(host)
+    if not _ollama_available(host):
+        return "Ollama not running"
+
     try:
         import ollama
     except ImportError as e:
@@ -310,68 +347,83 @@ def assess_with_llm(chains_result: dict, c2_result: dict, obfuscation_result: Op
     Full Step 7: Get LLM assessment of threat chains and obfuscation indicators.
 
     Prefers NVIDIA NIM if NVIDIA_NIM_API_KEY is set, otherwise falls back to Ollama.
+    Any unexpected error returns the rule-based fallback assessment so the pipeline
+    keeps running.
     """
-    sample_id = chains_result["sample_id"]
+    sample_id = chains_result.get("sample_id") or c2_result.get("sample_id") or "unknown"
     work_dir = settings.WORK_DIR / sample_id
-    work_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        work_dir.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        # If the work directory cannot be created, still return a fallback.
+        pass
 
-    context = format_threat_context(chains_result, c2_result, obfuscation_result)
-    assessment = None
-    raw_output = ""
-    max_retries = 3
+    try:
+        context = format_threat_context(chains_result, c2_result, obfuscation_result)
+        assessment = None
+        raw_output = ""
+        max_retries = 3
 
-    # Determine provider: explicit setting overrides auto-detection.
-    provider = (os.environ.get("LLM_PROVIDER") or settings.LLM_PROVIDER or "auto").lower()
-    nim_api_key = os.environ.get("NVIDIA_NIM_API_KEY")
-    use_nvidia = provider == "nvidia" or (provider == "auto" and nim_api_key)
+        # Determine provider: explicit setting overrides auto-detection.
+        provider = (os.environ.get("LLM_PROVIDER") or settings.LLM_PROVIDER or "auto").lower()
+        nim_api_key = os.environ.get("NVIDIA_NIM_API_KEY")
+        use_nvidia = provider == "nvidia" or (provider == "auto" and nim_api_key)
 
-    if use_nvidia:
-        # NVIDIA NIM path
-        nim_model = os.environ.get("NVIDIA_NIM_MODEL", settings.NIM_MODEL or "nvidia/nemotron-nano-9b-v2")
-        nim_base_url = os.environ.get("NVIDIA_NIM_BASE_URL", settings.NIM_HOST or "https://integrate.api.nvidia.com/v1")
-        print(f"  [*] Using NVIDIA NIM model: {nim_model}")
+        if use_nvidia:
+            # NVIDIA NIM path
+            nim_model = os.environ.get("NVIDIA_NIM_MODEL", settings.NIM_MODEL or "nvidia/nemotron-nano-9b-v2")
+            nim_base_url = os.environ.get("NVIDIA_NIM_BASE_URL", settings.NIM_HOST or "https://integrate.api.nvidia.com/v1")
+            print(f"  [*] Using NVIDIA NIM model: {nim_model}")
 
-        for attempt in range(max_retries):
-            raw_output = _call_nvidia_nim(context, nim_model, nim_base_url, nim_api_key, max_retries=1)
-            parsed = parse_llm_json(raw_output) if raw_output else None
-            if parsed and validate_assessment(parsed):
-                assessment = sanity_check(parsed, chains_result, c2_result, obfuscation_result)
-                break
-            else:
-                # Add stricter instruction and retry
-                context = format_threat_context(chains_result, c2_result, obfuscation_result)
-                messages_note = "Your previous response was invalid. Output ONLY valid JSON.\n\n"
-                context = messages_note + context
-                time.sleep(1)
-    else:
-        # Local Ollama path
-        ollama_host = os.environ.get("OLLAMA_HOST", settings.OLLAMA_HOST)
-        ollama_model = os.environ.get("OLLAMA_MODEL", settings.OLLAMA_MODEL)
-        print(f"  [*] Using Ollama model: {ollama_model} at {ollama_host}")
+            for attempt in range(max_retries):
+                raw_output = _call_nvidia_nim(context, nim_model, nim_base_url, nim_api_key, max_retries=1)
+                parsed = parse_llm_json(raw_output) if raw_output else None
+                if parsed and validate_assessment(parsed):
+                    assessment = sanity_check(parsed, chains_result, c2_result, obfuscation_result)
+                    break
+                else:
+                    # Add stricter instruction and retry
+                    context = format_threat_context(chains_result, c2_result, obfuscation_result)
+                    messages_note = "Your previous response was invalid. Output ONLY valid JSON.\n\n"
+                    context = messages_note + context
+                    time.sleep(1)
+        else:
+            # Local Ollama path
+            ollama_host = _normalize_ollama_host(os.environ.get("OLLAMA_HOST", settings.OLLAMA_HOST))
+            ollama_model = os.environ.get("OLLAMA_MODEL", settings.OLLAMA_MODEL)
+            print(f"  [*] Using Ollama model: {ollama_model} at {ollama_host}")
 
-        for attempt in range(max_retries):
-            raw_output = _call_ollama(context, ollama_host, ollama_model, max_retries=1)
-            parsed = parse_llm_json(raw_output) if raw_output else None
-            if parsed and validate_assessment(parsed):
-                assessment = sanity_check(parsed, chains_result, c2_result, obfuscation_result)
-                break
-            else:
-                context = format_threat_context(chains_result, c2_result, obfuscation_result)
-                messages_note = "Your previous response was invalid. Output ONLY valid JSON.\n\n"
-                context = messages_note + context
-                time.sleep(1)
+            for attempt in range(max_retries):
+                raw_output = _call_ollama(context, ollama_host, ollama_model, max_retries=1)
+                parsed = parse_llm_json(raw_output) if raw_output else None
+                if parsed and validate_assessment(parsed):
+                    assessment = sanity_check(parsed, chains_result, c2_result, obfuscation_result)
+                    break
+                else:
+                    context = format_threat_context(chains_result, c2_result, obfuscation_result)
+                    messages_note = "Your previous response was invalid. Output ONLY valid JSON.\n\n"
+                    context = messages_note + context
+                    time.sleep(1)
 
-    if assessment is None:
+        if assessment is None:
+            assessment = fallback_assessment(chains_result, c2_result, obfuscation_result)
+
+        assessment["raw_llm_output"] = (raw_output or "")[:2000]
+
+        # Save intermediate result
+        try:
+            result_path = work_dir / "step7_assessment.json"
+            with open(result_path, "w", encoding="utf-8") as f:
+                json.dump(assessment, f, indent=2)
+        except OSError as e:
+            assessment["raw_llm_output"] += f" [save warning: {e}]"
+
+        return assessment
+    except Exception as e:
+        # Last-resort fallback: never let LLM assessment crash the pipeline.
         assessment = fallback_assessment(chains_result, c2_result, obfuscation_result)
-
-    assessment["raw_llm_output"] = (raw_output or "")[:2000]
-
-    # Save intermediate result
-    result_path = work_dir / "step7_assessment.json"
-    with open(result_path, "w", encoding="utf-8") as f:
-        json.dump(assessment, f, indent=2)
-
-    return assessment
+        assessment["raw_llm_output"] = f"LLM assessment error: {e}"[:2000]
+        return assessment
 
 
 if __name__ == "__main__":

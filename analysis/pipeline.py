@@ -29,6 +29,7 @@ from analysis.step6_correlation import build_threat_chains
 from analysis.step7_llm_assessment import assess_with_llm
 from analysis.step8_obfuscation_analysis import analyze_obfuscation
 from analysis.step9_post_process import post_process_result
+from backend.family_id import identify_family
 from backend.dissection import APKDissector
 
 
@@ -223,6 +224,7 @@ def run_pipeline(apk_path: str, work_dir: Optional[str] = None,
             "message": f"Dissection save failed: {e}",
         })
 
+    manifest = extraction.get("manifest_info", {}) or {}
     result = {
         "sample_id": sample_id,
         "metadata": {
@@ -231,6 +233,8 @@ def run_pipeline(apk_path: str, work_dir: Optional[str] = None,
             "sha256": extraction["sha256"],
             "md5": extraction["md5"],
             "package_name": extraction["package_name"],
+            "package": extraction["package_name"],
+            "apk_path": str(apk_path),
         },
         "extraction": {
             "apktool_success": extraction["apktool_success"],
@@ -238,6 +242,13 @@ def run_pipeline(apk_path: str, work_dir: Optional[str] = None,
             "native_libs_found": extraction["native_libs_found"],
             "decompiled_classes": extraction["decompiled_classes"],
             "total_strings_extracted": strings_result["total_strings"],
+        },
+        "manifest": {
+            "version_name": manifest.get("version_name"),
+            "version_code": manifest.get("version_code"),
+            "target_sdk_version": manifest.get("target_sdk_version"),
+            "min_sdk_version": manifest.get("min_sdk_version"),
+            "uses_permissions": manifest.get("uses_permissions", []),
         },
         "strings": strings_result["categories"],
         "encodings": encodings_result["encodings"],
@@ -257,6 +268,22 @@ def run_pipeline(apk_path: str, work_dir: Optional[str] = None,
             "sample_id": sample_id,
             "message": f"Post-processing failed: {e}",
         })
+
+    # Step 10: Malware family identification (deterministic + optional LLM)
+    try:
+        result["family_identification"] = identify_family(sample_id, result, use_llm=True, use_cache=True)
+    except Exception as e:
+        _emit(event_emitter, "error", {
+            "sample_id": sample_id,
+            "message": f"Family identification failed: {e}",
+        })
+        result["family_identification"] = {
+            "family": "unknown",
+            "confidence": 0.0,
+            "method": "error",
+            "reasoning": str(e),
+            "candidates": [],
+        }
 
     # Save full result
     result_path = Path(work_dir) / sample_id / "pipeline_result.json"

@@ -386,6 +386,76 @@ class APKDissector:
             classes.append(class_name)
         return sorted(classes)
 
+    def list_decompiled_class_objects(self) -> List[Dict[str, Any]]:
+        """Return class objects with method/network summaries for the dashboard."""
+        import re
+
+        CONTROL_NAMES = {"if", "for", "while", "switch", "catch", "synchronized", "try", "finally"}
+        NETWORK_PATTERNS = [
+            re.compile(r"https?://[^\\s\"'<>]+", re.IGNORECASE),
+            re.compile(r"\b(new\s+URL|new\s+URI|openConnection|getInputStream|getOutputStream)\s*\("),
+            re.compile(r"\b(HttpURLConnection|URLConnection|Socket|ServerSocket|InetAddress)\b"),
+            re.compile(r"\b(okhttp3|retrofit2)\b", re.IGNORECASE),
+        ]
+
+        classes = []
+        for class_name in self.list_decompiled_classes():
+            source = self.read_class_source(class_name) or ""
+            lines = source.splitlines()
+
+            # Extract method declarations more carefully.
+            method_pattern = re.compile(
+                r"^\s*(?:(?:public|private|protected|static|final|abstract|synchronized)\s+)+"
+                r"(?:[\w\[\]<>?]+(?:\s*<[^>]+>\s*)?\s+)+"
+                r"(\w+)\s*\([^)]*\)\s*\{",
+                re.MULTILINE,
+            )
+
+            methods = []
+            for m in method_pattern.finditer(source):
+                name = m.group(1)
+                if name in CONTROL_NAMES:
+                    continue
+                body_start = m.end()
+                brace_count = 1
+                idx = body_start
+                while idx < len(source) and brace_count > 0:
+                    if source[idx] == "{":
+                        brace_count += 1
+                    elif source[idx] == "}":
+                        brace_count -= 1
+                    idx += 1
+                body = source[body_start:idx]
+                methods.append({"name": name, "body": body})
+
+            # Extract network-related snippets, skipping import lines.
+            network_calls = []
+            for line in lines:
+                stripped = line.strip()
+                if stripped.startswith("import "):
+                    continue
+                for pattern in NETWORK_PATTERNS:
+                    if pattern.search(stripped):
+                        network_calls.append(stripped.strip(";"))
+                        break
+            network_calls = list(dict.fromkeys(network_calls))[:20]
+
+            # Extract permission-like API usages.
+            permission_lines = [
+                stripped.strip(";")
+                for stripped in (line.strip() for line in lines)
+                if "checkSelfPermission" in stripped or "checkCallingOrSelfPermission" in stripped
+            ]
+            permissions_used = list(dict.fromkeys(permission_lines))[:10]
+
+            classes.append({
+                "name": class_name,
+                "methods": methods,
+                "network_calls": network_calls,
+                "permissions_used": permissions_used,
+            })
+        return classes
+
     def read_class_source(self, class_name: str) -> Optional[str]:
         """Read decompiled Java source for a specific class."""
         sample_id = self._sample_id_from_apk()
