@@ -51,7 +51,14 @@ class Settings(BaseSettings):
     BACKEND_HOST: str = "0.0.0.0"
     BACKEND_PORT: int = 8000
     FRONTEND_URL: str = "http://localhost:5173"
-    CORS_ORIGINS: list = ["http://localhost:5173", "http://localhost:3000"]
+    # Allow both localhost and 127.0.0.1: browsers treat them as distinct
+    # origins, and the Vite dev server may be reached via either host.
+    CORS_ORIGINS: list = [
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:3000",
+    ]
 
 
 settings = Settings()

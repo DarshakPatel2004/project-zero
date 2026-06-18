@@ -7,12 +7,13 @@ Provides REST API and WebSocket endpoint for real-time analysis streaming.
 import asyncio
 import json
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Set
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, Response
 from pydantic import BaseModel
 import hashlib
 import uuid
@@ -30,6 +31,9 @@ from backend.transformers import (
     transform_samples_list,
 )
 from backend.dissection import APKDissector, load_dissection
+from backend import threat_intel as ti
+from backend.family_id import identify_family
+from backend.obfuscation_view import build_obfuscation_view, deobfuscate_text
 
 
 # ---------------------------------------------------------------------------
@@ -199,6 +203,12 @@ def _get_sample_apk_path(sample_id: str) -> Optional[Path]:
     result = load_result(sample_id)
     if result is None:
         return None
+
+    # Prefer the exact path recorded during analysis.
+    recorded_apk = result.get("metadata", {}).get("apk_path")
+    if recorded_apk and Path(recorded_apk).exists():
+        return Path(recorded_apk)
+
     sample_name = result.get("metadata", {}).get("sample_name")
     if not sample_name:
         return None
@@ -325,7 +335,7 @@ async def api_get_dissection_classes(sample_id: str) -> dict:
 
     try:
         dissector = APKDissector(str(apk_path), work_dir=str(WORK_DIR))
-        classes = dissector.list_decompiled_classes()
+        classes = dissector.list_decompiled_class_objects()
         return {"classes": classes, "total": len(classes)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Dissection failed: {e}")
@@ -370,6 +380,103 @@ async def api_get_dissection_strings(sample_id: str) -> dict:
             return json.load(f)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to load strings: {e}")
+
+
+# ---------------------------------------------------------------------------
+# Threat intelligence endpoints (Phase 2 enrichment + family identification)
+# ---------------------------------------------------------------------------
+
+@app.get("/api/sample/{sample_id}/threat-intel")
+async def api_get_threat_intel(sample_id: str) -> dict:
+    """Aggregated C2 threat-intel: DNS status, classification, geo, and family."""
+    result = load_result(sample_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Sample not found")
+
+    data = ti.build_threat_intel(result, sample_id)
+    try:
+        data["family"] = identify_family(sample_id, result)
+    except Exception as e:  # family ID must never break the dashboard
+        data["family"] = {"family": "unknown", "confidence": 0.0,
+                          "method": "error", "reasoning": str(e), "candidates": []}
+    return data
+
+
+@app.get("/api/sample/{sample_id}/family")
+async def api_get_family(sample_id: str) -> dict:
+    """Malware family identification (deterministic + LLM)."""
+    result = load_result(sample_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Sample not found")
+    return identify_family(sample_id, result)
+
+
+@app.get("/api/sample/{sample_id}/obfuscation")
+async def api_get_obfuscation(sample_id: str) -> dict:
+    """Obfuscation analysis view: techniques, DEX entropy, native artifacts."""
+    result = load_result(sample_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Sample not found")
+
+    obf = build_obfuscation_view(sample_id, result.get("obfuscation_analysis"))
+    return obf
+
+
+class DeobfuscateRequest(BaseModel):
+    text: str
+    hint: Optional[str] = None
+
+
+@app.post("/api/sample/{sample_id}/deobfuscate")
+async def api_deobfuscate(sample_id: str, request: DeobfuscateRequest) -> dict:
+    """Best-effort deobfuscation of a user-supplied string."""
+    result = load_result(sample_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Sample not found")
+
+    return deobfuscate_text(request.text, request.hint)
+
+
+@app.get("/api/sample/{sample_id}/threat-intel/export/csv")
+async def api_export_threat_intel_csv(sample_id: str):
+    """Export C2 indicators as a CSV blocklist."""
+    result = load_result(sample_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Sample not found")
+    csv_text = ti.to_csv(result)
+    return PlainTextResponse(
+        csv_text,
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="droidforensix_{sample_id[:16]}_blocklist.csv"'},
+    )
+
+
+@app.get("/api/sample/{sample_id}/threat-intel/export/stix")
+async def api_export_threat_intel_stix(sample_id: str):
+    """Export C2 indicators as a STIX 2.0 bundle."""
+    result = load_result(sample_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Sample not found")
+    bundle = ti.to_stix(result, sample_id)
+    return Response(
+        content=json.dumps(bundle, indent=2),
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="droidforensix_{sample_id[:16]}_stix.json"'},
+    )
+
+
+@app.get("/api/sample/{sample_id}/threat-intel/export/yara")
+async def api_export_threat_intel_yara(sample_id: str):
+    """Export a per-sample YARA rule built from extracted C2 indicators."""
+    result = load_result(sample_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Sample not found")
+    yara_text = ti.to_yara(result, sample_id)
+    return PlainTextResponse(
+        yara_text,
+        media_type="text/plain",
+        headers={"Content-Disposition": f'attachment; filename="droidforensix_{sample_id[:16]}.yar"'},
+    )
 
 
 # Legacy endpoints (kept for backward compatibility)
@@ -440,11 +547,11 @@ async def api_analyze_upload(upload_id: str) -> dict:
     def run_analysis():
         emitter = make_event_emitter(loop)
         try:
-            sample_status[upload_id] = {"status": "analyzing", "sample_id": None, "error": None}
+            sample_status[upload_id] = {"status": "analyzing", "sample_id": None, "error": None, "started_at": datetime.now(timezone.utc).isoformat()}
             result = run_pipeline(apk_path, event_emitter=emitter)
             sample_id = result.get("sample_id")
             # Map upload_id to final sample_id for status lookups
-            sample_status[upload_id] = {"status": "completed", "sample_id": sample_id, "error": None}
+            sample_status[upload_id] = {"status": "completed", "sample_id": sample_id, "error": None, "started_at": sample_status[upload_id].get("started_at")}
             if sample_id:
                 upload["sample_id"] = sample_id
             return result
@@ -478,10 +585,10 @@ async def analyze(request: AnalyzeRequest) -> dict:
     def run_analysis():
         emitter = make_event_emitter(loop)
         try:
-            sample_status[job_id] = {"status": "analyzing", "sample_id": None, "error": None}
+            sample_status[job_id] = {"status": "analyzing", "sample_id": None, "error": None, "started_at": datetime.now(timezone.utc).isoformat()}
             result = run_pipeline(apk_path, event_emitter=emitter)
             sample_id = result.get("sample_id")
-            sample_status[job_id] = {"status": "completed", "sample_id": sample_id, "error": None}
+            sample_status[job_id] = {"status": "completed", "sample_id": sample_id, "error": None, "started_at": sample_status[job_id].get("started_at")}
             return result
         except Exception as e:
             sample_status[job_id] = {"status": "failed", "sample_id": None, "error": str(e)}
@@ -509,6 +616,7 @@ async def api_get_sample_status(sample_id: str) -> dict:
             "sample_id": info.get("sample_id") or sample_id,
             "status": info["status"],
             "error": info.get("error"),
+            "started_at": info.get("started_at"),
         }
 
     # Check if final result exists

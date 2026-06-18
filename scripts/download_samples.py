@@ -56,6 +56,16 @@ def get_androzoo_api_key() -> str:
         raise RuntimeError("ANDROZOO_API_KEY environment variable not set")
     return key
 
+
+def get_malwarebazaar_headers() -> dict:
+    """Return HEADERS with MalwareBazaar Auth-Key if available."""
+    for env_var in ("MALWAREBAZAAR_API_KEY", "MB_API_KEY", "ABUSECH_API_KEY"):
+        key = os.environ.get(env_var)
+        if key:
+            return {**HEADERS, "Auth-Key": key}
+    return HEADERS
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -106,7 +116,7 @@ def mb_query_recent(tag: str = "apk", limit: int = 50) -> list:
     """Query MalwareBazaar for recent samples with a given tag."""
     data = {"query": "get_recent", "selector": "time", "limit": limit}
     try:
-        resp = requests.post(MALWAREBazaar_API, data=data, headers=HEADERS, timeout=REQUEST_TIMEOUT)
+        resp = requests.post(MALWAREBazaar_API, data=data, headers=get_malwarebazaar_headers(), timeout=REQUEST_TIMEOUT)
         resp.raise_for_status()
         result = resp.json()
         if result.get("query_status") != "ok":
@@ -130,7 +140,7 @@ def mb_query_tag(tag: str = "apk", limit: int = 50) -> list:
     """Query MalwareBazaar for samples by tag."""
     data = {"query": "get_taginfo", "tag": tag, "limit": limit}
     try:
-        resp = requests.post(MALWAREBazaar_API, data=data, headers=HEADERS, timeout=REQUEST_TIMEOUT)
+        resp = requests.post(MALWAREBazaar_API, data=data, headers=get_malwarebazaar_headers(), timeout=REQUEST_TIMEOUT)
         resp.raise_for_status()
         result = resp.json()
         if result.get("query_status") != "ok":
@@ -146,7 +156,7 @@ def mb_download(sha256_hash: str, dest_path: Path) -> bool:
     """Download a sample from MalwareBazaar by SHA-256."""
     data = {"query": "get_file", "sha256_hash": sha256_hash}
     try:
-        resp = requests.post(MALWAREBazaar_API, data=data, headers=HEADERS, timeout=REQUEST_TIMEOUT)
+        resp = requests.post(MALWAREBazaar_API, data=data, headers=get_malwarebazaar_headers(), timeout=REQUEST_TIMEOUT)
         resp.raise_for_status()
         # Response is a ZIP containing the sample with password "infected"
         zip_path = dest_path.with_suffix(".zip")

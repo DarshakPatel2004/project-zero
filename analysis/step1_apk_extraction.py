@@ -9,6 +9,7 @@ when available via Git Bash or Sysinternals), and generates metadata.
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -210,6 +211,42 @@ def extract_package_name(apk_dir: str) -> Optional[str]:
     return None
 
 
+def extract_manifest_info(apk_dir: str) -> dict:
+    """Extract version, SDK levels, and permissions from AndroidManifest.xml."""
+    manifest_path = Path(apk_dir) / "AndroidManifest.xml"
+    info = {
+        "version_name": None,
+        "version_code": None,
+        "target_sdk_version": None,
+        "min_sdk_version": None,
+        "uses_permissions": [],
+    }
+    if not manifest_path.exists():
+        return info
+    try:
+        with open(manifest_path, "r", encoding="utf-8", errors="ignore") as f:
+            content = f.read()
+        # Match manifest attributes
+        m = re.search(r'android:versionName="([^"]+)"', content)
+        if m:
+            info["version_name"] = m.group(1)
+        m = re.search(r'android:versionCode="(\d+)"', content)
+        if m:
+            info["version_code"] = int(m.group(1))
+        m = re.search(r'android:targetSdkVersion="(\d+)"', content)
+        if m:
+            info["target_sdk_version"] = int(m.group(1))
+        m = re.search(r'android:minSdkVersion="(\d+)"', content)
+        if m:
+            info["min_sdk_version"] = int(m.group(1))
+        # Match uses-permission names
+        for m in re.finditer(r'<uses-permission[^>]*android:name="([^"]+)"', content):
+            info["uses_permissions"].append(m.group(1))
+    except Exception:
+        pass
+    return info
+
+
 def count_decompiled_classes(output_dir: str) -> int:
     """Count number of decompiled .java files."""
     java_dir = Path(output_dir) / "sources"
@@ -258,8 +295,10 @@ def extract_apk(apk_path: str, work_dir: Optional[str] = None) -> dict:
 
     # Metadata
     package_name = None
+    manifest_info = {}
     if apktool_result["success"]:
         package_name = extract_package_name(str(apktool_dir))
+        manifest_info = extract_manifest_info(str(apktool_dir))
 
     decompiled_classes = 0
     if jadx_result["success"]:
@@ -272,6 +311,7 @@ def extract_apk(apk_path: str, work_dir: Optional[str] = None) -> dict:
         "sha256": sample_id,
         "md5": compute_md5(str(apk_path)),
         "package_name": package_name,
+        "manifest_info": manifest_info,
         "apktool_success": apktool_result["success"],
         "jadx_success": jadx_result["success"],
         "apktool_output_dir": str(apktool_dir) if apktool_result["success"] else None,

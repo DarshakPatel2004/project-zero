@@ -51,7 +51,22 @@ def load_result(sample_id: str) -> Optional[Dict[str, Any]]:
     if not path.exists():
         return None
     with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+        result = json.load(f)
+
+    # Backfill family identification for legacy results
+    if result and "family_identification" not in result:
+        try:
+            from backend.family_id import identify_family
+            result["family_identification"] = identify_family(sample_id, result, use_llm=True, use_cache=True)
+        except Exception:
+            result["family_identification"] = {
+                "family": "unknown",
+                "confidence": 0.0,
+                "method": "none",
+                "reasoning": "backfill failed",
+                "candidates": [],
+            }
+    return result
 
 
 def load_all_results() -> List[Dict[str, Any]]:
@@ -203,8 +218,9 @@ def transform_clusters(results: List[Dict[str, Any]]) -> Dict[str, Any]:
         risk_score = assessment.get("risk_score", 0)
         severity = assessment.get("severity", "low")
 
-        # Family from sample_name or package_name
-        family = metadata.get("package_name", "unknown")
+        # Family from family_identification, sample_name or package_name
+        family_info = result.get("family_identification", {})
+        family = family_info.get("family") or metadata.get("package_name", "unknown")
         if family == "unknown" and "." in sample_name:
             family = sample_name.split(".")[0]
 
@@ -278,6 +294,10 @@ def transform_samples_list(results: List[Dict[str, Any]]) -> List[Dict[str, Any]
         metadata = result.get("metadata", {})
         assessment = result.get("llm_assessment", {})
         obfuscation = result.get("obfuscation_analysis", {})
+        family_info = result.get("family_identification", {})
+        family = family_info.get("family") or metadata.get("package_name", "unknown")
+        if family == "unknown" and "." in metadata.get("sample_name", ""):
+            family = metadata.get("sample_name", "").split(".")[0]
         samples.append({
             "id": result.get("sample_id", ""),
             "name": metadata.get("sample_name", ""),
@@ -290,6 +310,8 @@ def transform_samples_list(results: List[Dict[str, Any]]) -> List[Dict[str, Any]
             "primary_threat": assessment.get("primary_threat", "other"),
             "obfuscation_score": obfuscation.get("obfuscation_score", 0),
             "obfuscation_level": obfuscation.get("obfuscation_level", "low"),
+            "family": family,
+            "family_confidence": family_info.get("confidence", 0.0),
             "encodings_count": len(result.get("encodings", [])),
             "payloads_count": len(result.get("payloads", [])),
             "c2_count": len(result.get("c2_infrastructure", [])),

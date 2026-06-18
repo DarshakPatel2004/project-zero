@@ -30,6 +30,7 @@
 !VALIDATION_REPORT.md
 !FAILURE_ANALYSIS.md
 !report.md
+!frontend design.md
 
 # 7. Explicitly ignore environment and secrets files
 .env
