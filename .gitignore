@@ -32,6 +32,15 @@
 !report.md
 !frontend design.md
 
+# Frontend source files
+!frontend/src/**/*.jsx
+!frontend/src/**/*.js
+!frontend/src/**/*.css
+
+# Local runtime / cache directories
+.vite/
+ss/
+
 # 7. Explicitly ignore environment and secrets files
 .env
 .env.*
