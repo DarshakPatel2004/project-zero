@@ -627,3 +627,92 @@
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* C2 Indicator list */
+.c2-list-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.c2-list-wrap {
+  overflow-x: auto;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+}
+
+.c2-list-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.c2-list-table th,
+.c2-list-table td {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+  vertical-align: top;
+}
+
+.c2-list-table th {
+  color: var(--text-muted);
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  background: var(--bg-surface-hover);
+}
+
+.c2-list-table tr:last-child td {
+  border-bottom: none;
+}
+
+.c2-list-table tr:hover td {
+  background: var(--bg-surface-hover);
+}
+
+.c2-indicator {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.c2-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  word-break: break-all;
+}
+
+.c2-country {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.c2-detail {
+  color: var(--text-secondary);
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.badge-rose {
+  background: var(--accent-rose-soft);
+  color: var(--accent-rose);
+}
+
+.badge-amber {
+  background: var(--accent-amber-soft);
+  color: var(--accent-amber);
+}
+
+.badge-emerald {
+  background: var(--accent-emerald-soft);
+  color: var(--accent-emerald);
+}
+
+.badge-slate {
+  background: var(--bg-surface-hover);
+  color: var(--text-muted);
+}

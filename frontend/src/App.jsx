@@ -14,6 +14,16 @@ const NAV_ITEMS = [
 ]
 
 /**
+ * Estimate total analysis duration from APK size.
+ * Mirrors backend/_estimate_remaining_eta for the full 9-step pipeline.
+ */
+function estimateEtaSeconds(fileSizeBytes) {
+  if (fileSizeBytes < 1_000_000) return 2.0 * 9
+  if (fileSizeBytes < 10_000_000) return 3.5 * 9
+  return 5.0 * 9
+}
+
+/**
  * Analysis state reducer: maintains single source of truth for live analysis.
  * Replaces the old "liveEvents" array with a compact state dict.
  */
@@ -44,7 +54,9 @@ function analysisReducer(state, action) {
         status: 'running',
         progress: 0,
         eta: action.payload.predicted_eta_seconds || null,
-        startTime: Date.now(),
+        // Keep the original start time so backend events after the optimistic
+        // start don't reset the live timer/progress.
+        startTime: state.startTime || Date.now(),
         stepTimings: {},
         error: null,
       }
@@ -263,7 +275,7 @@ function App() {
           sample_name: file.name,
           file_size_bytes: file.size,
           total_steps: 9,
-          predicted_eta_seconds: null,
+          predicted_eta_seconds: estimateEtaSeconds(file.size),
         },
       })
 

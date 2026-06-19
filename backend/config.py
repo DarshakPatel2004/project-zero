@@ -53,11 +53,14 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "http://localhost:5173"
     # Allow both localhost and 127.0.0.1: browsers treat them as distinct
     # origins, and the Vite dev server may be reached via either host.
+    # Include the configured FRONTEND_URL plus common Vite dev/preview ports.
     CORS_ORIGINS: list = [
         "http://localhost:5173",
         "http://localhost:3000",
+        "http://localhost:4173",
         "http://127.0.0.1:5173",
         "http://127.0.0.1:3000",
+        "http://127.0.0.1:4173",
     ]
 
 

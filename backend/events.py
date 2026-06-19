@@ -4,7 +4,7 @@ Backend event definitions and serialization for WebSocket streaming.
 
 import json
 from dataclasses import dataclass, field, asdict
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 
@@ -13,7 +13,7 @@ class WebSocketEvent:
     """Base WebSocket event."""
     event_type: str
     data: Dict[str, Any]
-    timestamp: str = field(default_factory=lambda: datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"))
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"))
 
     def to_dict(self) -> dict:
         return {

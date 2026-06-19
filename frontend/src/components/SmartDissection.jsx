@@ -37,7 +37,7 @@ const KEYWORD_COLORS = {
 
 const METHODS_PREVIEW_LIMIT = 20
 
-export default function SmartDissection({ sample, apiUrl }) {
+export default function SmartDissection({ sample, apiUrl, onSelectClass }) {
   const [dissectionData, setDissectionData] = useState(null)
   const [obfuscationData, setObfuscationData] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -194,7 +194,13 @@ export default function SmartDissection({ sample, apiUrl }) {
         ) : (
           <div className="classes-list">
             {filteredClasses.map((cls, idx) => (
-              <ClassCard key={idx} classData={cls} isObfuscated={isObfuscatedClass(cls)} expandAll={expandAll} />
+              <ClassCard
+                key={idx}
+                classData={cls}
+                isObfuscated={isObfuscatedClass(cls)}
+                expandAll={expandAll}
+                onSelectClass={onSelectClass}
+              />
             ))}
           </div>
         )}
@@ -215,7 +221,7 @@ function FilterButton({ active, onClick, label, count, color }) {
   )
 }
 
-function ClassCard({ classData, isObfuscated, expandAll }) {
+function ClassCard({ classData, isObfuscated, expandAll, onSelectClass }) {
   const [expanded, setExpanded] = useState(false)
   const [showAllMethods, setShowAllMethods] = useState(false)
 
@@ -247,6 +253,18 @@ function ClassCard({ classData, isObfuscated, expandAll }) {
           )}
           {(classData.network_calls || []).length > 0 && (
             <span className="class-badge badge-cyan">{classData.network_calls.length} network</span>
+          )}
+          {onSelectClass && (
+            <button
+              className="class-badge view-source-btn"
+              onClick={(e) => {
+                e.stopPropagation()
+                onSelectClass(classData.name)
+              }}
+              title="View decompiled source"
+            >
+              View source
+            </button>
           )}
           <span className="class-badge badge-slate">{methods.length} method(s)</span>
         </div>
