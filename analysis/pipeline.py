@@ -332,6 +332,7 @@ def run_pipeline(apk_path: str, work_dir: Optional[str] = None,
         "extraction": {
             "apktool_success": extraction["apktool_success"],
             "jadx_success": extraction["jadx_success"],
+            "errors": extraction.get("errors", []),
             "native_libs_found": extraction["native_libs_found"],
             "decompiled_classes": extraction["decompiled_classes"],
             "total_strings_extracted": strings_result["total_strings"],

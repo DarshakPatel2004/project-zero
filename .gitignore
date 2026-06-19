@@ -1,68 +1,13 @@
 # ==========================================
 # DroidForensix Gitignore Configuration
-# Deny-by-default to only allow project files
+# Allowlist-based approach: explicitly exclude only what we don't want
 # ==========================================
 
-# 1. Ignore everything by default
-*
-
-# 2. Allow traversing directories to find allowed files
-!**/
-
-# 5. Allow Assets
-!**/*.svg
-!**/*.png
-!**/*.jpg
-!**/*.jpeg
-!**/*.ico
-!**/*.gif
-
-# 6. Allow Project Configurations and Metadata
-!**/.gitignore
-!**/requirements.txt
-!**/package.json
-!**/package-lock.json
-!**/vite.config.js
-!**/eslint.config.js
-!**/opencode.json
-
-# Validation reports
-!VALIDATION_REPORT.md
-!FAILURE_ANALYSIS.md
-!report.md
-!frontend design.md
-
-# Frontend source files
-!frontend/src/**/*.jsx
-!frontend/src/**/*.js
-!frontend/src/**/*.css
-
-# Local runtime / cache directories
-.vite/
-ss/
-
-# 7. Explicitly ignore environment and secrets files
+# Environment and secrets (NEVER commit these)
 .env
 .env.*
 keys.txt
 setenv.sh
-
-# 3. Do not traverse or allow anything in these specific directories
-.git/
-.venv/
-venv/
-node_modules/
-.pytest_cache/
-.code-review-graph/
-graphify-out/
-claude_files/
-reports/
-data/
-samples/
-CICAndMal2017/
-koodous/
-__pycache__/
-analysis/work/
 
 # IDE & Editor files
 .vscode/
@@ -83,14 +28,49 @@ AGENTS.md
 GEMINI.md
 QODER.md
 
-# Added by code-review-graph
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Node modules
+node_modules/
+
+# Build & dist
+dist/
+build/
+*.egg-info/
+
+# Local development directories
+.vite/
+ss/
 .code-review-graph/
+graphify-out/
+claude_files/
+reports/
+data/
+samples/
+CICAndMal2017/
+koodous/
+analysis/work/
 
 # Local tools bin directory
 tools/
 
-# OS
+# OS files
 .DS_Store
 Thumbs.db
+*.swp
+*.swo
 
-.ps1
+# Temporary/scratch files
+*.log
+*.tmp
+*.bak

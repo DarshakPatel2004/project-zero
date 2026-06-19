@@ -16,6 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse, Response
 from pydantic import BaseModel
 import hashlib
+import subprocess
 import uuid
 
 from analysis.pipeline import run_pipeline
@@ -333,6 +334,17 @@ async def api_get_dissection_classes(sample_id: str) -> dict:
     if result is None:
         raise HTTPException(status_code=404, detail="Sample not found")
 
+    extraction = result.get("extraction", {})
+    if not extraction.get("jadx_success"):
+        errors = extraction.get("errors", ["JADX decompilation failed"])
+        return {
+            "classes": [],
+            "total": 0,
+            "error": "JADX decompilation not available",
+            "details": errors,
+            "jadx_success": False,
+        }
+
     apk_path = _get_sample_apk_path(sample_id)
     if apk_path is None:
         raise HTTPException(status_code=404, detail="APK file not found for sample")
@@ -340,7 +352,7 @@ async def api_get_dissection_classes(sample_id: str) -> dict:
     try:
         dissector = APKDissector(str(apk_path), work_dir=str(WORK_DIR))
         classes = dissector.list_decompiled_class_objects()
-        return {"classes": classes, "total": len(classes)}
+        return {"classes": classes, "total": len(classes), "jadx_success": True}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Dissection failed: {e}")
 
@@ -634,6 +646,48 @@ async def api_get_sample_status(sample_id: str) -> dict:
         }
 
     raise HTTPException(status_code=404, detail="Sample or job not found")
+
+
+# ---------------------------------------------------------------------------
+# Diagnostics
+# ---------------------------------------------------------------------------
+
+@app.get("/api/diagnostics/jadx")
+async def api_diagnostics_jadx() -> dict:
+    """Check JADX installation and configuration."""
+    jadx_path = settings.JADX_PATH
+    path_obj = Path(jadx_path)
+
+    # Check if binary exists
+    exists = path_obj.exists()
+
+    # Try to get version
+    version = None
+    version_error = None
+    try:
+        if exists:
+            result = subprocess.run(
+                [jadx_path, "--version"],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            version = result.stdout.strip() if result.returncode == 0 else None
+            if not version:
+                version_error = result.stderr.strip() if result.stderr else "Unknown error"
+    except Exception as e:
+        version_error = str(e)
+
+    return {
+        "configured_path": str(jadx_path),
+        "exists": exists,
+        "is_file": path_obj.is_file() if path_obj.exists() else False,
+        "is_executable": path_obj.exists() and path_obj.stat().st_mode & 0o111 != 0,
+        "version": version,
+        "version_error": version_error,
+        "status": "ok" if exists and version else "missing" if not exists else "error",
+        "help": "See JADX_SETUP.md for installation instructions"
+    }
 
 
 # ---------------------------------------------------------------------------

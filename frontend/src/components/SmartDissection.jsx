@@ -63,6 +63,10 @@ export default function SmartDissection({ sample, apiUrl, onSelectClass }) {
       if (!classesRes.ok) throw new Error(`HTTP ${classesRes.status}`)
       const classesData = await classesRes.json()
       const obfData = obfRes.ok ? await obfRes.json() : null
+      if (classesData.jadx_success === false && classesData.error) {
+        const details = classesData.details ? classesData.details.join('; ') : 'Check JADX installation.'
+        throw new Error(`Code Decompilation Failed: ${classesData.error}. ${details}`)
+      }
       setDissectionData(classesData)
       setObfuscationData(obfData)
       setError(null)
