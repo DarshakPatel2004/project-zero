@@ -33,6 +33,12 @@ def sha256_file(path: str) -> str:
     return h.hexdigest()
 
 
+def sanitize_filename(name: str) -> str:
+    """Make a string safe to use in a filename."""
+    safe = "".join(c if c.isalnum() or c in "._-" else "_" for c in name)
+    return safe.strip("._") or "unknown"
+
+
 def load_metadata():
     if not META_PATH.exists():
         return []
@@ -121,7 +127,8 @@ def main():
             skipped += 1
             continue
 
-        dest = malware_dir / f"{sha256_hash}.apk"
+        safe_family = sanitize_filename(family)
+        dest = malware_dir / f"{safe_family}_{sha256_hash}.apk"
         print(f"[*] Downloading {fetched+1}/{count}: {sha256_hash} ({family})")
 
         if download_apk(sha256_hash, dest):

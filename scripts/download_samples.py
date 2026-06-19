@@ -27,6 +27,7 @@ import requests
 # ---------------------------------------------------------------------------
 SAMPLES_DIR = Path(__file__).parent.parent / "samples"
 META_PATH = Path(__file__).parent.parent / "sample_metadata.csv"
+DREBIN_FAMILY_CSV = Path(__file__).parent.parent / "data" / "drebin_sha256_family.csv"
 MALWAREBazaar_API = "https://mb-api.abuse.ch/api/v1/"
 KOODOUS_API = "https://developer.koodous.com/apks/"
 ANDROZOO_API = "https://androzoo.uni.lu/api/download"
@@ -76,6 +77,30 @@ def sha256_file(path: str) -> str:
         for chunk in iter(lambda: f.read(65536), b""):
             h.update(chunk)
     return h.hexdigest()
+
+
+def sanitize_filename(name: str) -> str:
+    """Make a string safe to use in a filename."""
+    safe = "".join(c if c.isalnum() or c in "._-" else "_" for c in name)
+    return safe.strip("._") or "unknown"
+
+
+def load_family_map(csv_path: Path = DREBIN_FAMILY_CSV) -> dict:
+    """Load sha256 -> family mapping from the Drebin family CSV."""
+    family_map = {}
+    if not csv_path.exists():
+        return family_map
+    try:
+        with open(csv_path, "r", newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                sha = row.get("sha256", "").strip().lower()
+                family = row.get("family", "unknown").strip()
+                if sha:
+                    family_map[sha] = family
+    except Exception as e:
+        print(f"[!] Could not load family CSV {csv_path}: {e}")
+    return family_map
 
 
 def ensure_dirs():
@@ -382,6 +407,9 @@ def fetch_androzoo(target_count: int = 50, csv_path: Path = None,
         print("[!] No AndroZoo candidates found matching criteria")
         return 0
 
+    family_map = load_family_map()
+    print(f"[*] Loaded {len(family_map)} Drebin family mappings")
+
     dest_dir = SAMPLES_DIR / "malware" / "androzoo"
     dest_dir.mkdir(parents=True, exist_ok=True)
 
@@ -392,8 +420,10 @@ def fetch_androzoo(target_count: int = 50, csv_path: Path = None,
         if not sha256_hash or already_have(sha256_hash, records):
             continue
 
-        dest = dest_dir / f"{sha256_hash}.apk"
-        print(f"[*] Downloading AndroZoo {fetched+1}/{target_count}: {sha256_hash}")
+        family = family_map.get(sha256_hash, "unknown")
+        safe_family = sanitize_filename(family)
+        dest = dest_dir / f"{safe_family}_{sha256_hash}.apk"
+        print(f"[*] Downloading AndroZoo {fetched+1}/{target_count}: {sha256_hash} ({family})")
         if androzoo_download(sha256_hash, dest):
             actual_sha = sha256_file(str(dest))
             if actual_sha.lower() != sha256_hash:
@@ -405,10 +435,10 @@ def fetch_androzoo(target_count: int = 50, csv_path: Path = None,
                 "sample_name": dest.name,
                 "sha256": actual_sha,
                 "md5": candidate.get("md5", ""),
-                "family": candidate.get("package_name", "unknown"),
+                "family": family,
                 "source": "AndroZoo",
                 "type": "malware",
-                "tags": f"vt_detection={candidate.get('vt_detections', '')};markets={candidate.get('markets', '')}",
+                "tags": f"family={family};vt_detection={candidate.get('vt_detections', '')};markets={candidate.get('markets', '')}",
                 "file_size_bytes": dest.stat().st_size,
                 "status": "pending",
                 "vt_detections": candidate.get("vt_detections", ""),
