@@ -106,6 +106,31 @@ export default function ThreatIntelView({ sample, apiUrl }) {
         </div>
       </div>
 
+      <div className="threat-card card c2-list-card">
+        <h3 className="section-title">C2 Indicators ({c2s.length})</h3>
+        {c2s.length === 0 ? (
+          <p className="empty-state">No C2 indicators detected.</p>
+        ) : (
+          <div className="c2-list-wrap">
+            <table className="c2-list-table">
+              <thead>
+                <tr>
+                  <th>Indicator</th>
+                  <th>Details</th>
+                  <th>Status</th>
+                  <th>Classification</th>
+                </tr>
+              </thead>
+              <tbody>
+                {c2s.map((c2, idx) => (
+                  <C2Row key={c2.c2_id || idx} c2={c2} geoIps={geoIps} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
       <div className="threat-card card">
         <h3 className="section-title">Geographic Distribution</h3>
         {geoIps.length === 0 ? (
@@ -187,6 +212,66 @@ export default function ThreatIntelView({ sample, apiUrl }) {
       </div>
     </div>
   )
+}
+
+function C2Row({ c2, geoIps }) {
+  const indicator = c2.domain || c2.ip || 'Unknown'
+  const detail = [c2.protocol, c2.port, c2.path].filter(Boolean).join(' · ') || '—'
+  const status = normalizeStatus(c2.status)
+  const classification = normalizeClassification(c2.classification)
+
+  const resolvedIps = c2.live_dns?.ips || []
+  const country = geoIps.find(g => g.ip === c2.ip || resolvedIps.includes(g.ip))?.country
+
+  return (
+    <tr>
+      <td className="c2-indicator">
+        <span className="c2-name text-mono" title={indicator}>{indicator}</span>
+        {country && <span className="c2-country">{country}</span>}
+      </td>
+      <td className="c2-detail text-mono" title={detail}>{detail}</td>
+      <td><StatusBadge status={status} /></td>
+      <td><ClassificationBadge classification={classification} /></td>
+    </tr>
+  )
+}
+
+function normalizeStatus(status) {
+  const s = String(status || '').toLowerCase()
+  if (s === 'active') return 'active'
+  if (s === 'likely_active' || s === 'likely active') return 'likely_active'
+  if (s === 'dead' || s === 'historical') return 'dead'
+  return 'unknown'
+}
+
+function normalizeClassification(label) {
+  const c = String(label || '').toLowerCase()
+  if (c === 'malicious') return 'malicious'
+  if (c === 'suspicious') return 'suspicious'
+  if (c === 'benign') return 'benign'
+  return 'unknown'
+}
+
+function StatusBadge({ status }) {
+  const config = {
+    active: { label: 'Active', color: 'emerald' },
+    likely_active: { label: 'Likely Active', color: 'amber' },
+    dead: { label: 'Dead', color: 'rose' },
+    unknown: { label: 'Unknown', color: 'slate' },
+  }
+  const { label, color } = config[status] || config.unknown
+  return <span className={`badge badge-${color}`}>{label}</span>
+}
+
+function ClassificationBadge({ classification }) {
+  const config = {
+    malicious: { label: 'Malicious', color: 'rose' },
+    suspicious: { label: 'Suspicious', color: 'amber' },
+    benign: { label: 'Benign', color: 'emerald' },
+    unknown: { label: 'Unknown', color: 'slate' },
+  }
+  const { label, color } = config[classification] || config.unknown
+  return <span className={`badge badge-${color}`}>{label}</span>
 }
 
 function StatCard({ value, label, color }) {

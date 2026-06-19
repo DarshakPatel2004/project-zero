@@ -1,5 +1,10 @@
 import { useState, useEffect, useMemo, useCallback, memo } from 'react'
 import './AnalysisView.css'
+import SmartDissection from './SmartDissection'
+import ClassSourceViewer from './ClassSourceViewer'
+import ObfuscationView from './ObfuscationView'
+import ThreatIntelView from './ThreatIntelView'
+import ManifestView from './ManifestView'
 
 /**
  * Format seconds into human-readable duration.
@@ -116,6 +121,8 @@ const ResultView = memo(({ analysisState, apiUrl, sample }) => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [activeResultTab, setActiveResultTab] = useState('overview')
+  const [selectedClass, setSelectedClass] = useState(null)
+  const [showSource, setShowSource] = useState(false)
 
   const sampleId = analysisState.sampleId
 
@@ -210,19 +217,52 @@ const ResultView = memo(({ analysisState, apiUrl, sample }) => {
           <OverviewTab result={fullResult} verdict={verdict} />
         )}
         {activeResultTab === 'dissection' && (
-          <DissectionTab result={fullResult} apiUrl={apiUrl} />
+          <div className="tab-panel dissection-panel">
+            <SmartDissection
+              sample={sample}
+              apiUrl={apiUrl}
+              onSelectClass={(name) => {
+                setSelectedClass(name)
+                setShowSource(true)
+              }}
+            />
+            {showSource && (
+              <div className="source-overlay">
+                <div className="source-overlay-header">
+                  <h4 className="source-class-name text-mono">{selectedClass}</h4>
+                  <button
+                    className="source-close-button"
+                    onClick={() => {
+                      setShowSource(false)
+                      setSelectedClass(null)
+                    }}
+                    aria-label="Close source view"
+                  >
+                    Close
+                  </button>
+                </div>
+                <div className="source-overlay-content">
+                  <ClassSourceViewer
+                    sampleId={sampleId}
+                    className={selectedClass}
+                    apiUrl={apiUrl}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
         )}
         {activeResultTab === 'obfuscation' && (
-          <ObfuscationTab result={fullResult} />
+          <ObfuscationView sample={sample} apiUrl={apiUrl} />
         )}
         {activeResultTab === 'c2' && (
-          <C2Tab result={fullResult} />
+          <ThreatIntelView sample={sample} apiUrl={apiUrl} />
         )}
         {activeResultTab === 'chains' && (
           <ChainsTab result={fullResult} />
         )}
         {activeResultTab === 'manifest' && (
-          <ManifestTab result={fullResult} />
+          <ManifestView sample={sample} apiUrl={apiUrl} />
         )}
       </div>
     </div>
@@ -274,82 +314,6 @@ const OverviewTab = memo(({ result, verdict }) => (
 OverviewTab.displayName = 'OverviewTab'
 
 /**
- * Code Dissection Tab: Placeholder for now
- */
-const DissectionTab = memo(({ result, apiUrl }) => (
-  <div className="tab-panel">
-    <p>Code Dissection (advanced tab — will implement virtualization separately)</p>
-  </div>
-))
-
-DissectionTab.displayName = 'DissectionTab'
-
-/**
- * Obfuscation Tab
- */
-const ObfuscationTab = memo(({ result }) => {
-  const obf = result?.obfuscation_analysis || {}
-  return (
-    <div className="tab-panel">
-      <div className="card">
-        <h3>Obfuscation Analysis</h3>
-        <div className="metric">
-          <span>Score</span>
-          <span className="metric-value">{obf.obfuscation_score || 0}/100</span>
-        </div>
-        <div className="metric">
-          <span>Level</span>
-          <span className="badge badge-amber">{(obf.obfuscation_level || 'unknown').toUpperCase()}</span>
-        </div>
-      </div>
-
-      {obf.indicators && Object.keys(obf.indicators).length > 0 && (
-        <div className="card">
-          <h4>Detected Techniques</h4>
-          <ul>
-            {Object.entries(obf.indicators).map(([technique, present]) => (
-              present && <li key={technique}>{technique}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </div>
-  )
-})
-
-ObfuscationTab.displayName = 'ObfuscationTab'
-
-/**
- * C2 Infrastructure Tab
- */
-const C2Tab = memo(({ result }) => {
-  const c2s = result?.c2_infrastructure || []
-  return (
-    <div className="tab-panel">
-      {c2s.length === 0 ? (
-        <p>No C2 infrastructure detected.</p>
-      ) : (
-        <div className="c2-grid">
-          {c2s.map(c2 => (
-            <div key={c2.c2_id} className="card c2-card">
-              <h4>{c2.domain || c2.ip || 'Unknown'}</h4>
-              <div className="c2-details">
-                <p><strong>Protocol:</strong> {c2.protocol}</p>
-                <p><strong>Port:</strong> {c2.port || '—'}</p>
-                <p><strong>Type:</strong> {c2.communication_type}</p>
-                <p><strong>Confidence:</strong> {Math.round(c2.confidence * 100)}%</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-})
-
-C2Tab.displayName = 'C2Tab'
-
-/**
  * Threat Chains Tab
  */
 const ChainsTab = memo(({ result }) => {
@@ -374,40 +338,6 @@ const ChainsTab = memo(({ result }) => {
 })
 
 ChainsTab.displayName = 'ChainsTab'
-
-/**
- * Manifest Tab
- */
-const ManifestTab = memo(({ result }) => {
-  const manifest = result?.manifest || {}
-  const perms = manifest.uses_permissions || []
-  return (
-    <div className="tab-panel">
-      <div className="card">
-        <h3>App Details</h3>
-        <p><strong>Version:</strong> {manifest.version_name} ({manifest.version_code})</p>
-        <p><strong>Min SDK:</strong> {manifest.min_sdk_version}</p>
-        <p><strong>Target SDK:</strong> {manifest.target_sdk_version}</p>
-      </div>
-
-      <div className="card">
-        <h3>Permissions ({perms.length})</h3>
-        <div className="permissions-cloud">
-          {perms.map(perm => (
-            <span
-              key={perm}
-              className={`permission-badge ${perm.includes('DANGEROUS') ? 'dangerous' : ''}`}
-            >
-              {perm}
-            </span>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-})
-
-ManifestTab.displayName = 'ManifestTab'
 
 /**
  * Main AnalysisView Component

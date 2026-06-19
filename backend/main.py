@@ -82,15 +82,19 @@ sample_status: Dict[str, dict] = {}
 def make_event_emitter(loop: asyncio.AbstractEventLoop):
     """Create a callback that emits pipeline events via WebSocket."""
     def emit(event_type: str, data: dict):
+        print(f"[EMITTER] {event_type} connections={len(manager.active_connections)}")
         if event_type not in VALID_EVENT_TYPES:
+            print(f"[EMITTER] invalid type {event_type}")
             return
         event = WebSocketEvent(event_type=event_type, data=data)
         event_dict = event.to_dict()
+        print(f"[EMITTER] event_dict valid={validate_event(event_dict)}")
         if validate_event(event_dict):
             # Schedule broadcast on the event loop
-            asyncio.run_coroutine_threadsafe(
+            fut = asyncio.run_coroutine_threadsafe(
                 manager.broadcast(event_dict), loop
             )
+            fut.add_done_callback(lambda f: print(f"[EMITTER] broadcast done err={f.exception()}"))
     return emit
 
 
@@ -133,7 +137,7 @@ app = FastAPI(title="DroidForensix Backend", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
+    allow_origins=settings.CORS_ORIGINS + [settings.FRONTEND_URL],
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
