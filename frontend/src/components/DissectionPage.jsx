@@ -9,14 +9,12 @@ export default function DissectionPage({ sample, apiUrl }) {
 
   const sampleId = sample?.sampleId || sample?.sha256 || sample?.uploadId
 
-  /* eslint-disable react-hooks/set-state-in-effect */
   // Reset overlay state when the active sample changes so the previous
   // source view is not left open for a different sample.
   useEffect(() => {
     setSelectedClass(null)
     setShowSource(false)
   }, [sampleId])
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   if (!sampleId) {
     return (
@@ -27,7 +25,7 @@ export default function DissectionPage({ sample, apiUrl }) {
   }
 
   return (
-    <div className="view-wrapper">
+    <div className="dissection-page" style={{ position: 'relative', minHeight: '400px' }}>
       <SmartDissection
         sample={sample}
         apiUrl={apiUrl}

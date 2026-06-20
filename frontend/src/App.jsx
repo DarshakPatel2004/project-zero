@@ -401,18 +401,18 @@ function App() {
             </div>
           )}
 
-          {activeTab === 'threat-intel' && selectedSample && (
+          {activeTab === 'dissection' && selectedSample && (
             <div className="view-wrapper">
-              <ThreatIntelView
+              <DissectionPage
                 sample={selectedSample}
                 apiUrl={API_URL}
               />
             </div>
           )}
 
-          {activeTab === 'dissection' && selectedSample && (
+          {activeTab === 'threat-intel' && selectedSample && (
             <div className="view-wrapper">
-              <DissectionPage
+              <ThreatIntelView
                 sample={selectedSample}
                 apiUrl={API_URL}
               />
