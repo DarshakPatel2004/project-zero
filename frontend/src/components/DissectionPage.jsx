@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import './AnalysisView.css'
 import SmartDissection from './SmartDissection'
 import ClassSourceViewer from './ClassSourceViewer'
@@ -8,6 +8,15 @@ export default function DissectionPage({ sample, apiUrl }) {
   const [showSource, setShowSource] = useState(false)
 
   const sampleId = sample?.sampleId || sample?.sha256 || sample?.uploadId
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  // Reset overlay state when the active sample changes so the previous
+  // source view is not left open for a different sample.
+  useEffect(() => {
+    setSelectedClass(null)
+    setShowSource(false)
+  }, [sampleId])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   if (!sampleId) {
     return (
