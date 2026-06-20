@@ -1,7 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, memo } from 'react'
 import './AnalysisView.css'
-import SmartDissection from './SmartDissection'
-import ClassSourceViewer from './ClassSourceViewer'
 import ObfuscationView from './ObfuscationView'
 import ThreatIntelView from './ThreatIntelView'
 import ManifestView from './ManifestView'
@@ -121,8 +119,6 @@ const ResultView = memo(({ analysisState, apiUrl, sample }) => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [activeResultTab, setActiveResultTab] = useState('overview')
-  const [selectedClass, setSelectedClass] = useState(null)
-  const [showSource, setShowSource] = useState(false)
 
   const sampleId = analysisState.sampleId
 
@@ -195,7 +191,6 @@ const ResultView = memo(({ analysisState, apiUrl, sample }) => {
       <div className="result-tabs">
         {[
           { id: 'overview', label: 'Overview' },
-          { id: 'dissection', label: 'Code Dissection' },
           { id: 'obfuscation', label: 'Obfuscation' },
           { id: 'c2', label: 'C2 Infrastructure' },
           { id: 'chains', label: 'Threat Chains' },
@@ -215,42 +210,6 @@ const ResultView = memo(({ analysisState, apiUrl, sample }) => {
       <div className="tab-content">
         {activeResultTab === 'overview' && (
           <OverviewTab result={fullResult} verdict={verdict} />
-        )}
-        {activeResultTab === 'dissection' && (
-          <div className="tab-panel dissection-panel">
-            <SmartDissection
-              sample={sample}
-              apiUrl={apiUrl}
-              onSelectClass={(name) => {
-                setSelectedClass(name)
-                setShowSource(true)
-              }}
-            />
-            {showSource && (
-              <div className="source-overlay">
-                <div className="source-overlay-header">
-                  <h4 className="source-class-name text-mono">{selectedClass}</h4>
-                  <button
-                    className="source-close-button"
-                    onClick={() => {
-                      setShowSource(false)
-                      setSelectedClass(null)
-                    }}
-                    aria-label="Close source view"
-                  >
-                    Close
-                  </button>
-                </div>
-                <div className="source-overlay-content">
-                  <ClassSourceViewer
-                    sampleId={sampleId}
-                    className={selectedClass}
-                    apiUrl={apiUrl}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
         )}
         {activeResultTab === 'obfuscation' && (
           <ObfuscationView sample={sample} apiUrl={apiUrl} />
