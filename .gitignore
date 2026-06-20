@@ -49,6 +49,7 @@ build/
 *.egg-info/
 
 # Local development directories
+.worktrees/
 .vite/
 ss/
 .code-review-graph/
