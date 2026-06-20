@@ -34,3 +34,6 @@ weasyprint
 
 # Utilities
 python-dotenv
+
+# Encrypted / AES-ZIP extraction (MalwareBazaar passworded samples)
+pyzipper

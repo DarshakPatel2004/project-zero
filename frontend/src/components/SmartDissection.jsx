@@ -41,7 +41,7 @@ export default function SmartDissection({ sample, apiUrl, onSelectClass }) {
   const [dissectionData, setDissectionData] = useState(null)
   const [obfuscationData, setObfuscationData] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState('malicious')
+  const [filter, setFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [expandAll, setExpandAll] = useState(false)
   const [error, setError] = useState(null)
@@ -194,6 +194,14 @@ export default function SmartDissection({ sample, apiUrl, onSelectClass }) {
           <div className="dissection-empty">
             <span className="empty-icon">🔍</span>
             <p>No matching classes found</p>
+            {filter === 'malicious' && allClasses.length > 0 && (
+              <button
+                className="filter-button filter-cyan"
+                onClick={() => setFilter('all')}
+              >
+                Show all {allClasses.length} decompiled classes
+              </button>
+            )}
           </div>
         ) : (
           <div className="classes-list">
