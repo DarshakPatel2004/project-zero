@@ -12,8 +12,10 @@ export default function DissectionPage({ sample, apiUrl }) {
   // Reset overlay state when the active sample changes so the previous
   // source view is not left open for a different sample.
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
     setSelectedClass(null)
     setShowSource(false)
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [sampleId])
 
   if (!sampleId) {
