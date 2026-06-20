@@ -3,6 +3,7 @@ import './App.css'
 import UploadPanel from './components/UploadPanel'
 import AnalysisView from './components/AnalysisView'
 import ThreatIntelView from './components/ThreatIntelView'
+import DissectionPage from './components/DissectionPage'
 
 const API_URL = 'http://localhost:8000'
 const WS_URL = 'ws://localhost:8000/ws'
@@ -10,6 +11,7 @@ const WS_URL = 'ws://localhost:8000/ws'
 const NAV_ITEMS = [
   { id: 'upload', label: 'Upload & Analyze', icon: '⬆' },
   { id: 'analysis', label: 'Analysis Results', icon: '🔍' },
+  { id: 'dissection', label: 'Code Dissection', icon: '🔬' },
   { id: 'threat-intel', label: 'Threat Intelligence', icon: '🌐' },
 ]
 
@@ -402,6 +404,15 @@ function App() {
           {activeTab === 'threat-intel' && selectedSample && (
             <div className="view-wrapper">
               <ThreatIntelView
+                sample={selectedSample}
+                apiUrl={API_URL}
+              />
+            </div>
+          )}
+
+          {activeTab === 'dissection' && selectedSample && (
+            <div className="view-wrapper">
+              <DissectionPage
                 sample={selectedSample}
                 apiUrl={API_URL}
               />
