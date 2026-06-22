@@ -1,0 +1,452 @@
+[
+  {
+    "name": "drebin_090b5be26bcc4df6.apk",
+    "sha256": "090b5be26bcc4df6186124c2b47831eb96761fcf61282d63e13fa235a20c7539",
+    "package": "com.malware.drebin0",
+    "ground_truth": "malware",
+    "family": "Plankton",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\090b5be26bcc4df6186124c2b47831eb96761fcf61282d63e13fa235a20c7539.apk"
+  },
+  {
+    "name": "drebin_bedf51a5732d94c1.apk",
+    "sha256": "bedf51a5732d94c173bcd8ed918333954f5a78307c2a2f064b97b43278330f54",
+    "package": "com.malware.drebin1",
+    "ground_truth": "malware",
+    "family": "DroidKungFu",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\bedf51a5732d94c173bcd8ed918333954f5a78307c2a2f064b97b43278330f54.apk"
+  },
+  {
+    "name": "drebin_149bde78b32be3c4.apk",
+    "sha256": "149bde78b32be3c4c25379dd6c3310ce08eaf58804067a9870cfe7b4f51e62fe",
+    "package": "com.malware.drebin2",
+    "ground_truth": "malware",
+    "family": "Plankton",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\149bde78b32be3c4c25379dd6c3310ce08eaf58804067a9870cfe7b4f51e62fe.apk"
+  },
+  {
+    "name": "drebin_dd11c105ec8bb3c8.apk",
+    "sha256": "dd11c105ec8bb3c851f5955fa53eebb91b7dc46bef4d919ee4b099e825c56325",
+    "package": "com.malware.drebin3",
+    "ground_truth": "malware",
+    "family": "GinMaster",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\dd11c105ec8bb3c851f5955fa53eebb91b7dc46bef4d919ee4b099e825c56325.apk"
+  },
+  {
+    "name": "drebin_6832234c4eae7a57.apk",
+    "sha256": "6832234c4eae7a57be4f68271b7eecb056c4cd8352c67d2273d676208118871d",
+    "package": "com.malware.drebin4",
+    "ground_truth": "malware",
+    "family": "FakeDoc",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\6832234c4eae7a57be4f68271b7eecb056c4cd8352c67d2273d676208118871d.apk"
+  },
+  {
+    "name": "drebin_f39f20ec060481bd.apk",
+    "sha256": "f39f20ec060481bd89cfbd44654077fcd6404d87a1286685570334bd430e2f18",
+    "package": "com.malware.drebin5",
+    "ground_truth": "malware",
+    "family": "GinMaster",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\f39f20ec060481bd89cfbd44654077fcd6404d87a1286685570334bd430e2f18.apk"
+  },
+  {
+    "name": "drebin_eb1bcca87ab55bd0.apk",
+    "sha256": "eb1bcca87ab55bd0fe0cf1ec27753fddcd35b6030633da559eee42977279b8db",
+    "package": "com.malware.drebin6",
+    "ground_truth": "malware",
+    "family": "FakeInstaller",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\eb1bcca87ab55bd0fe0cf1ec27753fddcd35b6030633da559eee42977279b8db.apk"
+  },
+  {
+    "name": "drebin_5010f34461e309ea.apk",
+    "sha256": "5010f34461e309ea1bc5539bb24fccc320576ce6d677a29604f5568c0a5e6315",
+    "package": "com.malware.drebin7",
+    "ground_truth": "malware",
+    "family": "Opfake",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\5010f34461e309ea1bc5539bb24fccc320576ce6d677a29604f5568c0a5e6315.apk"
+  },
+  {
+    "name": "drebin_f1c8b34879b04dc9.apk",
+    "sha256": "f1c8b34879b04dc94f0a13d33c1e1272bdf9141e56e19da62c1a1b27af128604",
+    "package": "com.malware.drebin8",
+    "ground_truth": "malware",
+    "family": "FakeInstaller",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\f1c8b34879b04dc94f0a13d33c1e1272bdf9141e56e19da62c1a1b27af128604.apk"
+  },
+  {
+    "name": "drebin_4e355df8f0843afc.apk",
+    "sha256": "4e355df8f0843afc4a7bfc294ee4b1db9e9b896269c754c2d57dcb647dcd3efb",
+    "package": "com.malware.drebin9",
+    "ground_truth": "malware",
+    "family": "Opfake",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\4e355df8f0843afc4a7bfc294ee4b1db9e9b896269c754c2d57dcb647dcd3efb.apk"
+  },
+  {
+    "name": "drebin_ecf9c8520e13054b.apk",
+    "sha256": "ecf9c8520e13054bcc1b1a18cc335810f7eb97bdbe75fc204ad050228f805216",
+    "package": "com.malware.drebin10",
+    "ground_truth": "malware",
+    "family": "BaseBridge",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\ecf9c8520e13054bcc1b1a18cc335810f7eb97bdbe75fc204ad050228f805216.apk"
+  },
+  {
+    "name": "drebin_255eae7859b0855b.apk",
+    "sha256": "255eae7859b0855b15de30e5405a2714837ac556c238bc009ac74c5bfa69714a",
+    "package": "com.malware.drebin11",
+    "ground_truth": "malware",
+    "family": "Nisev",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\255eae7859b0855b15de30e5405a2714837ac556c238bc009ac74c5bfa69714a.apk"
+  },
+  {
+    "name": "drebin_54f2a636e000c55b.apk",
+    "sha256": "54f2a636e000c55bb725d7e552a22117837c1676fb4b96decd135ae10e6f7049",
+    "package": "com.malware.drebin12",
+    "ground_truth": "malware",
+    "family": "BaseBridge",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\54f2a636e000c55bb725d7e552a22117837c1676fb4b96decd135ae10e6f7049.apk"
+  },
+  {
+    "name": "drebin_73b2fd2dfb5860f0.apk",
+    "sha256": "73b2fd2dfb5860f0701b16002832987d5edcfe059df454d30548aa4fa45bebe6",
+    "package": "com.malware.drebin13",
+    "ground_truth": "malware",
+    "family": "Opfake",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\73b2fd2dfb5860f0701b16002832987d5edcfe059df454d30548aa4fa45bebe6.apk"
+  },
+  {
+    "name": "drebin_1035296bb5761444.apk",
+    "sha256": "1035296bb576144475b684a9f703fc0220e8c0107a9e7e87c4bf76f72496b6c4",
+    "package": "com.malware.drebin14",
+    "ground_truth": "malware",
+    "family": "FakeInstaller",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\1035296bb576144475b684a9f703fc0220e8c0107a9e7e87c4bf76f72496b6c4.apk"
+  },
+  {
+    "name": "drebin_a022c24d8295dee7.apk",
+    "sha256": "a022c24d8295dee70c0f090e4328063971170c33f7bf313b4debbc51d1a2b127",
+    "package": "com.malware.drebin15",
+    "ground_truth": "malware",
+    "family": "Adrd",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\a022c24d8295dee70c0f090e4328063971170c33f7bf313b4debbc51d1a2b127.apk"
+  },
+  {
+    "name": "drebin_584efe8d1449e1d0.apk",
+    "sha256": "584efe8d1449e1d03b30e08a9abf916c510628ae6950da11e195a22653190d48",
+    "package": "com.malware.drebin16",
+    "ground_truth": "malware",
+    "family": "Kmin",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\584efe8d1449e1d03b30e08a9abf916c510628ae6950da11e195a22653190d48.apk"
+  },
+  {
+    "name": "drebin_536a6084656a2d58.apk",
+    "sha256": "536a6084656a2d58e81a88ecfe0a0d050a4a5794f65cbc09170646c3e4c0dc0c",
+    "package": "com.malware.drebin17",
+    "ground_truth": "malware",
+    "family": "GinMaster",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\536a6084656a2d58e81a88ecfe0a0d050a4a5794f65cbc09170646c3e4c0dc0c.apk"
+  },
+  {
+    "name": "drebin_5e82d73a3b2d4df1.apk",
+    "sha256": "5e82d73a3b2d4df192d674729f9578c4081d5096d5e3641bf8b233e1bee248d4",
+    "package": "com.malware.drebin18",
+    "ground_truth": "malware",
+    "family": "Adrd",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\5e82d73a3b2d4df192d674729f9578c4081d5096d5e3641bf8b233e1bee248d4.apk"
+  },
+  {
+    "name": "drebin_c525bb9b2f30926c.apk",
+    "sha256": "c525bb9b2f30926c971e1ac68100871d2aa82bad87ee05a1fe2e6e83a1dce1fd",
+    "package": "com.malware.drebin19",
+    "ground_truth": "malware",
+    "family": "Kmin",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\c525bb9b2f30926c971e1ac68100871d2aa82bad87ee05a1fe2e6e83a1dce1fd.apk"
+  },
+  {
+    "name": "drebin_c699d9b9896d4842.apk",
+    "sha256": "c699d9b9896d4842c16e418bdff5d7d18c99a102da111880fa455fc1a39bba5a",
+    "package": "com.malware.drebin20",
+    "ground_truth": "malware",
+    "family": "DroidDream",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\c699d9b9896d4842c16e418bdff5d7d18c99a102da111880fa455fc1a39bba5a.apk"
+  },
+  {
+    "name": "drebin_0c5f6f74735692fc.apk",
+    "sha256": "0c5f6f74735692fce876d86c95d36c74df88eec9647853590ee8ec9b1fabfce1",
+    "package": "com.malware.drebin21",
+    "ground_truth": "malware",
+    "family": "FakeInstaller",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\0c5f6f74735692fce876d86c95d36c74df88eec9647853590ee8ec9b1fabfce1.apk"
+  },
+  {
+    "name": "drebin_47a4aff5aaac505f.apk",
+    "sha256": "47a4aff5aaac505f213fb058e22cb5fecd03791c3f60ff9529b9f9befcbc2012",
+    "package": "com.malware.drebin22",
+    "ground_truth": "malware",
+    "family": "BaseBridge",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\47a4aff5aaac505f213fb058e22cb5fecd03791c3f60ff9529b9f9befcbc2012.apk"
+  },
+  {
+    "name": "drebin_b439f642007bd707.apk",
+    "sha256": "b439f642007bd707ac806ba3f71e7b2a022e261fbd9b5dd3882afd8664db98c4",
+    "package": "com.malware.drebin23",
+    "ground_truth": "malware",
+    "family": "Imlog",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\b439f642007bd707ac806ba3f71e7b2a022e261fbd9b5dd3882afd8664db98c4.apk"
+  },
+  {
+    "name": "drebin_37c97fe776f0af6b.apk",
+    "sha256": "37c97fe776f0af6b21be6892124317461f75032f33944d933f1d046a90bd13be",
+    "package": "com.malware.drebin24",
+    "ground_truth": "malware",
+    "family": "Nandrobox",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\37c97fe776f0af6b21be6892124317461f75032f33944d933f1d046a90bd13be.apk"
+  },
+  {
+    "name": "drebin_74611134257de9e9.apk",
+    "sha256": "74611134257de9e9f549d445d19d465afeb1af34399683ff04303a11ecf643fc",
+    "package": "com.malware.drebin25",
+    "ground_truth": "malware",
+    "family": "SmForw",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\74611134257de9e9f549d445d19d465afeb1af34399683ff04303a11ecf643fc.apk"
+  },
+  {
+    "name": "drebin_3f76c482fdd58df5.apk",
+    "sha256": "3f76c482fdd58df5edd678e4730745e7cbafe298d0ebe0770ff962a3c2d6cf7f",
+    "package": "com.malware.drebin26",
+    "ground_truth": "malware",
+    "family": "Plankton",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\3f76c482fdd58df5edd678e4730745e7cbafe298d0ebe0770ff962a3c2d6cf7f.apk"
+  },
+  {
+    "name": "drebin_6e9848008c421286.apk",
+    "sha256": "6e9848008c42128623d1077f0cc75c0861e2b3d0fb76e68c5fc9ec8f69361572",
+    "package": "com.malware.drebin27",
+    "ground_truth": "malware",
+    "family": "FakeRun",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\6e9848008c42128623d1077f0cc75c0861e2b3d0fb76e68c5fc9ec8f69361572.apk"
+  },
+  {
+    "name": "drebin_66ea10f2bc2445ad.apk",
+    "sha256": "66ea10f2bc2445ad8ce43dca11ba2ea4968633c1ce21b5a2ac5f1c647db5ffcd",
+    "package": "com.malware.drebin28",
+    "ground_truth": "malware",
+    "family": "Plankton",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\66ea10f2bc2445ad8ce43dca11ba2ea4968633c1ce21b5a2ac5f1c647db5ffcd.apk"
+  },
+  {
+    "name": "drebin_a1e9f466900002ef.apk",
+    "sha256": "a1e9f466900002ef2efba2e1b95178421d28d64635b1c78791c3a6c8159c7be4",
+    "package": "com.malware.drebin29",
+    "ground_truth": "malware",
+    "family": "GinMaster",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\a1e9f466900002ef2efba2e1b95178421d28d64635b1c78791c3a6c8159c7be4.apk"
+  },
+  {
+    "name": "drebin_8fdd17e520f7c2ac.apk",
+    "sha256": "8fdd17e520f7c2ac1924ef3806d85aadf3e969418578ff0b7ea245af93a16315",
+    "package": "com.malware.drebin30",
+    "ground_truth": "malware",
+    "family": "FakeInstaller",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\8fdd17e520f7c2ac1924ef3806d85aadf3e969418578ff0b7ea245af93a16315.apk"
+  },
+  {
+    "name": "drebin_0f021e137e7d3ef4.apk",
+    "sha256": "0f021e137e7d3ef426d85f373f64ac53f1ee6c26efd2772cdc9ccb95ff09f9e4",
+    "package": "com.malware.drebin31",
+    "ground_truth": "malware",
+    "family": "BaseBridge",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\0f021e137e7d3ef426d85f373f64ac53f1ee6c26efd2772cdc9ccb95ff09f9e4.apk"
+  },
+  {
+    "name": "drebin_6acc850988883adc.apk",
+    "sha256": "6acc850988883adc4a5129ea711f3f176815e4eb210ecc9f8db643d15ca9c8d9",
+    "package": "com.malware.drebin32",
+    "ground_truth": "malware",
+    "family": "Iconosys",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\6acc850988883adc4a5129ea711f3f176815e4eb210ecc9f8db643d15ca9c8d9.apk"
+  },
+  {
+    "name": "drebin_d4b3fa551ff62822.apk",
+    "sha256": "d4b3fa551ff6282287ea8d30b2860a55198f0a8c76cf20ea27bba95113628f69",
+    "package": "com.malware.drebin33",
+    "ground_truth": "malware",
+    "family": "Stiniter",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\d4b3fa551ff6282287ea8d30b2860a55198f0a8c76cf20ea27bba95113628f69.apk"
+  },
+  {
+    "name": "drebin_4fca2064417bf4c9.apk",
+    "sha256": "4fca2064417bf4c9e96131aaa59021a56f6d01c18d74d085cf01cb9e9c4e6e25",
+    "package": "com.malware.drebin34",
+    "ground_truth": "malware",
+    "family": "Plankton",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\4fca2064417bf4c9e96131aaa59021a56f6d01c18d74d085cf01cb9e9c4e6e25.apk"
+  },
+  {
+    "name": "drebin_315e29c580f1720d.apk",
+    "sha256": "315e29c580f1720dfc0f7ef7d48beeb3321f3bf343646e022420af119ad7a370",
+    "package": "com.malware.drebin35",
+    "ground_truth": "malware",
+    "family": "Opfake",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\315e29c580f1720dfc0f7ef7d48beeb3321f3bf343646e022420af119ad7a370.apk"
+  },
+  {
+    "name": "drebin_a3cd2d8dab7ced74.apk",
+    "sha256": "a3cd2d8dab7ced749a29307797a0dfefe238864b1f5bf6bafdf6e66c30c009b6",
+    "package": "com.malware.drebin36",
+    "ground_truth": "malware",
+    "family": "GinMaster",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\a3cd2d8dab7ced749a29307797a0dfefe238864b1f5bf6bafdf6e66c30c009b6.apk"
+  },
+  {
+    "name": "drebin_13055eb9348525e1.apk",
+    "sha256": "13055eb9348525e119e0012172f39727a870a420ee54ffe562ea42d6cb6724f4",
+    "package": "com.malware.drebin37",
+    "ground_truth": "malware",
+    "family": "Plankton",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\13055eb9348525e119e0012172f39727a870a420ee54ffe562ea42d6cb6724f4.apk"
+  },
+  {
+    "name": "drebin_bcf129023a712e3a.apk",
+    "sha256": "bcf129023a712e3ab8a8f6d67e74e7914550ffa8e718b0939b7d5238d8b69863",
+    "package": "com.malware.drebin38",
+    "ground_truth": "malware",
+    "family": "FakeInstaller",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\bcf129023a712e3ab8a8f6d67e74e7914550ffa8e718b0939b7d5238d8b69863.apk"
+  },
+  {
+    "name": "drebin_beeeb3cafc0ea246.apk",
+    "sha256": "beeeb3cafc0ea246cc6dd82d82489621414d6cab9ceb50e70fd9835f5733178c",
+    "package": "com.malware.drebin39",
+    "ground_truth": "malware",
+    "family": "Spitmo",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\beeeb3cafc0ea246cc6dd82d82489621414d6cab9ceb50e70fd9835f5733178c.apk"
+  },
+  {
+    "name": "drebin_8731cb0a474a8508.apk",
+    "sha256": "8731cb0a474a85085729d37a5bb21e2c9073f3d261e6b33374cd9233a85b1228",
+    "package": "com.malware.drebin40",
+    "ground_truth": "malware",
+    "family": "FakeInstaller",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\8731cb0a474a85085729d37a5bb21e2c9073f3d261e6b33374cd9233a85b1228.apk"
+  },
+  {
+    "name": "drebin_ed1792c8271e5945.apk",
+    "sha256": "ed1792c8271e5945b8a038247fe7cacd536739f950f6ebf6039aea6b7c8f6690",
+    "package": "com.malware.drebin41",
+    "ground_truth": "malware",
+    "family": "FakeInstaller",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\ed1792c8271e5945b8a038247fe7cacd536739f950f6ebf6039aea6b7c8f6690.apk"
+  },
+  {
+    "name": "drebin_e7d07c08a826520e.apk",
+    "sha256": "e7d07c08a826520ef71bd4a5bfb8c6bc7b907c4f94f18631208cf6037bd88f2d",
+    "package": "com.malware.drebin42",
+    "ground_truth": "malware",
+    "family": "DroidKungFu",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\e7d07c08a826520ef71bd4a5bfb8c6bc7b907c4f94f18631208cf6037bd88f2d.apk"
+  },
+  {
+    "name": "drebin_edf4b67aee4c8ca7.apk",
+    "sha256": "edf4b67aee4c8ca76fe8068abceb254df1fea59e49c06664c442e1a70a9c7c85",
+    "package": "com.malware.drebin43",
+    "ground_truth": "malware",
+    "family": "Plankton",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\edf4b67aee4c8ca76fe8068abceb254df1fea59e49c06664c442e1a70a9c7c85.apk"
+  },
+  {
+    "name": "drebin_0526cff3ebb1fbfa.apk",
+    "sha256": "0526cff3ebb1fbfa493cf982fcba85409ae692157b25f9046469576bf58e8c4d",
+    "package": "com.malware.drebin44",
+    "ground_truth": "malware",
+    "family": "FakeTimer",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\0526cff3ebb1fbfa493cf982fcba85409ae692157b25f9046469576bf58e8c4d.apk"
+  },
+  {
+    "name": "drebin_5f208d88f5cefaa9.apk",
+    "sha256": "5f208d88f5cefaa967d5e9320f2875de3ca8fada870ab83c1fe20c01558f85b1",
+    "package": "com.malware.drebin45",
+    "ground_truth": "malware",
+    "family": "FakeInstaller",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\5f208d88f5cefaa967d5e9320f2875de3ca8fada870ab83c1fe20c01558f85b1.apk"
+  },
+  {
+    "name": "drebin_5b6f0757e98303cf.apk",
+    "sha256": "5b6f0757e98303cf337d10b6f8c7378bdfd4de30dea624545207dd01a85b6c37",
+    "package": "com.malware.drebin46",
+    "ground_truth": "malware",
+    "family": "BaseBridge",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\5b6f0757e98303cf337d10b6f8c7378bdfd4de30dea624545207dd01a85b6c37.apk"
+  },
+  {
+    "name": "drebin_9508ff9b7bdc06a2.apk",
+    "sha256": "9508ff9b7bdc06a220ba132eecf2d35bee47072ed9bff82fb24bc0e110ab1652",
+    "package": "com.malware.drebin47",
+    "ground_truth": "malware",
+    "family": "Iconosys",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\9508ff9b7bdc06a220ba132eecf2d35bee47072ed9bff82fb24bc0e110ab1652.apk"
+  },
+  {
+    "name": "drebin_03385b42f9dffe69.apk",
+    "sha256": "03385b42f9dffe697a883aac40042188e658145e8d67e0dab9d665501d7e02aa",
+    "package": "com.malware.drebin48",
+    "ground_truth": "malware",
+    "family": "Opfake",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\03385b42f9dffe697a883aac40042188e658145e8d67e0dab9d665501d7e02aa.apk"
+  },
+  {
+    "name": "drebin_379f0932084641fd.apk",
+    "sha256": "379f0932084641fd8839b2101428a5c856f4d9c54dc9aff4a5d58a0de9a12595",
+    "package": "com.malware.drebin49",
+    "ground_truth": "malware",
+    "family": "Plankton",
+    "source": "Drebin/AndroZoo",
+    "apk_path": "samples\\malware\\androzoo_drebin\\379f0932084641fd8839b2101428a5c856f4d9c54dc9aff4a5d58a0de9a12595.apk"
+  }
+]

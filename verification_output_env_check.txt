@@ -1,0 +1,34 @@
+
+============================================================
+Running: Metasploit stager (samples/malware/github/android-malware/1722087714.apk)
+============================================================
+  [*] Using Ollama model: qwen3:8b at 0.0.0.0:11434
+Package : com.metasploit.stage
+Size    : 10,461 bytes
+Classes : 0
+Strings : 6
+Encodings: 0
+Payloads : 0
+C2 found : 0
+Chains   : 0
+Obfuscation: medium (59.0)
+---> FINAL: severity=high, risk_score=85, primary=other, confidence=0.85
+Narrative: Post-process correction: strong stager indicators detected (package matches metasploit_stager; stager signature: 10.2KB, 7 reflection usages, 4 dynamic loading usages). Original score was 59....
+[POST-PROCESS] Post-process correction: strong stager indicators detected (package matches metasploit_stager; stager signature: 10.2KB, 7 reflection usages, 4 dynamic loading usages). Original score was 59.
+
+============================================================
+Running: jRPN calculator (samples/legitimate/fdroid/com.jovial.jrpn.apk)
+============================================================
+  [*] Using Ollama model: qwen3:8b at 0.0.0.0:11434
+Package : com.jovial.jrpn
+Size    : 1,761,211 bytes
+Classes : 0
+Strings : 2294
+Encodings: 63
+Payloads : 63
+C2 found : 0
+Chains   : 63
+Obfuscation: medium (64.0)
+---> FINAL: severity=low, risk_score=25, primary=other, confidence=0.3
+Narrative: Post-process correction: known benign package 'com.jovial.jrpn' flagged from 0 DTD/namespace or artifact references with 63 generic chains, none linking to active C2....
+[POST-PROCESS] Post-process correction: known benign package 'com.jovial.jrpn' flagged from 0 DTD/namespace or artifact references with 63 generic chains, none linking to active C2.

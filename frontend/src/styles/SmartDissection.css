@@ -512,6 +512,135 @@
   filter: brightness(1.1);
 }
 
+
+/* ── LLM method summary block ────────────────────────────────────── */
+
+.method-llm-summary {
+  margin: 0.5rem 0.75rem 0;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.llm-result {
+  background: rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  border-radius: 6px;
+  padding: 0.65rem 0.85rem;
+}
+
+.llm-result-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.llm-icon {
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.llm-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #a5b4fc;
+}
+
+.llm-confidence {
+  font-size: 0.68rem;
+  color: #6b7280;
+  margin-left: auto;
+}
+
+.llm-summary-text {
+  font-size: 0.8rem;
+  line-height: 1.55;
+  color: #d1d5db;
+  margin: 0;
+}
+
+.llm-threat-badge {
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 0.15rem 0.45rem;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.threat-reflection    { background: rgba(245,158,11,0.15); color: #fbbf24; }
+.threat-dynamic_loading { background: rgba(6,182,212,0.15); color: #22d3ee; }
+.threat-crypto        { background: rgba(139,92,246,0.15); color: #c084fc; }
+.threat-network       { background: rgba(16,185,129,0.15); color: #34d399; }
+.threat-command_exec  { background: rgba(239,68,68,0.15);  color: #f87171; }
+.threat-persistence   { background: rgba(239,68,68,0.15);  color: #f87171; }
+.threat-encoding      { background: rgba(245,158,11,0.15); color: #fbbf24; }
+.threat-permissions   { background: rgba(6,182,212,0.15);  color: #22d3ee; }
+.threat-benign        { background: rgba(16,185,129,0.12); color: #6ee7b7; }
+.threat-unknown       { background: rgba(107,114,128,0.15);color: #9ca3af; }
+
+/* ── Shimmer loading skeleton ────────────────────────────────────── */
+
+.llm-shimmer {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 6px;
+  padding: 0.65rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.shimmer-bar {
+  height: 10px;
+  border-radius: 4px;
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0.04) 25%,
+    rgba(255,255,255,0.10) 50%,
+    rgba(255,255,255,0.04) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+}
+
+.shimmer-bar-long   { width: 75%; }
+.shimmer-bar-medium { width: 50%; }
+
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ── Per-line inline annotations ────────────────────────────────── */
+
+.code-line {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  gap: 0;
+}
+
+.line-annotation {
+  margin-left: 1rem;
+  font-size: 0.68rem;
+  font-style: italic;
+  white-space: nowrap;
+  padding: 0.05rem 0.35rem;
+  border-radius: 3px;
+  font-family: inherit;
+  opacity: 0.85;
+}
+
+.annotation-amber   { background: rgba(245,158,11,0.12); color: #fbbf24; }
+.annotation-cyan    { background: rgba(6,182,212,0.12);  color: #22d3ee; }
+.annotation-violet  { background: rgba(139,92,246,0.12); color: #c084fc; }
+.annotation-rose    { background: rgba(239,68,68,0.12);  color: #f87171; }
+.annotation-emerald { background: rgba(16,185,129,0.12); color: #34d399; }
+
 @media (max-width: 700px) {
   .dissection-toolbar {
     flex-direction: column;

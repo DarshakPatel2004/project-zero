@@ -1,0 +1,34 @@
+DroidForensix DF ANDROID MALWARE INTELLIGENCE
+Threat Intelligence
+Backend Online
+Upload & Analyze
+Threat Intelligence Dashboard Phase 2 enrichment: C2 verification, geo-location, and classification
+Analysis Results
+Threat Intelligence
+0%2
+TOTAL C2 INDICATORS
+IPS GEO-LOCATED
+ACTIVE C2 RATE
+MALICIOUS C2S
+MALWARE FAMILY unknown no deterministic or LLM signal matched
+NO MATCH
+DNS VERIFICATION STATUS
+C2 CLASSIFICATION
+Benign (SDK)
+1
+Suspicious
+ACTIVE
+LIKELY ACTIVE
+DEAD
+Malicious
+Total C2s:
+GEOGRAPHIC DISTRIBUTION
+No geo-located IPs available
+THREAT INTELLIGENCE EXPORTS
+CSV Blocklist
+CSV
+STIX 2.0
+Json
+YARA Rules
+yar
+Static Analysis Pipeline CONNECTED

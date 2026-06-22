@@ -1,0 +1,29 @@
+DroidForensix DF ANDROID MALWARE INTELLIGENCE
+Analysis Results
+Backend Online
+Upload & Analyze
+Unknown Package
+Analysis Results
+Unknown Package SHA256: 0000b2ee9720dd6028eScac22cb3689f
+RISK
+1085.5 KB
+179 classes
+Threat Intelligence
+UNKNOWN LOW
+88 Threat Chains
+0/100 Obfuscation
+0
+C2 Endpoints
+Permissions
+Overview
+Code Dissection
+C2 Infrastructure
+Threat Chains
+Manifest
+chain_OOO
+MEDIUM
+82% confidence
+ENCODED_STRING MIGFMAOGCSQGSIBSDQEBAQUAAGGNADCBiQKBgQCIiOpJOxVuOODeRZ8pmGT3KdVB34b8mfgcY6UbjdmY880+D+X+8H2Sr8rOg+ull sources icomlcnzzlmobilelandroidlsdklcoos6g java 89
+DECODING_FUNCTION decode_base64() sourceslcomlcnzzlmobilelandroidlsdkICo0s6g java:89
+DECODED_ARTIFACT 0dp0 @ *@hp- @2@p @@p Opzp@ @EJIO@n8abED)@d-) OABDiDalcY@@U@oE-Qapa}@-Eole@@cOldsEf~F ak 72@U1@yYil-YBiugC@QYDi(aA@CLi@DoDG DiDA,DypalufDm 060 , @DS [I>@hG<N ` @ppD sources (comlcnzzlmobilelandroidlsdkIcoo56g java 89
+Static Analysis Pipeline CONNECTED

@@ -1,0 +1,81 @@
+========== MALWARE APK ==========
+Sample name : 1722087714.apk
+Package     : com.metasploit.stage
+SHA256      : f0ecfc55684fd35ec212440f4da897fe0b4ce2a9cf08a012c7815b751470c76c
+MD5         : 765570ed4aba8214beb1d7cba4161c52
+File size   : 10,461 bytes
+
+APKTool     : True
+JADX        : True
+Classes     : 12
+Strings     : 107
+Encodings   : 0
+Payloads    : 0
+C2 found    : 0
+Threat chains: 0
+
+LLM Assessment:
+  Severity   : medium
+  Risk score : 59
+  Primary    : other
+  Confidence : 0.6
+  Narrative  : No decoded threat chains, but static analysis shows medium obfuscation (score 59.0) with 11 dangerous permissions, 0 suspicious APIs, 7 reflection usages, and 4 dynamic loading usages.
+
+Obfuscation : medium (score 59.0)
+
+Timeline:
+  step1: 2.87s
+  step2: 0.01s
+  step3: 0.0s
+  step4: 0.0s
+  step5: 0.0s
+  step6: 0.0s
+  step8: 1.08s
+  step7: 4.15s
+  total: 8.1s
+
+========== BENIGN APK ==========
+Sample name : com.jovial.jrpn.apk
+Package     : com.jovial.jrpn
+SHA256      : 929a8fb1d0dc51979cab73e13708cb64d8a0b67c6176ed51c9452d294418ce54
+MD5         : d26a97bcdb4476a12b0879576a8f28d5
+File size   : 1,761,211 bytes
+
+APKTool     : True
+JADX        : True
+Classes     : 568
+Strings     : 3215
+Encodings   : 82
+Payloads    : 82
+C2 found    : 1
+Threat chains: 82
+
+LLM Assessment:
+  Severity   : high
+  Risk score : 75
+  Primary    : c2_exfiltration
+  Confidence : 0.6
+  Narrative  : Detected 1 C2 indicator(s) across 82 threat chain(s). Active infrastructure present.
+
+Obfuscation : medium (score 64.0)
+
+C2 Infrastructure (top 5):
+  - http://java.sun.com/dtd/properties.dtd [http] conf=0.9
+
+Threat Chains (top 5):
+  - chain_000: medium (conf=0.82) encoded_string -> decoding_function -> decoded_artifact
+  - chain_001: medium (conf=0.8) encoded_string -> decoding_function -> decoded_artifact
+  - chain_002: medium (conf=0.82) encoded_string -> decoding_function -> decoded_artifact
+  - chain_003: medium (conf=0.8) encoded_string -> decoding_function -> decoded_artifact
+  - chain_004: medium (conf=0.82) encoded_string -> decoding_function -> decoded_artifact
+
+Timeline:
+  step1: 10.1s
+  step2: 0.43s
+  step3: 1.11s
+  step4: 0.02s
+  step5: 0.0s
+  step6: 0.0s
+  step8: 3.24s
+  step7: 4.04s
+  total: 18.95s

@@ -212,6 +212,8 @@ export default function SmartDissection({ sample, apiUrl, onSelectClass }) {
                 isObfuscated={isObfuscatedClass(cls)}
                 expandAll={expandAll}
                 onSelectClass={onSelectClass}
+                sampleId={sampleId}
+                apiUrl={apiUrl}
               />
             ))}
           </div>
@@ -233,7 +235,7 @@ function FilterButton({ active, onClick, label, count, color }) {
   )
 }
 
-function ClassCard({ classData, isObfuscated, expandAll, onSelectClass }) {
+function ClassCard({ classData, isObfuscated, expandAll, onSelectClass, sampleId, apiUrl }) {
   const [expanded, setExpanded] = useState(false)
   const [showAllMethods, setShowAllMethods] = useState(false)
 
@@ -292,7 +294,14 @@ function ClassCard({ classData, isObfuscated, expandAll, onSelectClass }) {
             {methods.length > 0 ? (
               <div className="methods-list">
                 {displayMethods.map((method, idx) => (
-                  <MethodCard key={idx} method={method} expandAll={expandAll} />
+                  <MethodCard
+                    key={idx}
+                    method={method}
+                    expandAll={expandAll}
+                    sampleId={sampleId}
+                    className={classData.name}
+                    apiUrl={apiUrl}
+                  />
                 ))}
                 {methods.length > METHODS_PREVIEW_LIMIT && (
                   <button
@@ -339,12 +348,65 @@ function ClassCard({ classData, isObfuscated, expandAll, onSelectClass }) {
   )
 }
 
-function MethodCard({ method, expandAll }) {
+// Per-line annotation type → colour class mapping
+const ANNOTATION_COLORS = {
+  reflection:       'annotation-amber',
+  dynamic_loading:  'annotation-cyan',
+  crypto:           'annotation-violet',
+  encoding:         'annotation-amber',
+  command_exec:     'annotation-rose',
+  network:          'annotation-emerald',
+  permissions:      'annotation-cyan',
+}
+
+const THREAT_TYPE_LABELS = {
+  reflection:       'Reflection',
+  dynamic_loading:  'Dynamic Loading',
+  crypto:           'Crypto',
+  network:          'Network',
+  command_exec:     'Command Exec',
+  persistence:      'Persistence',
+  encoding:         'Encoding',
+  permissions:      'Permissions',
+  benign:           'Benign',
+  unknown:          'Unknown',
+}
+
+function MethodCard({ method, expandAll, sampleId, className, apiUrl }) {
   const [expanded, setExpanded] = useState(false)
+  const [annotation, setAnnotation] = useState(null)   // { line_annotations, llm }
+  const [annotating, setAnnotating] = useState(false)
 
   useEffect(() => {
     setExpanded(expandAll)
   }, [expandAll])
+
+  // Fire explain-method when first expanded
+  useEffect(() => {
+    if (!expanded || annotation || annotating) return
+    if (!sampleId || !apiUrl || !method.body) return
+
+    const flags = SUSPICIOUS_KEYWORDS.filter(kw =>
+      method.name.toLowerCase().includes(kw.toLowerCase()) ||
+      (method.body && method.body.toLowerCase().includes(kw.toLowerCase()))
+    )
+
+    setAnnotating(true)
+    fetch(`${apiUrl}/api/sample/${sampleId}/dissection/explain-method`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        class_name: className,
+        method_name: method.name,
+        method_code: method.body,
+        flags,
+      }),
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setAnnotation(data) })
+      .catch(() => {})
+      .finally(() => setAnnotating(false))
+  }, [expanded])
 
   const matchedKeyword = SUSPICIOUS_KEYWORDS.find(kw =>
     method.name.toLowerCase().includes(kw.toLowerCase()) ||
@@ -375,11 +437,45 @@ function MethodCard({ method, expandAll }) {
 
       {method.body && (
         <div className={`method-body ${expanded ? 'expanded' : 'preview'}`}>
+
+          {/* LLM summary block — only when expanded */}
+          {expanded && (
+            <div className="method-llm-summary">
+              {annotating ? (
+                <div className="llm-shimmer">
+                  <div className="shimmer-bar shimmer-bar-long" />
+                  <div className="shimmer-bar shimmer-bar-medium" />
+                </div>
+              ) : annotation?.llm ? (
+                <div className="llm-result">
+                  <div className="llm-result-header">
+                    <span className="llm-icon">🧠</span>
+                    <span className="llm-label">AI Analysis</span>
+                    {annotation.llm.threat_type && annotation.llm.threat_type !== 'unknown' && (
+                      <span className={`llm-threat-badge threat-${annotation.llm.threat_type}`}>
+                        {THREAT_TYPE_LABELS[annotation.llm.threat_type] || annotation.llm.threat_type}
+                      </span>
+                    )}
+                    {annotation.llm.confidence != null && (
+                      <span className="llm-confidence">
+                        {Math.round(annotation.llm.confidence * 100)}% confidence
+                      </span>
+                    )}
+                  </div>
+                  <p className="llm-summary-text">{annotation.llm.summary}</p>
+                </div>
+              ) : null}
+            </div>
+          )}
+
           {expanded ? (
-            <CodeHighlight code={method.body} />
+            <CodeHighlight
+              code={method.body}
+              lineAnnotations={annotation?.line_annotations || {}}
+            />
           ) : (
             <div className="method-preview">
-              <CodeHighlight code={previewLines.join('\n')} />
+              <CodeHighlight code={previewLines.join('\n')} lineAnnotations={{}} />
               {bodyLines.length > 3 && (
                 <button className="preview-expand" onClick={() => setExpanded(true)}>
                   Show full code ({bodyLines.length - 3} more lines)
@@ -393,16 +489,22 @@ function MethodCard({ method, expandAll }) {
   )
 }
 
-function CodeHighlight({ code }) {
+function CodeHighlight({ code, lineAnnotations = {} }) {
   const lines = code.split('\n')
   return (
     <pre className="code-block">
       {lines.map((line, idx) => {
         const isSuspicious = SUSPICIOUS_KEYWORDS.some(kw => line.toLowerCase().includes(kw.toLowerCase()))
+        const ann = lineAnnotations[idx]
         return (
           <div key={idx} className={`code-line ${isSuspicious ? 'suspicious-line' : ''}`}>
             <span className="line-num">{idx + 1}</span>
             <code>{highlightSyntax(line)}</code>
+            {ann && (
+              <span className={`line-annotation ${ANNOTATION_COLORS[ann.type] || 'annotation-amber'}`}>
+                ← {ann.label}
+              </span>
+            )}
           </div>
         )
       })}

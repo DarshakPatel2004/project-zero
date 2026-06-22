@@ -426,6 +426,100 @@ def assess_with_llm(chains_result: dict, c2_result: dict, obfuscation_result: Op
         return assessment
 
 
+METHOD_EXPLAIN_SYSTEM_PROMPT = """/no_think
+
+You are an Android malware analyst reviewing decompiled Java bytecode.
+Given a method's name, its class context, any suspicious flags already detected, and its full body,
+write a concise analyst note in 2-3 sentences:
+- What the method does (plain English, no jargon inflation)
+- Why it is suspicious if flags are present, or why it is benign if not
+- Any specific indicators (API calls, patterns) that support your assessment
+
+Output must be valid JSON only. No markdown, no preamble, no code blocks. Schema:
+{
+  "summary": "2-3 sentence plain English explanation",
+  "threat_type": "reflection|dynamic_loading|crypto|network|command_exec|persistence|benign|unknown",
+  "confidence": 0.0-1.0
+}
+"""
+
+
+def explain_method(
+    class_name: str,
+    method_name: str,
+    method_code: str,
+    flags: list[str] | None = None,
+) -> dict:
+    """
+    Call the configured LLM (NIM or Ollama) to produce a plain-English
+    explanation of a single decompiled method.
+
+    Returns a dict with keys: summary, threat_type, confidence.
+    Never raises — returns a fallback dict on any error.
+    """
+    flags = flags or []
+    # Truncate code to keep prompt under ~2K tokens
+    code_snippet = method_code[:3000] if method_code else "(no body)"
+
+    context = (
+        f"Class: {class_name}\n"
+        f"Method: {method_name}\n"
+        f"Detected flags: {', '.join(flags) if flags else 'none'}\n\n"
+        f"Method body:\n{code_snippet}"
+    )
+
+    fallback = {
+        "summary": "LLM explanation unavailable. Review the method body manually.",
+        "threat_type": "unknown",
+        "confidence": 0.0,
+    }
+
+    try:
+        provider = (os.environ.get("LLM_PROVIDER") or settings.LLM_PROVIDER or "auto").lower()
+        nim_api_key = os.environ.get("NVIDIA_NIM_API_KEY")
+        use_nvidia = provider == "nvidia" or (provider == "auto" and nim_api_key)
+
+        raw_output = ""
+        if use_nvidia:
+            nim_model = os.environ.get("NVIDIA_NIM_MODEL", settings.NIM_MODEL or "nvidia/nemotron-nano-9b-v2")
+            nim_base_url = os.environ.get("NVIDIA_NIM_BASE_URL", settings.NIM_HOST or "https://integrate.api.nvidia.com/v1")
+            # Temporarily swap system prompt via a wrapper prompt
+            combined = f"{METHOD_EXPLAIN_SYSTEM_PROMPT}\n\nMETHOD TO ANALYSE:\n{context}\n\nEXPLANATION:"
+            raw_output = _call_nvidia_nim(combined, nim_model, nim_base_url, nim_api_key, max_retries=2) or ""
+        else:
+            ollama_host = _normalize_ollama_host(os.environ.get("OLLAMA_HOST", settings.OLLAMA_HOST))
+            ollama_model = os.environ.get("OLLAMA_MODEL", settings.OLLAMA_MODEL)
+            # Build a self-contained prompt since _call_ollama embeds SYSTEM_PROMPT;
+            # override by passing everything as the context string with inline instructions.
+            combined = f"{METHOD_EXPLAIN_SYSTEM_PROMPT}\n\nMETHOD TO ANALYSE:\n{context}\n\nEXPLANATION:"
+
+            import ollama as _ollama
+            client = _ollama.Client(
+                host=_normalize_ollama_host(ollama_host),
+                timeout=30,
+            )
+            resp = client.generate(
+                model=ollama_model,
+                prompt=combined,
+                format="json",
+                options={"num_ctx": 4096, "temperature": 0.1},
+            )
+            raw_output = resp.get("response", "")
+
+        parsed = parse_llm_json(raw_output)
+        if parsed and "summary" in parsed:
+            return {
+                "summary": str(parsed.get("summary", ""))[:500],
+                "threat_type": str(parsed.get("threat_type", "unknown")),
+                "confidence": float(parsed.get("confidence", 0.5)),
+            }
+        return fallback
+
+    except Exception as e:
+        fallback["summary"] = f"Explanation error: {e}"[:300]
+        return fallback
+
+
 if __name__ == "__main__":
     import sys
     if len(sys.argv) < 3:

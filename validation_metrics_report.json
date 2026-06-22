@@ -1,0 +1,165 @@
+{
+  "total_samples": 100,
+  "best_threshold": 55,
+  "metrics": {
+    "threshold": 55,
+    "tp": 42,
+    "fp": 0,
+    "tn": 50,
+    "fn": 8,
+    "precision": 1.0,
+    "recall": 0.84,
+    "specificity": 1.0,
+    "f1": 0.9130434782608696,
+    "accuracy": 0.92
+  },
+  "threshold_sweep": [
+    {
+      "threshold": 45,
+      "tp": 46,
+      "fp": 18,
+      "tn": 32,
+      "fn": 4,
+      "precision": 0.71875,
+      "recall": 0.92,
+      "specificity": 0.64,
+      "f1": 0.8070175438596492,
+      "accuracy": 0.78
+    },
+    {
+      "threshold": 50,
+      "tp": 44,
+      "fp": 8,
+      "tn": 42,
+      "fn": 6,
+      "precision": 0.8461538461538461,
+      "recall": 0.88,
+      "specificity": 0.84,
+      "f1": 0.8627450980392156,
+      "accuracy": 0.86
+    },
+    {
+      "threshold": 55,
+      "tp": 42,
+      "fp": 0,
+      "tn": 50,
+      "fn": 8,
+      "precision": 1.0,
+      "recall": 0.84,
+      "specificity": 1.0,
+      "f1": 0.9130434782608696,
+      "accuracy": 0.92
+    },
+    {
+      "threshold": 60,
+      "tp": 42,
+      "fp": 0,
+      "tn": 50,
+      "fn": 8,
+      "precision": 1.0,
+      "recall": 0.84,
+      "specificity": 1.0,
+      "f1": 0.9130434782608696,
+      "accuracy": 0.92
+    },
+    {
+      "threshold": 65,
+      "tp": 42,
+      "fp": 0,
+      "tn": 50,
+      "fn": 8,
+      "precision": 1.0,
+      "recall": 0.84,
+      "specificity": 1.0,
+      "f1": 0.9130434782608696,
+      "accuracy": 0.92
+    },
+    {
+      "threshold": 70,
+      "tp": 42,
+      "fp": 0,
+      "tn": 50,
+      "fn": 8,
+      "precision": 1.0,
+      "recall": 0.84,
+      "specificity": 1.0,
+      "f1": 0.9130434782608696,
+      "accuracy": 0.92
+    },
+    {
+      "threshold": 75,
+      "tp": 42,
+      "fp": 0,
+      "tn": 50,
+      "fn": 8,
+      "precision": 1.0,
+      "recall": 0.84,
+      "specificity": 1.0,
+      "f1": 0.9130434782608696,
+      "accuracy": 0.92
+    },
+    {
+      "threshold": 80,
+      "tp": 0,
+      "fp": 0,
+      "tn": 50,
+      "fn": 50,
+      "precision": 0.0,
+      "recall": 0.0,
+      "specificity": 1.0,
+      "f1": 0.0,
+      "accuracy": 0.5
+    }
+  ],
+  "false_positives": [],
+  "false_negatives": [
+    {
+      "name": "drebin_5010f34461e309ea.apk",
+      "sha256": "5010f34461e309ea1bc5539bb24fccc320576ce6d677a29604f5568c0a5e6315",
+      "score": 15,
+      "source": "fallback"
+    },
+    {
+      "name": "drebin_255eae7859b0855b.apk",
+      "sha256": "255eae7859b0855b15de30e5405a2714837ac556c238bc009ac74c5bfa69714a",
+      "score": 15,
+      "source": "fallback"
+    },
+    {
+      "name": "drebin_54f2a636e000c55b.apk",
+      "sha256": "54f2a636e000c55bb725d7e552a22117837c1676fb4b96decd135ae10e6f7049",
+      "score": 15,
+      "source": "fallback"
+    },
+    {
+      "name": "drebin_73b2fd2dfb5860f0.apk",
+      "sha256": "73b2fd2dfb5860f0701b16002832987d5edcfe059df454d30548aa4fa45bebe6",
+      "score": 45,
+      "source": "fallback"
+    },
+    {
+      "name": "drebin_d4b3fa551ff62822.apk",
+      "sha256": "d4b3fa551ff6282287ea8d30b2860a55198f0a8c76cf20ea27bba95113628f69",
+      "score": 45,
+      "source": "fallback"
+    },
+    {
+      "name": "drebin_315e29c580f1720d.apk",
+      "sha256": "315e29c580f1720dfc0f7ef7d48beeb3321f3bf343646e022420af119ad7a370",
+      "score": 50,
+      "source": "fallback"
+    },
+    {
+      "name": "drebin_beeeb3cafc0ea246.apk",
+      "sha256": "beeeb3cafc0ea246cc6dd82d82489621414d6cab9ceb50e70fd9835f5733178c",
+      "score": 50,
+      "source": "fallback"
+    },
+    {
+      "name": "drebin_03385b42f9dffe69.apk",
+      "sha256": "03385b42f9dffe697a883aac40042188e658145e8d67e0dab9d665501d7e02aa",
+      "score": 15,
+      "source": "fallback"
+    }
+  ]
+}

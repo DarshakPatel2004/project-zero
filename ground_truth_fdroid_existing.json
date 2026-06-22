@@ -1,0 +1,442 @@
+[
+  {
+    "name": "com.foobnix.pro.pdf.reader",
+    "package": "com.foobnix.pro.pdf.reader",
+    "sha256": null,
+    "ground_truth": "benign",
+    "family": null,
+    "source": "F-Droid",
+    "category": "Ebook Reader",
+    "apk_path": "samples\\legitimate\\com.foobnix.pro.pdf.reader.apk"
+  },
+  {
+    "name": "com.fsck.k9",
+    "package": "com.fsck.k9",
+    "sha256": null,
+    "ground_truth": "benign",
+    "family": null,
+    "source": "F-Droid",
+    "category": "Email",
+    "apk_path": "samples\\legitimate\\com.fsck.k9.apk"
+  },
+  {
+    "name": "com.zulipmobile",
+    "package": "com.zulipmobile",
+    "sha256": null,
+    "ground_truth": "benign",
+    "family": null,
+    "source": "F-Droid",
+    "category": "Internet",
+    "apk_path": "samples\\legitimate\\com.zulipmobile.apk"
+  },
+  {
+    "name": "a2dp.Vol",
+    "package": "a2dp.Vol",
+    "sha256": null,
+    "ground_truth": "benign",
+    "family": null,
+    "source": "F-Droid",
+    "category": "Multimedia",
+    "apk_path": "samples\\legitimate\\fdroid\\a2dp.Vol_169.apk"
+  },
+  {
+    "name": "ac.mdiq.podcini.X",
+    "package": "ac.mdiq.podcini.X",
+    "sha256": null,
+    "ground_truth": "benign",
+    "family": null,
+    "source": "F-Droid",
+    "category": "Multimedia",
+    "apk_path": "samples\\legitimate\\fdroid\\ac.mdiq.podcini.X_323.apk"
+  },
+  {
+    "name": "ac.robinson.mediaphone",
+    "package": "ac.robinson.mediaphone",
+    "sha256": null,
+    "ground_truth": "benign",
+    "family": null,
+    "source": "F-Droid",
+    "category": "Multimedia",
+    "apk_path": "samples\\legitimate\\fdroid\\ac.robinson.mediaphone_65.apk"
+  },
+  {
+    "name": "acab.naiveha.subrosa",
+    "package": "acab.naiveha.subrosa",
+    "sha256": null,
+    "ground_truth": "benign",
+    "family": null,
+    "source": "F-Droid",
+    "category": "Security",
+    "apk_path": "samples\\legitimate\\fdroid\\acab.naiveha.subrosa_7.apk"
+  },
+  {
+    "name": "acidburn.stims",
+    "package": "acidburn.stims",
+    "sha256": null,
+    "ground_truth": "benign",
+    "family": null,
+    "source": "F-Droid",
+    "category": "System",
+    "apk_path": "samples\\legitimate\\fdroid\\acidburn.stims_5.apk"
+  },
+  {
+    "name": "acr.browser.lightning",
+    "package": "acr.browser.lightning",
+    "sha256": null,
+    "ground_truth": "benign",
+    "family": null,
+    "source": "F-Droid",
+    "category": "Browser",
+    "apk_path": "samples\\legitimate\\fdroid\\acr.browser.lightning_101.apk"
+  },
+  {
+    "name": "ademar.bitac",
+    "package": "ademar.bitac",
+    "sha256": null,
+    "ground_truth": "benign",
+    "family": null,
+    "source": "F-Droid",
+    "category": "Money",
+    "apk_path": "samples\\legitimate\\fdroid\\ademar.bitac_8.apk"
+  },
+  {
+    "name": "ademar.textlauncher",
+    "package": "ademar.textlauncher",
+    "sha256": null,
+    "ground_truth": "benign",
+    "family": null,
+    "source": "F-Droid",
+    "category": "Launcher",
+    "apk_path": "samples\\legitimate\\fdroid\\ademar.textlauncher_10.apk"
+  },
+  {
+    "name": "ai.agent1c.hitomi.open",
+    "package": "ai.agent1c.hitomi.open",
+    "sha256": null,
+    "ground_truth": "benign",
+    "family": null,
+    "source": "F-Droid",
+    "category": "AI Chat",
+    "apk_path": "samples\\legitimate\\fdroid\\ai.agent1c.hitomi.open_6.apk"
+  },
+  {
+    "name": "ai.privatebydesign.albi",
+    "package": "ai.privatebydesign.albi",
+    "sha256": null,
+    "ground_truth": "benign",
+    "family": null,
+    "source": "F-Droid",
+    "category": "Health Manager",
+    "apk_path": "samples\\legitimate\\fdroid\\ai.privatebydesign.albi_13.apk"
+  },
+  {
+    "name": "ai.susi",
+    "package": "ai.susi",
+    "sha256": null,
+    "ground_truth": "benign",
+    "family": null,
+    "source": "F-Droid",
+    "category": "AI Chat",
+    "apk_path": "samples\\legitimate\\fdroid\\ai.susi_16.apk"
+  },
+  {
+    "name": "allen.town.focus.mastodon",
+    "package": "allen.town.focus.mastodon",
+    "sha256": null,
+    "ground_truth": "benign",
+    "family": null,
+    "source": "F-Droid",
+    "category": "Connectivity",
+    "apk_path": "samples\\legitimate\\fdroid\\allen.town.focus.mastodon_1630.apk"
+  },
+  {
+    "name": "allen.town.focus.podcast",
+    "package": "allen.town.focus.podcast",
+    "sha256": null,
+    "ground_truth": "benign",
+    "family": null,
+    "source": "F-Droid",
+    "category": "Connectivity",
+    "apk_path": "samples\\legitimate\\fdroid\\allen.town.focus.podcast_70.apk"
+  },
+  {
+    "name": "alt.nainapps.aer",
+    "package": "alt.nainapps.aer",
+    "sha256": null,
+    "ground_truth": "benign",
+    "family": null,
+    "source": "F-Droid",
+    "category": "File Encryption & Vault",
+    "apk_path": "samples\\legitimate\\fdroid\\alt.nainapps.aer_1735160000.apk"
+  },
+  {
+    "name": "alt.nainapps.sharepaste.fdroid",
+    "package": "alt.nainapps.sharepaste.fdroid",
+    "sha256": null,
+    "ground_truth": "benign",
+    "family": null,
+    "source": "F-Droid",
+    "category": "Internet",
+    "apk_path": "samples\\legitimate\\fdroid\\alt.nainapps.sharepaste.fdroid_1734722268.apk"
+  },
+  {
+    "name": "amirz.rootless.nexuslauncher",
+    "package": "amirz.rootless.nexuslauncher",
+    "sha256": null,
+    "ground_truth": "benign",
+    "family": null,
+    "source": "F-Droid",
+    "category": "Launcher",
+    "apk_path": "samples\\legitimate\\fdroid\\amirz.rootless.nexuslauncher_30911.apk"
+  },
+  {
+    "name": "androdns.android.leetdreams.ch.androdns",
+    "package": "androdns.android.leetdreams.ch.androdns",
+    "sha256": null,
+    "ground_truth": "benign",
+    "family": null,
+    "source": "F-Droid",
+    "category": "DNS & Hosts",
+    "apk_path": "samples\\legitimate\\fdroid\\androdns.android.leetdreams.ch.androdns_27.apk"
+  },
+  {
+    "name": "android.jonas.fakestandby",
+    "package": "android.jonas.fakestandby",
+    "sha256": null,
+    "ground_truth": "benign",
+    "family": null,
+    "source": "F-Droid",
+    "category": "System",
+    "apk_path": "samples\\legitimate\\fdroid\\android.jonas.fakestandby_14.apk"
+  },
+  {
+    "name": "anonvpn.anon_next.android",
+    "package": "anonvpn.anon_next.android",
+    "sha256": null,
+    "ground_truth": "benign",
+    "family": null,
+    "source": "F-Droid",
+    "category": "Connectivity",
+    "apk_path": "samples\\legitimate\\fdroid\\anonvpn.anon_next.android_22.apk"
+  },
+  {
+    "name": "anupam.acrylic",
+    "package": "anupam.acrylic",
+    "sha256": null,
+    "ground_truth": "benign",
+    "family": null,
+    "source": "F-Droid",
+    "category": "Draw",
+    "apk_path": "samples\\legitimate\\fdroid\\anupam.acrylic_19.apk"
+  },
+  {
+    "name": "app.agneldev.kochitransitgo",
+    "package": "app.agneldev.kochitransitgo",
+    "sha256": null,
+    "ground_truth": "benign",
+    "family": null,
+    "source": "F-Droid",
+    "category": "Public Transport",
+    "apk_path": "samples\\legitimate\\fdroid\\app.agneldev.kochitransitgo_1.apk"
+  },
+  {
+    "name": "app.alextran.immich",
+    "package": "app.alextran.immich",
+    "sha256": null,
+    "ground_truth": "benign",
+    "family": null,
+    "source": "F-Droid",
+    "category": "Cloud Storage & File Sync",
+    "apk_path": "samples\\legitimate\\fdroid\\app.alextran.immich_3046.apk"
+  },
+  {
+    "name": "app.areada",
+    "package": "app.areada",
+    "sha256": null,
+    "ground_truth": "benign",
+    "family": null,
+    "source": "F-Droid",
+    "category": "Ebook Reader",
+    "apk_path": "samples\\legitimate\\fdroid\\app.areada_13.apk"
+  },
+  {
+    "name": "app.bitbag",
+    "package": "app.bitbag",
+    "sha256": null,
+    "ground_truth": "benign",
+    "family": null,
+    "source": "F-Droid",
+    "category": "Market & Price",
+    "apk_path": "samples\\legitimate\\fdroid\\app.bitbag_283.apk"
+  },
+  {
+    "name": "app.cclauncher",
+    "package": "app.cclauncher",
+    "sha256": null,
+    "ground_truth": "benign",
+    "family": null,
+    "source": "F-Droid",
+    "category": "Launcher",
+    "apk_path": "samples\\legitimate\\fdroid\\app.cclauncher_1290.apk"
+  },
+  {
+    "name": "app.cleartray",
+    "package": "app.cleartray",
+    "sha256": null,
+    "ground_truth": "benign",
+    "family": null,
+    "source": "F-Droid",
+    "category": "Task",
+    "apk_path": "samples\\legitimate\\fdroid\\app.cleartray_343.apk"
+  },
+  {
+    "name": "app.comaps.fdroid",
+    "package": "app.comaps.fdroid",
+    "sha256": null,
+    "ground_truth": "benign",
+    "family": null,
+    "source": "F-Droid",
+    "category": "Navigation",
+    "apk_path": "samples\\legitimate\\fdroid\\app.comaps.fdroid_26060511.apk"
+  },
+  {
+    "name": "app.crescentcash.src",
+    "package": "app.crescentcash.src",
+    "sha256": null,
+    "ground_truth": "benign",
+    "family": null,
+    "source": "F-Droid",
+    "category": "Money",
+    "apk_path": "samples\\legitimate\\fdroid\\app.crescentcash.src_120.apk"
+  },
+  {
+    "name": "app.crossword.yourealwaysbe.forkyz",
+    "package": "app.crossword.yourealwaysbe.forkyz",
+    "sha256": null,
+    "ground_truth": "benign",
+    "family": null,
+    "source": "F-Droid",
+    "category": "Word Game",
+    "apk_path": "samples\\legitimate\\fdroid\\app.crossword.yourealwaysbe.forkyz_8300000.apk"
+  },
+  {
+    "name": "app.crossword.yourealwaysbe.forkyzscanner",
+    "package": "app.crossword.yourealwaysbe.forkyzscanner",
+    "sha256": null,
+    "ground_truth": "benign",
+    "family": null,
+    "source": "F-Droid",
+    "category": "Word Game",
+    "apk_path": "samples\\legitimate\\fdroid\\app.crossword.yourealwaysbe.forkyzscanner_8.apk"
+  },
+  {
+    "name": "com.etesync.syncadapter",
+    "package": "com.etesync.syncadapter",
+    "sha256": null,
+    "ground_truth": "benign",
+    "family": null,
+    "source": "F-Droid",
+    "category": "Calendar & Agenda",
+    "apk_path": "samples\\legitimate\\fdroid\\com.etesync.syncadapter.apk"
+  },
+  {
+    "name": "com.jovial.jrpn",
+    "package": "com.jovial.jrpn",
+    "sha256": null,
+    "ground_truth": "benign",
+    "family": null,
+    "source": "F-Droid",
+    "category": "Calculator",
+    "apk_path": "samples\\legitimate\\fdroid\\com.jovial.jrpn.apk"
+  },
+  {
+    "name": "InfinityLoop1309.NewPipeEnhanced",
+    "package": "InfinityLoop1309.NewPipeEnhanced",
+    "sha256": null,
+    "ground_truth": "benign",
+    "family": null,
+    "source": "F-Droid",
+    "category": "Internet",
+    "apk_path": "samples\\legitimate\\fdroid\\InfinityLoop1309.NewPipeEnhanced_110004.apk"
+  },
+  {
+    "name": "org.dmfs.tasks",
+    "package": "org.dmfs.tasks",
+    "sha256": null,
+    "ground_truth": "benign",
+    "family": null,
+    "source": "F-Droid",
+    "category": "Task",
+    "apk_path": "samples\\legitimate\\fdroid\\org.dmfs.tasks.apk"
+  },
+  {
+    "name": "org.secuso.privacyfriendly2048",
+    "package": "org.secuso.privacyfriendly2048",
+    "sha256": null,
+    "ground_truth": "benign",
+    "family": null,
+    "source": "F-Droid",
+    "category": "Puzzle Game",
+    "apk_path": "samples\\legitimate\\fdroid\\org.secuso.privacyfriendly2048.apk"
+  },
+  {
+    "name": "org.secuso.privacyfriendlydicer",
+    "package": "org.secuso.privacyfriendlydicer",
+    "sha256": null,
+    "ground_truth": "benign",
+    "family": null,
+    "source": "F-Droid",
+    "category": "Dice",
+    "apk_path": "samples\\legitimate\\fdroid\\org.secuso.privacyfriendlydicer.apk"
+  },
+  {
+    "name": "org.secuso.privacyfriendlymemory",
+    "package": "org.secuso.privacyfriendlymemory",
+    "sha256": null,
+    "ground_truth": "benign",
+    "family": null,
+    "source": "F-Droid",
+    "category": "Educational Game",
+    "apk_path": "samples\\legitimate\\fdroid\\org.secuso.privacyfriendlymemory.apk"
+  },
+  {
+    "name": "S.N.A.K.E",
+    "package": "S.N.A.K.E",
+    "sha256": null,
+    "ground_truth": "benign",
+    "family": null,
+    "source": "F-Droid",
+    "category": "Draw",
+    "apk_path": "samples\\legitimate\\fdroid\\S.N.A.K.E_1000001.apk"
+  },
+  {
+    "name": "SVS.pdfinspector",
+    "package": "SVS.pdfinspector",
+    "sha256": null,
+    "ground_truth": "benign",
+    "family": null,
+    "source": "F-Droid",
+    "category": "Writing",
+    "apk_path": "samples\\legitimate\\fdroid\\SVS.pdfinspector_6.apk"
+  },
+  {
+    "name": "org.mozilla.fennec",
+    "package": "org.mozilla.fennec",
+    "sha256": null,
+    "ground_truth": "benign",
+    "family": null,
+    "source": "F-Droid",
+    "category": "Other",
+    "apk_path": "samples\\legitimate\\org.mozilla.fennec_fdroid.apk"
+  },
+  {
+    "name": "org.videolan.vlc",
+    "package": "org.videolan.vlc",
+    "sha256": null,
+    "ground_truth": "benign",
+    "family": null,
+    "source": "F-Droid",
+    "category": "Local Media Player",
+    "apk_path": "samples\\legitimate\\org.videolan.vlc.apk"
+  }
+]

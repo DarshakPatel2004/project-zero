@@ -20,6 +20,7 @@ import subprocess
 import uuid
 
 from analysis.pipeline import run_pipeline
+from analysis.step7_llm_assessment import explain_method
 from backend.config import settings
 from backend.events import WebSocketEvent, VALID_EVENT_TYPES
 from backend.validators import validate_event
@@ -441,6 +442,89 @@ async def api_get_obfuscation(sample_id: str) -> dict:
 class DeobfuscateRequest(BaseModel):
     text: str
     hint: Optional[str] = None
+
+
+class ExplainMethodRequest(BaseModel):
+    class_name: str
+    method_name: str
+    method_code: str
+    flags: Optional[List[str]] = None
+
+
+# Static pattern map: keyword → analyst label
+_STATIC_PATTERN_LABELS: dict = {
+    "invoke": ("reflection", "Dynamic method invocation via reflection"),
+    "classloader": ("dynamic_loading", "Runtime class loading — common in dropper/loader malware"),
+    "dexclassloader": ("dynamic_loading", "Loads DEX/APK from disk at runtime — strong dropper indicator"),
+    "cipher": ("crypto", "Cryptographic operation — check for data encryption/decryption"),
+    "base64": ("encoding", "Base64 encoding/decoding — often used to obfuscate payloads"),
+    "decode": ("encoding", "Decoding operation — may unwrap an obfuscated payload"),
+    "encrypt": ("crypto", "Explicit encryption — check what data is being encrypted and why"),
+    "runtime.exec": ("command_exec", "Shell command execution — high-severity indicator"),
+    "processbuilder": ("command_exec", "Process spawning — shell command execution path"),
+    "httpurlconnection": ("network", "HTTP network call — check destination and payload"),
+    "socket": ("network", "Raw socket usage — potential C2 communication channel"),
+    "reflect": ("reflection", "Java reflection API — used to hide method calls from static analysis"),
+    "permission": ("permissions", "Runtime permission check — note which permission is being gated"),
+}
+
+
+def _annotate_lines(code: str) -> dict[int, dict]:
+    """
+    Scan code lines for suspicious patterns.
+    Returns {line_index: {type, label}} for any line that matches.
+    Zero-indexed to match frontend array indexing.
+    """
+    annotations = {}
+    for i, line in enumerate(code.splitlines()):
+        lower = line.lower()
+        for keyword, (pattern_type, label) in _STATIC_PATTERN_LABELS.items():
+            if keyword in lower:
+                # First match wins per line — use the most specific keyword
+                annotations[i] = {"type": pattern_type, "label": label, "keyword": keyword}
+                break
+    return annotations
+
+
+@app.post("/api/sample/{sample_id}/dissection/explain-method")
+async def api_explain_method(sample_id: str, request: ExplainMethodRequest) -> dict:
+    """
+    Return static line annotations (instant) + async LLM summary for a method.
+    Static annotations are always present; LLM summary may be empty if LLM is unavailable.
+    """
+    result = load_result(sample_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Sample not found")
+
+    # Layer 1: static pattern annotations — synchronous, no LLM
+    line_annotations = _annotate_lines(request.method_code)
+
+    # Layer 2: LLM explanation — run in thread pool so we don't block the event loop
+    import asyncio
+    loop = asyncio.get_event_loop()
+    try:
+        llm_result = await loop.run_in_executor(
+            None,
+            lambda: explain_method(
+                request.class_name,
+                request.method_name,
+                request.method_code,
+                request.flags or [],
+            ),
+        )
+    except Exception as e:
+        llm_result = {
+            "summary": f"LLM unavailable: {e}",
+            "threat_type": "unknown",
+            "confidence": 0.0,
+        }
+
+    return {
+        "class_name": request.class_name,
+        "method_name": request.method_name,
+        "line_annotations": line_annotations,
+        "llm": llm_result,
+    }
 
 
 @app.post("/api/sample/{sample_id}/deobfuscate")
