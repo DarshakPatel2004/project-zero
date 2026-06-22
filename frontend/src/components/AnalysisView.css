@@ -282,11 +282,71 @@
 
 .tab-content {
   animation: fadeIn 0.2s ease;
+  position: relative;
 }
 
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+.dissection-panel {
+  position: relative;
+  min-height: 400px;
+}
+
+.source-overlay {
+  position: absolute;
+  inset: 0;
+  background: var(--bg-base, var(--bg-surface));
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  z-index: 10;
+  animation: fadeIn 0.2s ease;
+}
+
+.source-overlay-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-color);
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+
+.source-class-name {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  word-break: break-all;
+  font-family: var(--font-mono);
+}
+
+.source-close-button {
+  padding: 0.5rem 1rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm, 4px);
+  color: var(--text-secondary);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.source-close-button:hover {
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+}
+
+.source-overlay-content {
+  flex: 1;
+  overflow: auto;
+  padding: 1rem;
 }
 
 .tab-panel {
