@@ -716,3 +716,110 @@
   background: var(--bg-surface-hover);
   color: var(--text-muted);
 }
+
+/* ── PDF Export Section ──────────────────────────────────────────── */
+
+.export-description {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin: 0 0 1rem 0;
+  line-height: 1.5;
+}
+
+.pdf-export-buttons {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.pdf-export-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.1rem;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  position: relative;
+}
+
+.pdf-export-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.pdf-export-quick {
+  background: var(--accent-indigo, #6366f1);
+  color: #fff;
+  border-color: var(--accent-indigo, #6366f1);
+}
+
+.pdf-export-quick:hover:not(:disabled) {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+.pdf-export-full {
+  background: transparent;
+  color: var(--text-primary);
+  border-color: var(--border-color);
+}
+
+.pdf-export-full:hover:not(:disabled) {
+  background: var(--bg-surface-hover);
+  border-color: var(--accent-amber, #f59e0b);
+}
+
+.pdf-export-btn.generating {
+  opacity: 0.8;
+}
+
+.pdf-badge {
+  font-size: 0.65rem;
+  font-weight: 500;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  background: rgba(255,255,255,0.15);
+  color: rgba(255,255,255,0.85);
+  margin-left: 0.25rem;
+}
+
+.pdf-export-full .pdf-badge {
+  background: rgba(245,158,11,0.12);
+  color: #f59e0b;
+}
+
+.pdf-badge-warning {
+  background: rgba(245,158,11,0.12) !important;
+  color: #f59e0b !important;
+}
+
+.pdf-icon {
+  font-size: 1rem;
+}
+
+.pdf-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.pdf-status {
+  margin-top: 0.75rem;
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.pdf-status-ok    { color: #10b981; }
+.pdf-status-error { color: #f43f5e; }

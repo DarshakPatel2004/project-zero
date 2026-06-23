@@ -21,6 +21,7 @@ import uuid
 
 from analysis.pipeline import run_pipeline
 from analysis.step7_llm_assessment import explain_method
+from backend.pdf_report import generate_report
 from backend.config import settings
 from backend.events import WebSocketEvent, VALID_EVENT_TYPES
 from backend.validators import validate_event
@@ -350,9 +351,27 @@ async def api_get_dissection_classes(sample_id: str) -> dict:
     if apk_path is None:
         raise HTTPException(status_code=404, detail="APK file not found for sample")
 
+    # Cache parsed classes to disk — parsing 1500+ files is expensive
+    cache_path = WORK_DIR / sample_id / "dissection_classes_cache.json"
+    if cache_path.exists():
+        try:
+            with open(cache_path, "r", encoding="utf-8") as f:
+                cached = json.load(f)
+            return {"classes": cached, "total": len(cached), "jadx_success": True, "cached": True}
+        except Exception:
+            pass  # Cache corrupt, rebuild below
+
     try:
         dissector = APKDissector(str(apk_path), work_dir=str(WORK_DIR))
-        classes = dissector.list_decompiled_class_objects()
+        import asyncio
+        loop = asyncio.get_event_loop()
+        classes = await loop.run_in_executor(None, dissector.list_decompiled_class_objects)
+        # Write cache
+        try:
+            with open(cache_path, "w", encoding="utf-8") as f:
+                json.dump(classes, f)
+        except Exception:
+            pass  # Cache write failure is non-fatal
         return {"classes": classes, "total": len(classes), "jadx_success": True}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Dissection failed: {e}")
@@ -525,6 +544,130 @@ async def api_explain_method(sample_id: str, request: ExplainMethodRequest) -> d
         "line_annotations": line_annotations,
         "llm": llm_result,
     }
+
+
+@app.post("/api/sample/{sample_id}/report/pdf")
+async def api_generate_pdf_report(sample_id: str, request: dict) -> Response:
+    """
+    Generate a full forensic PDF report for a sample.
+
+    Body: { "mode": "quick" | "full" }
+    - quick: LLM summaries for top 30 suspicious methods by suspicion score
+    - full:  LLM summaries for all suspicious methods (may be slow)
+    """
+    result = load_result(sample_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Sample not found")
+
+    mode = request.get("mode", "quick")
+
+    # Gather supporting data
+    threat_data = ti.build_threat_intel(result, sample_id)
+    try:
+        from backend.obfuscation_view import build_obfuscation_view
+        obfuscation = build_obfuscation_view(sample_id, result)
+    except Exception:
+        obfuscation = {}
+
+    # Get suspicious classes + methods
+    apk_path = _get_sample_apk_path(sample_id)
+    annotated_methods = []
+
+    if apk_path:
+        try:
+            dissector = APKDissector(str(apk_path), work_dir=str(WORK_DIR))
+            classes = dissector.list_decompiled_class_objects()
+
+            SUSPICIOUS_KEYWORDS = [
+                'invoke', 'Cipher', 'ClassLoader', 'reflect', 'DexClassLoader',
+                'Runtime.exec', 'ProcessBuilder', 'HttpURLConnection', 'Base64',
+                'decode', 'encrypt', 'socket', 'intent', 'permission',
+            ]
+            UNWANTED_PATTERNS = [
+                'android.support.', 'androidx.', 'com.android.internal.',
+                'kotlin.', 'com.google.android.',
+            ]
+
+            def suspicion_score(cls_data):
+                score = 0
+                for method in cls_data.get('methods', []):
+                    body = method.get('body', '') or ''
+                    name = method.get('name', '') or ''
+                    for kw in SUSPICIOUS_KEYWORDS:
+                        if kw.lower() in name.lower():
+                            score += 2
+                        if kw.lower() in body.lower():
+                            score += 1
+                return score
+
+            # Filter boilerplate and sort by suspicion
+            suspicious = [
+                c for c in classes
+                if suspicion_score(c) > 0
+                and not any(p in c.get('name', '') for p in UNWANTED_PATTERNS)
+            ]
+            suspicious.sort(key=suspicion_score, reverse=True)
+
+            method_limit = None if mode == 'full' else 30
+            processed = 0
+
+            for cls in suspicious:
+                if method_limit and processed >= method_limit:
+                    break
+                cls_name = cls.get('name', '')
+                for method in cls.get('methods', []):
+                    if method_limit and processed >= method_limit:
+                        break
+                    body = method.get('body', '') or ''
+                    name = method.get('name', '') or ''
+                    flags = [kw for kw in SUSPICIOUS_KEYWORDS
+                             if kw.lower() in name.lower() or kw.lower() in body.lower()]
+                    if not flags:
+                        continue
+
+                    # Static annotations
+                    line_annotations = _annotate_lines(body)
+
+                    # LLM summary — run synchronously here (we're already in executor context)
+                    llm_result = explain_method(cls_name, name, body, flags)
+
+                    annotated_methods.append({
+                        'class_name':       cls_name,
+                        'method_name':      name,
+                        'flags':            flags,
+                        'line_annotations': line_annotations,
+                        'llm':              llm_result,
+                    })
+                    processed += 1
+
+        except Exception as e:
+            # Don't fail the whole report if dissection breaks
+            pass
+
+    # Generate PDF
+    import asyncio
+    loop = asyncio.get_event_loop()
+    try:
+        pdf_bytes = await loop.run_in_executor(
+            None,
+            lambda: generate_report(
+                sample_id=sample_id,
+                sample_result=result,
+                threat_data=threat_data,
+                obfuscation=obfuscation,
+                annotated_methods=annotated_methods,
+                mode=mode,
+            )
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"PDF generation failed: {e}")
+
+    filename = f"droidforensix_{sample_id[:12]}_{mode}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @app.post("/api/sample/{sample_id}/deobfuscate")

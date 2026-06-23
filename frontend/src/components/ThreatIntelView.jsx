@@ -182,34 +182,7 @@ export default function ThreatIntelView({ sample, apiUrl }) {
         )}
       </div>
 
-      <div className="threat-card card">
-        <h3 className="section-title">Threat Intelligence Exports</h3>
-        <div className="export-buttons">
-          <ExportButton
-            url={`${apiUrl || API_URL}/api/sample/${sampleId}/threat-intel/export/csv`}
-            ext="csv"
-            label="CSV Blocklist"
-            count={c2s.length}
-            preview={c2s.length === 0 ? 'No indicators to export' : `${c2s.length} indicator(s)`}
-          />
-          <ExportButton
-            url={`${apiUrl || API_URL}/api/sample/${sampleId}/threat-intel/export/stix`}
-            ext="json"
-            label="STIX 2.0"
-            count={c2s.length}
-            preview={c2s.length === 0 ? 'No indicators to export' : `${c2s.length} indicator object(s)`}
-          />
-          <ExportButton
-            url={`${apiUrl || API_URL}/api/sample/${sampleId}/threat-intel/export/yara`}
-            ext="yar"
-            label="YARA Rules"
-            count={classification.malicious || 0 + classification.suspicious || 0}
-            preview={(classification.malicious || 0) + (classification.suspicious || 0) === 0
-              ? 'No malicious/suspicious strings'
-              : `${(classification.malicious || 0) + (classification.suspicious || 0)} string pattern(s)`}
-          />
-        </div>
-      </div>
+      <PdfExportSection sampleId={sampleId} apiUrl={apiUrl || API_URL} />
     </div>
   )
 }
@@ -372,6 +345,99 @@ function ClassificationBars({ classification, total }) {
         )
       })}
       <div className="classification-total">Total C2s: {total}</div>
+    </div>
+  )
+}
+
+function PdfExportSection({ sampleId, apiUrl }) {
+  const [state, setState] = useState('idle') // idle | generating | done | error
+  const [mode, setMode] = useState(null)
+  const [errorMsg, setErrorMsg] = useState('')
+
+  const startExport = async (exportMode) => {
+    if (state === 'generating') return
+    if (exportMode === 'full') {
+      const confirmed = window.confirm(
+        'Full export will generate LLM summaries for ALL suspicious methods.\n\n' +
+        'This may take several minutes depending on your Ollama model speed.\n\n' +
+        'Continue?'
+      )
+      if (!confirmed) return
+    }
+
+    setState('generating')
+    setMode(exportMode)
+    setErrorMsg('')
+
+    try {
+      const res = await fetch(`${apiUrl}/api/sample/${sampleId}/report/pdf`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: exportMode }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }))
+        throw new Error(err.detail || 'Export failed')
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `droidforensix_${sampleId.slice(0, 12)}_${exportMode}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+      setState('done')
+      setTimeout(() => setState('idle'), 3000)
+    } catch (err) {
+      setErrorMsg(err.message)
+      setState('error')
+      setTimeout(() => setState('idle'), 5000)
+    }
+  }
+
+  return (
+    <div className="threat-card card">
+      <h3 className="section-title">Export Report</h3>
+      <p className="export-description">
+        Generate a forensic PDF report including LLM method analysis, C2 indicators, severity assessment, and obfuscation findings.
+      </p>
+
+      <div className="pdf-export-buttons">
+        <button
+          className={`pdf-export-btn pdf-export-quick ${state === 'generating' && mode === 'quick' ? 'generating' : ''}`}
+          onClick={() => startExport('quick')}
+          disabled={state === 'generating'}
+          title="Top 30 suspicious methods with LLM summaries — fast"
+        >
+          {state === 'generating' && mode === 'quick' ? (
+            <><span className="pdf-spinner" /> Generating…</>
+          ) : (
+            <><span className="pdf-icon">📄</span> Export PDF Report</>
+          )}
+          <span className="pdf-badge">Top 30 methods</span>
+        </button>
+
+        <button
+          className={`pdf-export-btn pdf-export-full ${state === 'generating' && mode === 'full' ? 'generating' : ''}`}
+          onClick={() => startExport('full')}
+          disabled={state === 'generating'}
+          title="All suspicious methods — may take several minutes"
+        >
+          {state === 'generating' && mode === 'full' ? (
+            <><span className="pdf-spinner" /> Generating… (this may take a while)</>
+          ) : (
+            <><span className="pdf-icon">📋</span> Full Export PDF</>
+          )}
+          <span className="pdf-badge pdf-badge-warning">⏱ May take minutes</span>
+        </button>
+      </div>
+
+      {state === 'done' && (
+        <p className="pdf-status pdf-status-ok">✓ Report downloaded successfully</p>
+      )}
+      {state === 'error' && (
+        <p className="pdf-status pdf-status-error">✗ {errorMsg}</p>
+      )}
     </div>
   )
 }

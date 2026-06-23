@@ -42,16 +42,17 @@ DEFAULT_FALLBACK = {
 
 SYSTEM_PROMPT = """/no_think
 
-You are an expert malware threat analyst. Assess the severity of the Android malware sample based on the provided threat chains and static obfuscation/permission indicators.
+You are an expert Android malware threat analyst writing a forensic investigation report. Assess the severity of the Android malware sample based on the provided threat chains and static obfuscation/permission indicators.
 
 Output must be valid JSON only, with no markdown, no explanation, and no code blocks. Use this exact schema:
 
 {
   "severity": "critical|high|medium|low",
   "risk_score": 0-100 integer,
-  "narrative": "concise explanation of the threat",
-  "primary_threat": "c2_exfiltration|ransomware|spyware|banking_trojan|other",
-  "recommended_actions": ["action1", "action2", "action3"],
+  "narrative": "4-6 sentence detailed forensic narrative covering: (1) what the sample appears to do, (2) key technical indicators that support this assessment, (3) what data or capabilities are at risk, (4) confidence level and any caveats",
+  "primary_threat": "c2_exfiltration|ransomware|spyware|banking_trojan|adware|dropper|other",
+  "threat_indicators": ["specific indicator 1", "specific indicator 2", "specific indicator 3"],
+  "recommended_actions": ["action1", "action2", "action3", "action4"],
   "confidence": 0.0-1.0
 }
 
@@ -62,6 +63,9 @@ Rules:
 - Severity low: few or no malicious indicators.
 - Risk score must align with severity: critical 80-100, high 60-79, medium 30-59, low 0-29.
 - If decompilation failed (few or no strings/chains) but obfuscation score is medium/high with dangerous permissions, raise severity to at least medium/high accordingly.
+- narrative must be specific — name the encoding types, permission categories, and obfuscation techniques observed. Do not write generic descriptions.
+- threat_indicators must list concrete technical artifacts (e.g. "Base64-encoded payload in strings", "DexClassLoader present", "READ_SMS permission declared").
+- recommended_actions must be actionable and specific to the findings, not generic security advice.
 - Do not include actual malicious URLs or payloads in the narrative; describe them indirectly.
 """
 
@@ -428,17 +432,21 @@ def assess_with_llm(chains_result: dict, c2_result: dict, obfuscation_result: Op
 
 METHOD_EXPLAIN_SYSTEM_PROMPT = """/no_think
 
-You are an Android malware analyst reviewing decompiled Java bytecode.
+You are an Android malware analyst reviewing decompiled Java bytecode for a forensic report.
 Given a method's name, its class context, any suspicious flags already detected, and its full body,
-write a concise analyst note in 2-3 sentences:
-- What the method does (plain English, no jargon inflation)
-- Why it is suspicious if flags are present, or why it is benign if not
-- Any specific indicators (API calls, patterns) that support your assessment
+write a detailed analyst note covering:
+- What the method does technically (specific API calls, data flows, control logic)
+- Why it is suspicious or benign, with reference to specific lines or patterns in the code
+- What an attacker could use this method for, or why it is safe if benign
+- Any Android-specific security implications (permission abuse, dynamic code loading, data exfiltration paths)
+
+Be specific. Reference actual method names, class names, or variable patterns you observe in the code.
+Do not write generic descriptions — ground every claim in the actual code provided.
 
 Output must be valid JSON only. No markdown, no preamble, no code blocks. Schema:
 {
-  "summary": "2-3 sentence plain English explanation",
-  "threat_type": "reflection|dynamic_loading|crypto|network|command_exec|persistence|benign|unknown",
+  "summary": "3-5 sentence detailed analyst note grounded in the actual code",
+  "threat_type": "reflection|dynamic_loading|crypto|network|command_exec|persistence|permissions|benign|unknown",
   "confidence": 0.0-1.0
 }
 """
@@ -458,8 +466,8 @@ def explain_method(
     Never raises — returns a fallback dict on any error.
     """
     flags = flags or []
-    # Truncate code to keep prompt under ~2K tokens
-    code_snippet = method_code[:3000] if method_code else "(no body)"
+    # Truncate code to keep prompt lean — shorter = faster inference on limited VRAM
+    code_snippet = method_code[:1500] if method_code else "(no body)"
 
     context = (
         f"Class: {class_name}\n"
@@ -496,7 +504,7 @@ def explain_method(
             import ollama as _ollama
             client = _ollama.Client(
                 host=_normalize_ollama_host(ollama_host),
-                timeout=30,
+                timeout=120,
             )
             resp = client.generate(
                 model=ollama_model,

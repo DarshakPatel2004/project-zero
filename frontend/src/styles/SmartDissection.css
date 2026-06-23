@@ -165,7 +165,9 @@
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   overflow: hidden;
-  transition: all 0.2s ease;
+  transition: border-color 0.2s ease;
+  min-height: fit-content;
+  height: auto;
 }
 
 .class-card.suspicious {
