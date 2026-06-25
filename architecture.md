@@ -39,7 +39,7 @@ DroidForensix uses a client-server architecture. The frontend React application 
                v                             v
 +-----------------------------+     +-----------------------------+
 |    Local Ollama Server      |     |    File System Database     |
-|   (Llama-Primus GGUF model) |     |  (Structured JSON reports)  |
+|   (Mistral GGUF model)      |     |  (Structured JSON reports)  |
 +-----------------------------+     +-----------------------------+
 ```
 
@@ -76,7 +76,7 @@ To ensure the pipeline is Windows-native and self-contained, the project include
 
 ### D. AI Subsystems (Local LLM vs NIM)
 DroidForensix can run LLM assessments through two modes:
-1. **Ollama (Default):** Runs a local model on `http://localhost:11434`. By default, it uses `hf.co/krgl/Llama-Primus-Base_8bit-gguf:latest`.
+1. **Ollama (Default):** Runs a local model on `http://localhost:11434`. By default, it uses `mistral:7b-instruct-q4_K_M`.
 2. **NVIDIA NIM:** If `NVIDIA_NIM_API_KEY` is present in the environment variables, the engine shifts to the cloud API (`integrate.api.nvidia.com`), using the `nvidia/nemotron-nano-9b-v2` model.
 
 ---

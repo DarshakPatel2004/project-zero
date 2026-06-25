@@ -384,7 +384,7 @@ function MethodCard({ method, expandAll, sampleId, className, apiUrl }) {
   // Fire explain-method when first expanded
   useEffect(() => {
     if (!expanded || annotation || annotating) return
-    if (!sampleId || !apiUrl || !method.body) return
+    if (!sampleId || apiUrl === undefined || apiUrl === null || !method.body) return
 
     const flags = SUSPICIOUS_KEYWORDS.filter(kw =>
       method.name.toLowerCase().includes(kw.toLowerCase()) ||

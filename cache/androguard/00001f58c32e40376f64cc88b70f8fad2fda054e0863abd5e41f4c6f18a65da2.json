@@ -1,0 +1,1044 @@
+{
+  "success": true,
+  "data": {
+    "metadata": {
+      "package": "com.colorme.game.jisushuzipai",
+      "version_name": "1.0",
+      "version_code": "1",
+      "min_sdk": "8",
+      "target_sdk": "8",
+      "num_dex": 1,
+      "num_classes": 322
+    },
+    "permissions": [
+      {
+        "name": "android.permission.ACCESS_FINE_LOCATION",
+        "high_risk": true
+      },
+      {
+        "name": "android.permission.READ_PHONE_STATE",
+        "high_risk": false
+      },
+      {
+        "name": "android.permission.INTERNET",
+        "high_risk": false
+      },
+      {
+        "name": "android.permission.READ_LOGS",
+        "high_risk": false
+      },
+      {
+        "name": "android.permission.ACCESS_COARSE_LOCATION",
+        "high_risk": false
+      },
+      {
+        "name": "android.permission.ACCESS_WIFI_STATE",
+        "high_risk": false
+      },
+      {
+        "name": "android.permission.ACCESS_NETWORK_STATE",
+        "high_risk": false
+      },
+      {
+        "name": "android.permission.WRITE_EXTERNAL_STORAGE",
+        "high_risk": false
+      }
+    ],
+    "fcm_components": [],
+    "native_libs": [],
+    "native_strings": [],
+    "jni_methods": [],
+    "obfuscated_classes": [
+      {
+        "class": "LI/I;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcn/domob/android/a/a;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcn/domob/android/a/b;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcn/domob/android/a/c;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcn/domob/android/a/d;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcn/domob/android/a/e;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcn/domob/android/a/f;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcn/domob/android/ads/DomobActivity;",
+        "type": "dictionary_word"
+      },
+      {
+        "class": "Lcn/domob/android/ads/DomobAdListener;",
+        "type": "dictionary_word"
+      },
+      {
+        "class": "Lcn/domob/android/ads/DomobAdManager;",
+        "type": "dictionary_word"
+      },
+      {
+        "class": "Lcn/domob/android/ads/DomobAdView;",
+        "type": "dictionary_word"
+      },
+      {
+        "class": "Lcn/domob/android/ads/a/a;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcn/domob/android/ads/a/b;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcn/domob/android/ads/b;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcn/domob/android/ads/a;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcn/domob/android/ads/b/a;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcn/domob/android/ads/b/b;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcn/domob/android/ads/b/c;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcn/domob/android/ads/b/d;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcn/domob/android/ads/c/a;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcn/domob/android/ads/c;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcn/domob/android/ads/d;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcn/domob/android/ads/e;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcn/domob/android/ads/f;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcn/domob/android/ads/g;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcn/domob/android/ads/u;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcn/domob/android/ads/h;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcn/domob/android/ads/i;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcn/domob/android/ads/j;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcn/domob/android/ads/k;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcn/domob/android/ads/l;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcn/domob/android/ads/m;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcn/domob/android/ads/n;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcn/domob/android/ads/o;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcn/domob/android/ads/p;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcn/domob/android/ads/q;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcn/domob/android/ads/r;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcn/domob/android/ads/s;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcn/domob/android/ads/t;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcn/domob/android/ads/v;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcn/domob/android/ads/w;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/Ad;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/AdViewListener;",
+        "type": "dictionary_word"
+      },
+      {
+        "class": "Lcom/baidu/bl;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/App;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/AppActivity;",
+        "type": "dictionary_word"
+      },
+      {
+        "class": "Lcom/baidu/ClickType;",
+        "type": "dictionary_word"
+      },
+      {
+        "class": "Lcom/baidu/FailReason;",
+        "type": "dictionary_word"
+      },
+      {
+        "class": "Lcom/baidu/az;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/GifAnimView;",
+        "type": "dictionary_word"
+      },
+      {
+        "class": "Lcom/baidu/a;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/aa;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/ab;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/ac;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/ae;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/af;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/ag;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/ah;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/ai;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/aj;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/ak;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/al;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/am;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/an;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/ao;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/ap;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/aq;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/l;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/bn;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/ar;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/as;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/at;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/au;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/av;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/aw;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/ax;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/ay;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/b;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/ba;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/bb;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/bc;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/bd;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/be;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/bf;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/bg;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/bh;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/bi;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/bj;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/bk;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/bm;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/c;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/d;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/e;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/f;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/g;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/h;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/i;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/j;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/k;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/m;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/n;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/o;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/p;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/q;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/r;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/s;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/t;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/u;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/v;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/w;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/x;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/y;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/baidu/z;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/colorme/game/jisushuzipai/DownLoadManager;",
+        "type": "dictionary_word"
+      },
+      {
+        "class": "Lcom/colorme/game/jisushuzipai/R;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/guohead/sdk/GuoheAdActivity;",
+        "type": "dictionary_word"
+      },
+      {
+        "class": "Lcom/guohead/sdk/GuoheAdHttpClient;",
+        "type": "dictionary_word"
+      },
+      {
+        "class": "Lcom/guohead/sdk/GuoheAdStateListener;",
+        "type": "dictionary_word"
+      },
+      {
+        "class": "Lcom/guohead/sdk/GuoheAdLayout;",
+        "type": "dictionary_word"
+      },
+      {
+        "class": "Lcom/guohead/sdk/GuoheAdManager;",
+        "type": "dictionary_word"
+      },
+      {
+        "class": "Lcom/guohead/sdk/LocationProvider;",
+        "type": "dictionary_word"
+      },
+      {
+        "class": "Lcom/guohead/sdk/R;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/guohead/sdk/adapters/GuoheAdAdapter;",
+        "type": "dictionary_word"
+      },
+      {
+        "class": "Lcom/guohead/sdk/adapters/AdChinaAdapter;",
+        "type": "dictionary_word"
+      },
+      {
+        "class": "Lcom/guohead/sdk/adapters/AdMobAdapter;",
+        "type": "dictionary_word"
+      },
+      {
+        "class": "Lcom/guohead/sdk/adapters/AdTouchAdapter;",
+        "type": "dictionary_word"
+      },
+      {
+        "class": "Lcom/guohead/sdk/adapters/AdWoAdapter;",
+        "type": "dictionary_word"
+      },
+      {
+        "class": "Lcom/guohead/sdk/adapters/BaiduAdapter;",
+        "type": "dictionary_word"
+      },
+      {
+        "class": "Lcom/guohead/sdk/adapters/CaseeAdapter;",
+        "type": "dictionary_word"
+      },
+      {
+        "class": "Lcom/guohead/sdk/adapters/CustomAdapter;",
+        "type": "dictionary_word"
+      },
+      {
+        "class": "Lcom/guohead/sdk/adapters/DomobAdapter;",
+        "type": "dictionary_word"
+      },
+      {
+        "class": "Lcom/guohead/sdk/adapters/EventAdapter;",
+        "type": "dictionary_word"
+      },
+      {
+        "class": "Lcom/madhouse/android/ads/AdListener;",
+        "type": "dictionary_word"
+      },
+      {
+        "class": "Lcom/guohead/sdk/adapters/MadHouseAdapter;",
+        "type": "dictionary_word"
+      },
+      {
+        "class": "Lcom/guohead/sdk/adapters/MillennialAdapter;",
+        "type": "dictionary_word"
+      },
+      {
+        "class": "Lcom/guohead/sdk/adapters/VponAdapter;",
+        "type": "dictionary_word"
+      },
+      {
+        "class": "Lcom/guohead/sdk/adapters/WiyunAdapter;",
+        "type": "dictionary_word"
+      },
+      {
+        "class": "Lcom/guohead/sdk/adapters/WooBooAdapter;",
+        "type": "dictionary_word"
+      },
+      {
+        "class": "Lcom/guohead/sdk/adapters/YouMiAdapter;",
+        "type": "dictionary_word"
+      },
+      {
+        "class": "Lcom/guohead/sdk/util/GuoheAdUtil;",
+        "type": "dictionary_word"
+      },
+      {
+        "class": "Lcom/madhouse/android/ads/AdManager;",
+        "type": "dictionary_word"
+      },
+      {
+        "class": "Lcom/madhouse/android/ads/a;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/madhouse/android/ads/aa;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/madhouse/android/ads/aaa;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/madhouse/android/ads/aaaa;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/madhouse/android/ads/b;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/madhouse/android/ads/bb;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/madhouse/android/ads/bbb;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/madhouse/android/ads/bbbb;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/madhouse/android/ads/c;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/madhouse/android/ads/cc;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/madhouse/android/ads/ccc;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/madhouse/android/ads/cccc;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/madhouse/android/ads/d;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/madhouse/android/ads/dd;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/madhouse/android/ads/ddd;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/madhouse/android/ads/dddd;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/madhouse/android/ads/e;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/madhouse/android/ads/ee;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/madhouse/android/ads/eee;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/madhouse/android/ads/eeee;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/madhouse/android/ads/f;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/madhouse/android/ads/ff;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/madhouse/android/ads/fff;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/madhouse/android/ads/ffff;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/madhouse/android/ads/g;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/madhouse/android/ads/gg;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/madhouse/android/ads/ggg;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/madhouse/android/ads/gggg;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/madhouse/android/ads/h;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/madhouse/android/ads/i;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/madhouse/android/ads/j;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/madhouse/android/ads/k;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/madhouse/android/ads/l;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/madhouse/android/ads/m;",
+        "type": "short_obfuscated"
+      },
+      {
+        "class": "Lcom/madhouse/android/ads/n;",
+        "type": "short_obfuscated"
+      }
+    ],
+    "bytecode_methods": [
+      {
+        "class": "Lcn/domob/android/ads/a/a;",
+        "method": "<init>",
+        "string_refs": [],
+        "method_calls": [],
+        "suspicious": [
+          "reflection"
+        ]
+      },
+      {
+        "class": "Lcn/domob/android/ads/t;",
+        "method": "b",
+        "string_refs": [],
+        "method_calls": [],
+        "suspicious": [
+          "crypto_usage",
+          "crypto_usage",
+          "crypto_usage",
+          "crypto_usage"
+        ]
+      },
+      {
+        "class": "Lcom/baidu/w;",
+        "method": "f",
+        "string_refs": [],
+        "method_calls": [],
+        "suspicious": [
+          "crypto_usage",
+          "crypto_usage",
+          "crypto_usage"
+        ]
+      },
+      {
+        "class": "Lcom/guohead/sdk/adapters/GuoheAdAdapter;",
+        "method": "getNetworkAdapter",
+        "string_refs": [],
+        "method_calls": [],
+        "suspicious": [
+          "reflection",
+          "reflection"
+        ]
+      },
+      {
+        "class": "Lcom/guohead/sdk/adapters/EventAdapter;",
+        "method": "handle",
+        "string_refs": [],
+        "method_calls": [],
+        "suspicious": [
+          "reflection",
+          "reflection"
+        ]
+      },
+      {
+        "class": "Lcom/guohead/sdk/util/GuoheAdUtil;",
+        "method": "getSerialNum",
+        "string_refs": [],
+        "method_calls": [],
+        "suspicious": [
+          "reflection",
+          "reflection"
+        ]
+      },
+      {
+        "class": "Lcom/guohead/sdk/util/GuoheAdUtil;",
+        "method": "init",
+        "string_refs": [],
+        "method_calls": [],
+        "suspicious": [
+          "crypto_usage",
+          "crypto_usage"
+        ]
+      },
+      {
+        "class": "Lcom/madhouse/android/ads/bbbb;",
+        "method": "_",
+        "string_refs": [],
+        "method_calls": [],
+        "suspicious": [
+          "reflection",
+          "reflection",
+          "reflection",
+          "reflection"
+        ]
+      },
+      {
+        "class": "Lcom/madhouse/android/ads/f;",
+        "method": "_",
+        "string_refs": [],
+        "method_calls": [],
+        "suspicious": [
+          "crypto_usage",
+          "crypto_usage"
+        ]
+      }
+    ],
+    "crypto_usage": [],
+    "suspicious_strings": [
+      {
+        "category": "ip_addresses",
+        "value": "10.0.0.172"
+      },
+      {
+        "category": "ip_addresses",
+        "value": "10.0.0.200"
+      },
+      {
+        "category": "command_control",
+        "value": "DomobAdController!"
+      },
+      {
+        "category": "reflection",
+        "value": "Ljava/lang/reflect/Array;"
+      },
+      {
+        "category": "reflection",
+        "value": "Ljava/lang/reflect/Constructor;"
+      },
+      {
+        "category": "reflection",
+        "value": "Ljava/lang/reflect/Constructor<+Lcom/guohead/sdk/adapters/GuoheAdAdapter;>;"
+      },
+      {
+        "category": "reflection",
+        "value": "Ljava/lang/reflect/InvocationTargetException;"
+      },
+      {
+        "category": "reflection",
+        "value": "Ljava/lang/reflect/Method;"
+      },
+      {
+        "category": "command_control",
+        "value": "TOP_BOTTOM"
+      },
+      {
+        "category": "reflection",
+        "value": "[Ljava/lang/reflect/Method;"
+      },
+      {
+        "category": "command_control",
+        "value": "bottom"
+      },
+      {
+        "category": "command_control",
+        "value": "bottom location:"
+      },
+      {
+        "category": "command_control",
+        "value": "bottomMargin"
+      },
+      {
+        "category": "package_names",
+        "value": "com.adobe.flashplayer"
+      },
+      {
+        "category": "package_names",
+        "value": "com.android.browser"
+      },
+      {
+        "category": "package_names",
+        "value": "com.android.browser.BrowserActivity"
+      },
+      {
+        "category": "package_names",
+        "value": "com.guohead.sdk.adapters.QuattroAdapter"
+      },
+      {
+        "category": "package_names",
+        "value": "com.michael.wuxi.UIDesign"
+      },
+      {
+        "category": "command_control",
+        "value": "commandLine"
+      },
+      {
+        "category": "command_control",
+        "value": "getBottom"
+      },
+      {
+        "category": "command_control",
+        "value": "getPaddingBottom"
+      },
+      {
+        "category": "urls",
+        "value": "http://218.240.24.9/uchome"
+      },
+      {
+        "category": "ip_addresses",
+        "value": "http://218.240.24.9/uchome"
+      },
+      {
+        "category": "urls",
+        "value": "http://218.240.24.9/uchome/phone.php?do=formhash&output=json"
+      },
+      {
+        "category": "ip_addresses",
+        "value": "http://218.240.24.9/uchome/phone.php?do=formhash&output=json"
+      },
+      {
+        "category": "urls",
+        "value": "http://218.240.24.9/uchome/phone.php?do=games&ac=version&output=json"
+      },
+      {
+        "category": "ip_addresses",
+        "value": "http://218.240.24.9/uchome/phone.php?do=games&ac=version&output=json"
+      },
+      {
+        "category": "urls",
+        "value": "http://e.domob.cn/report"
+      },
+      {
+        "category": "urls",
+        "value": "http://mob.guohead.com/custom.php?appid=%s&nid=%s&uuid=%s&country_code=%s&client=2&model=%s&sdk=%s&network=%s&ghver=%s"
+      },
+      {
+        "category": "urls",
+        "value": "http://mob.guohead.com/exclick.php?appid=%s&nid=%s&type=%d&uuid=%s&country_code=%s&client=2&model=%s&sdk=%s&network=%s&ghver=%s"
+      },
+      {
+        "category": "urls",
+        "value": "http://mob.guohead.com/exclick.php?appid=%s&nid=%s&type=%d&uuid=%s&country_code=%s&client=2&model=%s&sdk=%s&network=%s&ghver=%s&answer=%d"
+      },
+      {
+        "category": "urls",
+        "value": "http://mob.guohead.com/exfail.php?appid=%s&nid=%s&type=%d&uuid=%s&country_code=%s&client=2&model=%s&sdk=%s&network=%s&ghver=%s"
+      },
+      {
+        "category": "urls",
+        "value": "http://mob.guohead.com/exmet.php?appid=%s&nid=%s&type=%d&uuid=%s&country_code=%s&client=2&model=%s&sdk=%s&network=%s&ghver=%s"
+      },
+      {
+        "category": "urls",
+        "value": "http://mob.guohead.com/getInfo.php?appid=%s&uuid=%s&client=2&model=%s&sdk=%s&network=%s&ghver=%s"
+      },
+      {
+        "category": "urls",
+        "value": "http://mpro.baidu.com/ex/dispatch.html"
+      },
+      {
+        "category": "urls",
+        "value": "http://r.domob.cn/a/"
+      },
+      {
+        "category": "urls",
+        "value": "http://s.domob.cn/sdk/domob_android_sdk.zip"
+      },
+      {
+        "category": "urls",
+        "value": "http://schemas.android.com/apk/res/"
+      },
+      {
+        "category": "urls",
+        "value": "http://www.guohead.com"
+      },
+      {
+        "category": "command_control",
+        "value": "isAtBottom:"
+      },
+      {
+        "category": "package_names",
+        "value": "market://details?id=com.adobe.flashplayer"
+      },
+      {
+        "category": "urls",
+        "value": "{\"install\": 11010,\"hangup\": false,\"stopped\": false,\"index_server\": \"http://mobads.baidu.com:80\",\"text\": {},\"image\": {},\"app\": {},\"click\": {}}"
+      }
+    ],
+    "network_indicators": [],
+    "certificate_info": {
+      "issuer": "<asn1crypto.x509.Name 2460841704672 b'0S1\\x0b0\\t\\x06\\x03U\\x04\\x06\\x13\\x02cn1\\x0b0\\t\\x06\\x03U\\x04\\x08\\x13\\x02js1\\x0e0\\x0c\\x06\\x03U\\x04\\x07\\x13\\x05china1\\x0b0\\t\\x06\\x03U\\x04\\n\\x13\\x02xy1\\x0b0\\t\\x06\\x03U\\x04\\x0b\\x13\\x02xy1\\r0\\x0b\\x06\\x03U\\x04\\x03\\x13\\x04xyao'>",
+      "subject": "<asn1crypto.x509.Name 2460859943072 b'0S1\\x0b0\\t\\x06\\x03U\\x04\\x06\\x13\\x02cn1\\x0b0\\t\\x06\\x03U\\x04\\x08\\x13\\x02js1\\x0e0\\x0c\\x06\\x03U\\x04\\x07\\x13\\x05china1\\x0b0\\t\\x06\\x03U\\x04\\n\\x13\\x02xy1\\x0b0\\t\\x06\\x03U\\x04\\x0b\\x13\\x02xy1\\r0\\x0b\\x06\\x03U\\x04\\x03\\x13\\x04xyao'>",
+      "serial": "1299486994",
+      "self_signed": false,
+      "valid_from": "2011-03-07 08:36:34+00:00",
+      "valid_until": "2065-12-08 08:36:34+00:00"
+    },
+    "risk_assessment": {
+      "level": "CRITICAL",
+      "score": 178,
+      "max_score": 25,
+      "factors": [
+        "High-risk permissions: 1",
+        "Obfuscated classes: 176"
+      ]
+    },
+    "error": null
+  }
+}

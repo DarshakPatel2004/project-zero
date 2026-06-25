@@ -46,6 +46,8 @@ function analysisReducer(state, action) {
         },
         stepTimings: {},
         verdictData: null,
+        llmVerifications: {},
+        fullReport: null,
         error: null,
       }
 
@@ -56,16 +58,16 @@ function analysisReducer(state, action) {
         status: 'running',
         progress: 0,
         eta: action.payload.predicted_eta_seconds || null,
-        // Keep the original start time so backend events after the optimistic
-        // start don't reset the live timer/progress.
         startTime: state.startTime || Date.now(),
         stepTimings: {},
+        llmVerifications: {},
         error: null,
       }
 
     case 'STEP_COMPLETED':
       const { step_number, duration_seconds, remaining_eta_seconds, progress_percent, step_name } = action.payload
-      return {
+      const llmVerification = action.payload.llm_verification
+      const newState = {
         ...state,
         progress: progress_percent || step_number / 9 * 100,
         eta: remaining_eta_seconds,
@@ -74,6 +76,13 @@ function analysisReducer(state, action) {
           [step_name]: duration_seconds,
         },
       }
+      if (llmVerification) {
+        newState.llmVerifications = {
+          ...newState.llmVerifications,
+          [step_name]: llmVerification,
+        }
+      }
+      return newState
 
     case 'METRIC_UPDATED':
       const { metric_name, metric_value } = action.payload
@@ -88,6 +97,7 @@ function analysisReducer(state, action) {
     case 'ANALYSIS_COMPLETE':
       return {
         ...state,
+        sampleId: action.payload.sample_id || state.sampleId,
         status: 'complete',
         progress: 100,
         eta: 0,
@@ -96,6 +106,7 @@ function analysisReducer(state, action) {
           riskScore: action.payload.risk_score,
           totalDuration: action.payload.total_duration_seconds,
         },
+        fullReport: action.payload.full_report || null,
       }
 
     case 'ERROR':
@@ -134,6 +145,8 @@ function App() {
     },
     stepTimings: {},
     verdictData: null,
+    llmVerifications: {},
+    fullReport: null,
     error: null,
   })
 
@@ -243,14 +256,32 @@ function App() {
   }, [])
 
   const handleUpload = useCallback(async (file) => {
+    // Frontend file size check (matches backend MAX_UPLOAD_SIZE_MB=100)
+    const MAX_SIZE_MB = 100
+    if (file.size > MAX_SIZE_MB * 1024 * 1024) {
+      alert(`File is too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Maximum allowed size is ${MAX_SIZE_MB}MB.`)
+      return
+    }
+
     const formData = new FormData()
     formData.append('file', file)
+
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 300000) // 5 min timeout
 
     try {
       const response = await fetch(`${API_URL}/api/upload`, {
         method: 'POST',
         body: formData,
+        signal: controller.signal,
       })
+      clearTimeout(timeoutId)
+
+      if (!response.ok) {
+        const errorBody = await response.text()
+        throw new Error(`Server error (${response.status}): ${errorBody}`)
+      }
+
       const data = await response.json()
 
       const newSample = {
@@ -285,7 +316,13 @@ function App() {
       analyzeUpload(data.upload_id)
     } catch (error) {
       console.error('Upload failed:', error)
-      alert('Upload failed: ' + error.message)
+      if (error.name === 'AbortError') {
+        alert('Upload timed out. The file may be too large or the backend is not responding. Make sure the backend is running (python -m uvicorn backend.main:app --port 8000).')
+      } else if (error.message === 'Failed to fetch' || error.message.includes('Failed to fetch')) {
+        alert('Upload failed: Cannot reach the backend. Ensure the backend is running at http://localhost:8000 (run run_backend.bat or "python -m uvicorn backend.main:app --port 8000" from the backend/ directory).')
+      } else {
+        alert('Upload failed: ' + error.message)
+      }
     }
   }, [])
 

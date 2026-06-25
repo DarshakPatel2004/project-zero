@@ -191,8 +191,8 @@ const ResultView = memo(({ analysisState, apiUrl, sample }) => {
       <div className="result-tabs">
         {[
           { id: 'overview', label: 'Overview' },
+          { id: 'llm', label: 'LLM Summary' },
           { id: 'obfuscation', label: 'Obfuscation' },
-          { id: 'c2', label: 'C2 Infrastructure' },
           { id: 'chains', label: 'Threat Chains' },
           { id: 'manifest', label: 'Manifest' },
         ].map(tab => (
@@ -211,14 +211,14 @@ const ResultView = memo(({ analysisState, apiUrl, sample }) => {
         {activeResultTab === 'overview' && (
           <OverviewTab result={fullResult} verdict={verdict} />
         )}
+        {activeResultTab === 'llm' && (
+          <LLMSummaryTab result={fullResult} />
+        )}
         {activeResultTab === 'obfuscation' && (
           <ObfuscationView sample={sample} apiUrl={apiUrl} />
         )}
-        {activeResultTab === 'c2' && (
-          <ThreatIntelView sample={sample} apiUrl={apiUrl} />
-        )}
         {activeResultTab === 'chains' && (
-          <ChainsTab result={fullResult} />
+          <ChainsTab result={fullResult} sampleId={sampleId} apiUrl={apiUrl} />
         )}
         {activeResultTab === 'manifest' && (
           <ManifestView sample={sample} apiUrl={apiUrl} />
@@ -273,22 +273,211 @@ const OverviewTab = memo(({ result, verdict }) => (
 OverviewTab.displayName = 'OverviewTab'
 
 /**
+ * LLM Summary Tab
+ */
+const LLMSummaryTab = memo(({ result }) => {
+  const llm = result?.llm_assessment || {}
+  const narrative = llm.narrative || 'No LLM analysis available.'
+  const methods = llm.suspicious_methods || []
+  const actions = llm.recommended_actions || []
+
+  return (
+    <div className="tab-panel">
+      <div className="card">
+        <h3>LLM Analysis Narrative</h3>
+        <div className="llm-narrative" style={{
+          padding: '16px',
+          backgroundColor: 'var(--bg-secondary)',
+          borderRadius: '8px',
+          lineHeight: '1.6',
+          color: 'var(--text-secondary)'
+        }}>
+          {narrative}
+        </div>
+      </div>
+
+      {methods.length > 0 && (
+        <div className="card">
+          <h3>Suspicious Methods ({methods.length})</h3>
+          <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+            {methods.slice(0, 10).map((method, i) => (
+              <div
+                key={i}
+                style={{
+                  padding: '12px',
+                  marginBottom: '8px',
+                  backgroundColor: 'var(--bg-tertiary)',
+                  borderLeft: '3px solid var(--accent-rose)',
+                  borderRadius: '4px',
+                  fontSize: '13px',
+                  fontFamily: 'monospace'
+                }}
+              >
+                <div style={{ fontWeight: 500, marginBottom: '4px' }}>
+                  {method.method_name || method}
+                </div>
+                {method.reason && (
+                  <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                    {method.reason}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          {methods.length > 10 && (
+            <p style={{ marginTop: '12px', color: 'var(--text-muted)' }}>
+              … and {methods.length - 10} more
+            </p>
+          )}
+        </div>
+      )}
+
+      {actions.length > 0 && (
+        <div className="card">
+          <h3>Recommended Actions</h3>
+          <ul style={{ paddingLeft: '20px' }}>
+            {actions.map((action, i) => (
+              <li key={i} style={{ marginBottom: '8px', lineHeight: '1.5' }}>
+                {action}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {methods.length === 0 && actions.length === 0 && !narrative && (
+        <div style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>
+          <p>No LLM analysis data available yet.</p>
+        </div>
+      )}
+    </div>
+  )
+})
+
+LLMSummaryTab.displayName = 'LLMSummaryTab'
+
+/**
+ * Threat Chain Step Artifact Badge colors by type
+ */
+const STEP_COLORS = {
+  encoded_string: 'amber',
+  decoding_function: 'violet',
+  decoded_artifact: 'cyan',
+  usage: 'emerald',
+  c2_infrastructure: 'rose',
+}
+
+/**
+ * Individual Chain Card with LLM explanation
+ */
+const ChainCard = memo(({ chain, apiUrl, sampleId }) => {
+  const [expanded, setExpanded] = useState(false)
+  const [annotation, setAnnotation] = useState(null)
+  const [annotating, setAnnotating] = useState(false)
+
+  const steps = chain.steps || []
+
+  useEffect(() => {
+    if (!expanded || annotation || annotating) return
+    if (!sampleId || apiUrl === undefined || apiUrl === null) return
+
+    setAnnotating(true)
+    fetch(`${apiUrl}/api/sample/${sampleId}/explain-chain`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chain }),
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setAnnotation(data) })
+      .catch(() => {})
+      .finally(() => setAnnotating(false))
+  }, [expanded])
+
+  return (
+    <div className="card chain-card">
+      <div className="chain-header" onClick={() => setExpanded(!expanded)} style={{ cursor: 'pointer' }}>
+        <div className="chain-header-left">
+          <span className="chain-expand">{expanded ? '▼' : '▶'}</span>
+          <h4>{chain.chain_id}</h4>
+        </div>
+        <div className="chain-header-right">
+          <span className={`badge badge-${chain.severity === 'critical' || chain.severity === 'high' ? 'rose' : chain.severity === 'medium' ? 'amber' : 'emerald'}`}>
+            {chain.severity.toUpperCase()}
+          </span>
+          <span className="badge badge-slate">{Math.round(chain.confidence * 100)}% confidence</span>
+          <span className="badge badge-cyan">{steps.length} steps</span>
+        </div>
+      </div>
+
+      {expanded && (
+        <div className="chain-body">
+          <div className="chain-steps">
+            {steps.map((s, i) => (
+              <div key={i} className="chain-step">
+                <div className="chain-step-number">{s.step}</div>
+                <div className="chain-step-content">
+                  <div className="chain-step-header">
+                    <span className="chain-step-type">{s.type}</span>
+                    <span className={`badge badge-${STEP_COLORS[s.type] || 'slate'}`}>
+                      {Math.round((s.confidence || 0) * 100)}%
+                    </span>
+                  </div>
+                  <div className="chain-step-artifact text-mono">{s.artifact || '—'}</div>
+                  <div className="chain-step-source">{s.source_location || ''}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="chain-llm-section">
+            {annotating ? (
+              <div className="llm-shimmer">
+                <div className="shimmer-bar shimmer-bar-long" />
+                <div className="shimmer-bar shimmer-bar-medium" />
+              </div>
+            ) : annotation?.llm ? (
+              <div className="llm-result">
+                <div className="llm-result-header">
+                  <span className="llm-icon">🧠</span>
+                  <span className="llm-label">AI Chain Analysis</span>
+                  {annotation.llm.threat_type && annotation.llm.threat_type !== 'unknown' && (
+                    <span className={`badge badge-rose`}>
+                      {annotation.llm.threat_type.replace(/_/g, ' ')}
+                    </span>
+                  )}
+                  {annotation.llm.confidence != null && (
+                    <span className="llm-confidence">
+                      {Math.round(annotation.llm.confidence * 100)}% confidence
+                    </span>
+                  )}
+                </div>
+                <p className="llm-summary-text">{annotation.llm.summary}</p>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+})
+
+ChainCard.displayName = 'ChainCard'
+
+/**
  * Threat Chains Tab
  */
-const ChainsTab = memo(({ result }) => {
+const ChainsTab = memo(({ result, sampleId, apiUrl }) => {
   const chains = result?.threat_chains || []
   return (
     <div className="tab-panel">
       {chains.length === 0 ? (
-        <p>No threat chains detected.</p>
+        <div style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>
+          <p>No threat chains detected.</p>
+        </div>
       ) : (
         <div className="chains-list">
-          {chains.slice(0, 5).map(chain => (
-            <div key={chain.chain_id} className="card chain-card">
-              <h4>Chain {chain.chain_id}</h4>
-              <p className="chain-severity">Severity: <span className={`badge badge-${chain.severity === 'high' ? 'rose' : chain.severity === 'medium' ? 'amber' : 'emerald'}`}>{chain.severity.toUpperCase()}</span></p>
-              <p className="chain-confidence">Confidence: {Math.round(chain.confidence * 100)}%</p>
-            </div>
+          {chains.map(chain => (
+            <ChainCard key={chain.chain_id} chain={chain} apiUrl={apiUrl} sampleId={sampleId} />
           ))}
         </div>
       )}

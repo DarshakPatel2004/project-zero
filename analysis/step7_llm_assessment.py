@@ -11,7 +11,7 @@ Environment variables:
 
 Fallback to local Ollama is still supported:
     OLLAMA_HOST         - Ollama host (default: http://localhost:11434)
-    OLLAMA_MODEL        - Ollama model (default: llama3.2:3b)
+    OLLAMA_MODEL        - Ollama model (default: mistral:7b-instruct-q4_K_M)
 """
 
 import json
@@ -450,6 +450,90 @@ Output must be valid JSON only. No markdown, no preamble, no code blocks. Schema
   "confidence": 0.0-1.0
 }
 """
+
+CHAIN_EXPLAIN_SYSTEM_PROMPT = """/no_think
+
+You are an Android malware analyst reviewing a threat chain extracted from an Android APK.
+A threat chain is a sequence of steps linking an encoded string through decoding to a final C2 endpoint.
+Given the chain steps and metadata, write an analyst note covering:
+- What the chain does from start to end (the full data flow)
+- Whether this represents a real threat (C2 communication, data exfiltration, etc.)
+- What an attacker could achieve with this chain
+- How the decoding works (what encoding, what decodes it, what the decoded content is)
+- Whether the C2 endpoint is likely active or a false positive
+
+Be specific. Reference actual artifacts, source locations, and decoding methods from the chain.
+Do not write generic descriptions.
+
+Output must be valid JSON only. No markdown, no preamble, no code blocks. Schema:
+{
+  "summary": "3-5 sentence analyst note grounded in the actual chain data",
+  "threat_type": "c2_communication|data_exfiltration|payload_delivery|command_execution|benign|unknown",
+  "confidence": 0.0-1.0
+}
+"""
+
+
+def explain_threat_chain(chain: dict) -> dict:
+    """Call LLM to produce a plain-English explanation of a threat chain."""
+    steps = chain.get("steps", [])
+    step_lines = []
+    for s in steps:
+        step_lines.append(
+            f"  Step {s.get('step')} ({s.get('type')}): "
+            f"artifact={s.get('artifact', '')} | "
+            f"source={s.get('source_location', '')} | "
+            f"confidence={s.get('confidence', 0)}"
+        )
+
+    context = (
+        f"Chain ID: {chain.get('chain_id', 'unknown')}\n"
+        f"Severity: {chain.get('severity', 'unknown')}\n"
+        f"Confidence: {chain.get('confidence', 0)}\n"
+        f"Steps ({len(step_lines)}):\n"
+        + "\n".join(step_lines)
+    )
+
+    fallback = {
+        "summary": "Chain explanation unavailable.",
+        "threat_type": "unknown",
+        "confidence": 0.0,
+    }
+
+    try:
+        provider = (os.environ.get("LLM_PROVIDER") or settings.LLM_PROVIDER or "auto").lower()
+        nim_api_key = os.environ.get("NVIDIA_NIM_API_KEY")
+        use_nvidia = provider == "nvidia" or (provider == "auto" and nim_api_key)
+
+        raw_output = ""
+        if use_nvidia:
+            combined = f"{CHAIN_EXPLAIN_SYSTEM_PROMPT}\n\nTHREAT CHAIN:\n{context}\n\nEXPLANATION:"
+            raw_output = _call_nvidia_nim(combined, os.environ.get("NVIDIA_NIM_MODEL", settings.NIM_MODEL or "nvidia/nemotron-nano-9b-v2"), os.environ.get("NVIDIA_NIM_BASE_URL", settings.NIM_HOST or "https://integrate.api.nvidia.com/v1"), nim_api_key, max_retries=2) or ""
+        else:
+            ollama_host = _normalize_ollama_host(os.environ.get("OLLAMA_HOST", settings.OLLAMA_HOST))
+            ollama_model = os.environ.get("OLLAMA_MODEL", settings.OLLAMA_MODEL)
+            combined = f"{CHAIN_EXPLAIN_SYSTEM_PROMPT}\n\nTHREAT CHAIN:\n{context}\n\nEXPLANATION:"
+            import ollama as _ollama
+            client = _ollama.Client(host=_normalize_ollama_host(ollama_host), timeout=120)
+            resp = client.generate(
+                model=ollama_model,
+                prompt=combined,
+                format="json",
+                options={"num_ctx": 4096, "temperature": 0.1},
+            )
+            raw_output = resp.get("response", "")
+
+        parsed = parse_llm_json(raw_output)
+        if parsed and "summary" in parsed:
+            return {
+                "summary": str(parsed.get("summary", ""))[:500],
+                "threat_type": str(parsed.get("threat_type", "unknown")),
+                "confidence": float(parsed.get("confidence", 0.5)),
+            }
+        return fallback
+    except Exception as e:
+        fallback["summary"] = f"Chain explanation error: {e}"[:300]
+        return fallback
 
 
 def explain_method(

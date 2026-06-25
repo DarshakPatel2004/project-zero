@@ -1,15 +1,14 @@
 from pathlib import Path
 from typing import Optional
 
-from pydantic import ConfigDict
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     """Centralized Windows-native DroidForensix configuration."""
 
-    model_config = ConfigDict(
-        env_file=".env",
+    model_config = SettingsConfigDict(
+        env_file=Path(__file__).resolve().parent.parent / ".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
@@ -24,11 +23,14 @@ class Settings(BaseSettings):
     # Analysis tools (Windows installations)
     JADX_PATH: str = r"D:\DroidForensix\tools\jadx\bin\jadx.bat"
     APKTOOL_PATH: str = r"D:\DroidForensix\tools\apktool\apktool.bat"
+    DIE_PATH: str = r"D:\DroidForensix\tools\die\die\diec.exe"
+    YARA_RULES_PATH: str = r"D:\DroidForensix\analysis\yara_rules.yar"
+    SEVEN_ZIP_PATH: str = r"C:\Program Files\7-Zip\7z.exe"
 
     # Ollama / LLM inference (local Windows service)
     OLLAMA_HOST: str = "http://localhost:11434"
     # Default model; override via the OLLAMA_MODEL environment variable or .env
-    OLLAMA_MODEL: str = "hf.co/krgl/Llama-Primus-Base_8bit-gguf:latest"
+    OLLAMA_MODEL: str = "mistral:7b-instruct-q4_K_M"
     OLLAMA_TIMEOUT: int = 120
 
     # NVIDIA NIM (optional, for future expansion)

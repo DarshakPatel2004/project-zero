@@ -1,0 +1,25 @@
+{
+  "success": true,
+  "data": {
+    "base64_candidates": [
+      {
+        "encoded": "bottomMargin",
+        "category": "command_control"
+      },
+      {
+        "encoded": "commandLine",
+        "category": "command_control"
+      },
+      {
+        "encoded": "getBottom",
+        "category": "command_control"
+      },
+      {
+        "encoded": "getPaddingBottom",
+        "category": "command_control"
+      }
+    ],
+    "hex_candidates": [],
+    "custom_patterns": []
+  }
+}

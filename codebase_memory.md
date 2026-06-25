@@ -24,7 +24,7 @@ Security Operations Center (SOC) analysts and malware reverse engineers face dif
 - **Server:** Uvicorn
 - **Frontend Framework:** React 19 + Vite 8
 - **Styling:** Vanilla CSS (no CSS frameworks)
-- **Local AI Engine:** Ollama / NVIDIA NIM (supporting Llama-Primus-Base_8bit or Nemotron)
+- **Local AI Engine:** Ollama / NVIDIA NIM (supporting mistral:7b-instruct-q4_K_M or Nemotron)
 - **Analysis Toolkit:** Androguard (DEX/APK parsing), JADX-CLI (Java decompilation), APKTool (resource unpacking)
 - **Database/Storage:** Local File-System JSON Database (No SQL/NoSQL engine is required for database operations; outputs are saved as structured JSONs under `analysis/work/<sha256>/`).
 
@@ -198,7 +198,7 @@ Below is the execution flow of an APK analysis from upload to completion:
         |---> [WebSocket Event] -> emits 'step_completed' (7/9)
         |
         v
-[Step 8: LLM Risk Assessment] -> Feeds aggregated context to local Ollama (Llama Primus) or NVIDIA NIM
+[Step 8: LLM Risk Assessment] -> Feeds aggregated context to local Ollama (Mistral) or NVIDIA NIM
         |                        Returns severity verdict, risk score, recommended actions, narrative.
         |---> [WebSocket Event] -> emits 'step_completed' (8/9)
         |
@@ -326,4 +326,4 @@ Static analysis pipelines often encounter systematic false-positives and false-n
 1. **Self-Contained Executable Pathing:** Hardcoded absolute paths (like `D:\DroidForensix`) in `.env` and `backend/config.py`. If the workspace path changes, these variables must be updated manually.
 2. **No concurrency control on uploads:** If multiple large APKs are uploaded simultaneously, the backend handles them in parallel via `loop.run_in_executor`, which might bottleneck disk I/O and JADX processes on lower-end systems.
 3. **Flaky CIRCL pDNS timeouts:** Passive DNS endpoints are prone to hanging. The `circl_client.py` sets a strict timeout parameter (`DEFAULT_PDNS_TIMEOUT = 8`) to prevent blocking the extraction task.
-4. **Local model availability:** The LLM assessment relies on the presence of the `Llama-Primus` model. If Ollama is down, the orchestrator falls back to a deterministic rule-based evaluation, which lacks a natural-language narrative.
+4. **Local model availability:** The LLM assessment relies on the presence of the `mistral:7b-instruct-q4_K_M` model. If Ollama is down, the orchestrator falls back to a deterministic rule-based evaluation, which lacks a natural-language narrative.

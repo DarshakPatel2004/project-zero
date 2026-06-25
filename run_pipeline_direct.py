@@ -8,7 +8,7 @@ os.environ['JAVA_HOME'] = r'C:\Program Files\Microsoft\jdk-21.0.11.10-hotspot'
 os.environ.pop('NVIDIA_NIM_API_KEY', None)
 os.environ['LLM_PROVIDER'] = 'ollama'
 os.environ['OLLAMA_HOST'] = 'http://localhost:11434'
-os.environ['OLLAMA_MODEL'] = 'hf.co/krgl/Llama-Primus-Base_8bit-gguf:latest'
+os.environ['OLLAMA_MODEL'] = 'mistral:7b-instruct-q4_K_M'
 
 sys.path.insert(0, 'D:/DroidForensix')
 from analysis.pipeline import run_pipeline

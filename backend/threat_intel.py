@@ -15,10 +15,12 @@ available; no network calls are made from the request path.
 
 import csv
 import io
+import ipaddress
 import json
+import socket
 from collections import defaultdict
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from backend.config import settings
 
@@ -80,7 +82,7 @@ def _result_package(result: Dict[str, Any]) -> str:
     return meta.get('package') or meta.get('package_name') or ''
 
 
-def classify_c2(c2: Dict[str, Any]) -> (str, str):
+def classify_c2(c2: Dict[str, Any]) -> Tuple[str, str]:
     """Return (classification, reason) for a C2 indicator.
 
     Mirrors build_final_outputs.classify_c2 so on-the-fly results match the
@@ -184,9 +186,101 @@ def _collect_ips(c2: Dict[str, Any]) -> List[str]:
     return ips
 
 
+def _is_valid_ip(ip: str) -> bool:
+    try:
+        socket.inet_aton(ip)
+        return True
+    except socket.error:
+        return False
+
+
+def _classify_ip(ip: str) -> str:
+    if not _is_valid_ip(ip):
+        return "invalid"
+    try:
+        addr = ipaddress.ip_address(ip)
+        if addr.is_loopback:
+            return "loopback"
+        if addr.is_private:
+            return "private"
+        return "public"
+    except ValueError:
+        return "invalid"
+
+
 def build_threat_intel(result: Dict[str, Any], sample_id: str) -> Dict[str, Any]:
     """Aggregate the threat-intel view for a single sample's pipeline result."""
     c2s: List[Dict[str, Any]] = result.get('c2_infrastructure', []) or []
+
+    # Enrich liveness on-the-fly if needed
+    unresolved_c2s = [c for c in c2s if not c.get('status') and not c.get('live_dns')]
+    if unresolved_c2s:
+        from concurrent.futures import ThreadPoolExecutor
+
+        def resolve_one(c):
+            domain = c.get('domain')
+            ip = c.get('ip')
+            if domain:
+                try:
+                    old_timeout = socket.getdefaulttimeout()
+                    socket.setdefaulttimeout(2.0)
+                    addrs = socket.getaddrinfo(domain, 80, socket.AF_INET)
+                    ips = list(sorted(set(a[4][0] for a in addrs)))
+                    socket.setdefaulttimeout(old_timeout)
+                    return c, {'live_dns': {'resolves': True, 'ips': ips}, 'status': 'active'}
+                except Exception as e:
+                    try:
+                        socket.setdefaulttimeout(old_timeout)
+                    except Exception:
+                        pass
+                    return c, {'live_dns': {'resolves': False, 'ips': [], 'error': str(e)[:60]}, 'status': 'dead'}
+            elif ip:
+                ip_class = _classify_ip(ip)
+                if ip_class in ('public', 'private', 'vpn'):
+                    return c, {'live_dns': {'resolves': True, 'ips': [ip]}, 'status': 'active'}
+                else:
+                    return c, {'live_dns': {'resolves': False, 'ips': [], 'error': 'invalid/loopback ip'}, 'status': 'dead'}
+            return c, None
+
+        with ThreadPoolExecutor(max_workers=min(len(unresolved_c2s), 10)) as pool:
+            futures = [pool.submit(resolve_one, c) for c in unresolved_c2s]
+            has_changes = False
+            for fut in futures:
+                try:
+                    c, update = fut.result()
+                    if update:
+                        c.update(update)
+                        has_changes = True
+                except Exception:
+                    pass
+
+        if has_changes:
+            try:
+                # 1. Update pipeline_result.json
+                result_path = settings.WORK_DIR / sample_id / "pipeline_result.json"
+                if result_path.exists():
+                    with open(result_path, "w", encoding="utf-8") as f:
+                        json.dump(result, f, indent=2, default=str)
+
+                # 2. Update step5_c2s.json
+                step5_path = settings.WORK_DIR / sample_id / "step5_c2s.json"
+                if step5_path.exists():
+                    with open(step5_path, "r", encoding="utf-8") as f:
+                        step5_data = json.load(f)
+                    
+                    step5_c2s = step5_data.get('c2_infrastructure', []) or []
+                    c2_map = {c.get('c2_id'): c for c in step5_c2s if c.get('c2_id')}
+                    for c in c2s:
+                        c2_id = c.get('c2_id')
+                        if c2_id and c2_id in c2_map:
+                            c2_map[c2_id].update({
+                                'live_dns': c.get('live_dns'),
+                                'status': c.get('status')
+                            })
+                    with open(step5_path, "w", encoding="utf-8") as f:
+                        json.dump(step5_data, f, indent=2, default=str)
+            except Exception as e:
+                print(f"[WARN] Failed to save enriched threat intel for {sample_id}: {e}")
 
     dns = {'active': 0, 'likely_active': 0, 'dead': 0}
     classification = {'benign': 0, 'suspicious': 0, 'malicious': 0}
@@ -223,6 +317,17 @@ def build_threat_intel(result: Dict[str, Any], sample_id: str) -> Dict[str, Any]
                     'isp': geo.get('isp', ''),
                     'latitude': geo.get('lat'),
                     'longitude': geo.get('lon'),
+                })
+            else:
+                # Fallback for newly resolved IPs not in local cache
+                ips_geolocated.append({
+                    'ip': ip,
+                    'country': 'Unknown',
+                    'region': '',
+                    'city': '',
+                    'isp': '',
+                    'latitude': None,
+                    'longitude': None,
                 })
 
     return {

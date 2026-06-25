@@ -1,0 +1,16 @@
+{
+  "success": true,
+  "data": {
+    "threat_narrative": "Overall Risk Level: CRITICAL\nExtracted 21 command & control indicators",
+    "severity_score": 100,
+    "yara_rules": [
+      {
+        "rule_name": "Android_Obfuscated_Malware",
+        "description": "Detects APKs with 176 obfuscated classes",
+        "severity": "high"
+      }
+    ],
+    "stix_indicators": [],
+    "recommendations": []
+  }
+}

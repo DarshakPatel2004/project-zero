@@ -6,10 +6,17 @@ Provides REST API and WebSocket endpoint for real-time analysis streaming.
 
 import asyncio
 import json
+import os
+import sys
+import time
+import socket
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Set
+
+# Ensure project root is in path so imports work from any directory (backend/ or root)
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,7 +27,8 @@ import subprocess
 import uuid
 
 from analysis.pipeline import run_pipeline
-from analysis.step7_llm_assessment import explain_method
+from analysis.step7_llm_assessment import explain_method, explain_threat_chain, _ollama_available, _normalize_ollama_host
+from droidforensix_llm import LLMVerifier, get_verifier, set_verifier
 from backend.pdf_report import generate_report
 from backend.config import settings
 from backend.events import WebSocketEvent, VALID_EVENT_TYPES
@@ -37,6 +45,41 @@ from backend.dissection import APKDissector, load_dissection
 from backend import threat_intel as ti
 from backend.family_id import identify_family
 from backend.obfuscation_view import build_obfuscation_view, deobfuscate_text
+from backend.core.apk_processor import APKProcessor
+from backend.core.androguard_analyzer import APKAnalyzer
+
+
+# ---------------------------------------------------------------------------
+# Ollama Lifecycle (via LLMVerifier)
+# ---------------------------------------------------------------------------
+
+# The global LLMVerifier manages Ollama start/stop with the backend.
+# On startup: starts Ollama if not already running.
+# On shutdown: stops the Ollama process if we started it.
+
+def ensure_ollama_running():
+    """Start Ollama via LLMVerifier. Blocks until ready or timeout."""
+    verifier = LLMVerifier(
+        enabled=True,
+        model=os.environ.get("OLLAMA_MODEL", settings.OLLAMA_MODEL),
+        timeout=30,
+        cache_enabled=True,
+    )
+    set_verifier(verifier)
+    
+    if not verifier.start():
+        print("[STARTUP] [WARN] Ollama could not be started — LLM features may fail")
+    else:
+        print(f"[STARTUP] [OK] Ollama ready (model: {verifier.model})")
+
+
+def stop_ollama():
+    """Stop Ollama via LLMVerifier on backend shutdown."""
+    try:
+        verifier = get_verifier()
+        verifier.stop()
+    except Exception as e:
+        print(f"[SHUTDOWN] [WARN] Error stopping Ollama: {e}")
 
 
 # ---------------------------------------------------------------------------
@@ -123,13 +166,25 @@ class SampleInfo(BaseModel):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
+    print("[STARTUP] Initializing DroidForensix backend...")
     settings.WORK_DIR.mkdir(parents=True, exist_ok=True)
     settings.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     settings.SAMPLES_DIR.mkdir(parents=True, exist_ok=True)
     settings.UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+    
+    # Ensure Ollama is running (required for LLM-based features)
+    ensure_ollama_running()
+    
+    print("[STARTUP] [OK] Backend ready")
     yield
+    
     # Shutdown
+    print("[SHUTDOWN] Cleaning up connections...")
     manager.active_connections.clear()
+    
+    # Stop Ollama (if we started it)
+    stop_ollama()
+    print("[SHUTDOWN] [OK] Ollama stopped")
 
 
 # ---------------------------------------------------------------------------
@@ -336,17 +391,6 @@ async def api_get_dissection_classes(sample_id: str) -> dict:
     if result is None:
         raise HTTPException(status_code=404, detail="Sample not found")
 
-    extraction = result.get("extraction", {})
-    if not extraction.get("jadx_success"):
-        errors = extraction.get("errors", ["JADX decompilation failed"])
-        return {
-            "classes": [],
-            "total": 0,
-            "error": "JADX decompilation not available",
-            "details": errors,
-            "jadx_success": False,
-        }
-
     apk_path = _get_sample_apk_path(sample_id)
     if apk_path is None:
         raise HTTPException(status_code=404, detail="APK file not found for sample")
@@ -470,6 +514,10 @@ class ExplainMethodRequest(BaseModel):
     flags: Optional[List[str]] = None
 
 
+class ExplainChainRequest(BaseModel):
+    chain: dict
+
+
 # Static pattern map: keyword → analyst label
 _STATIC_PATTERN_LABELS: dict = {
     "invoke": ("reflection", "Dynamic method invocation via reflection"),
@@ -544,6 +592,24 @@ async def api_explain_method(sample_id: str, request: ExplainMethodRequest) -> d
         "line_annotations": line_annotations,
         "llm": llm_result,
     }
+
+
+@app.post("/api/sample/{sample_id}/explain-chain")
+async def api_explain_chain(sample_id: str, request: ExplainChainRequest) -> dict:
+    """Return LLM explanation for a threat chain."""
+    import asyncio
+    loop = asyncio.get_event_loop()
+    try:
+        llm_result = await loop.run_in_executor(
+            None, lambda: explain_threat_chain(request.chain),
+        )
+    except Exception as e:
+        llm_result = {
+            "summary": f"Chain explanation unavailable: {e}",
+            "threat_type": "unknown",
+            "confidence": 0.0,
+        }
+    return {"chain_id": request.chain.get("chain_id"), "llm": llm_result}
 
 
 @app.post("/api/sample/{sample_id}/report/pdf")
@@ -742,20 +808,28 @@ async def get_sample(sample_id: str) -> dict:
 @app.post("/api/upload")
 async def api_upload_file(file: UploadFile = File(...)) -> dict:
     """Upload an APK file and return an upload ID for analysis."""
+    max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
+    if file.size and file.size > max_bytes:
+        raise HTTPException(status_code=413, detail=f"File too large ({file.size / 1024 / 1024:.1f}MB). Maximum allowed: {settings.MAX_UPLOAD_SIZE_MB}MB")
+
     upload_id = str(uuid.uuid4())
     upload_dir = settings.UPLOADS_DIR / upload_id
     upload_dir.mkdir(parents=True, exist_ok=True)
 
     dest_path = upload_dir / "file.apk"
+    sha256_hash = hashlib.sha256()
     try:
         with open(dest_path, "wb") as f:
-            content = await file.read()
-            f.write(content)
+            while True:
+                chunk = await file.read(64 * 1024)  # 64KB chunks
+                if not chunk:
+                    break
+                f.write(chunk)
+                sha256_hash.update(chunk)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save uploaded file: {e}")
 
-    # Compute SHA256 for client-side preview
-    sha256 = hashlib.sha256(dest_path.read_bytes()).hexdigest()
+    sha256 = sha256_hash.hexdigest()
 
     upload_registry[upload_id] = {
         "upload_id": upload_id,
@@ -873,6 +947,41 @@ async def api_get_sample_status(sample_id: str) -> dict:
         }
 
     raise HTTPException(status_code=404, detail="Sample or job not found")
+
+
+@app.post("/api/analysis/full")
+async def api_full_analysis(file: UploadFile = File(...)):
+    """Execute full 7-step pipeline using APKProcessor."""
+    apk_path = settings.UPLOADS_DIR / file.filename
+    try:
+        with open(apk_path, "wb") as f:
+            f.write(await file.read())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save uploaded file: {e}")
+    
+    processor = APKProcessor(str(apk_path))
+    results = processor.process()
+    
+    return {
+        'status': 'success',
+        'data': results if results['success'] else {'error': results.get('error')}
+    }
+
+
+@app.post("/api/analysis/androguard-only")
+async def api_androguard_analysis(file: UploadFile = File(...)):
+    """Run just the Androguard static analysis."""
+    apk_path = settings.UPLOADS_DIR / file.filename
+    try:
+        with open(apk_path, "wb") as f:
+            f.write(await file.read())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save uploaded file: {e}")
+    
+    analyzer = APKAnalyzer(str(apk_path))
+    results = analyzer.run()
+    
+    return results
 
 
 # ---------------------------------------------------------------------------

@@ -172,7 +172,11 @@ export default function ThreatIntelView({ sample, apiUrl }) {
                       <td className="text-mono">{ip.ip}</td>
                       <td>{ip.country}</td>
                       <td>{ip.region || '-'}</td>
-                      <td className="text-mono">{ip.latitude?.toFixed(2)}, {ip.longitude?.toFixed(2)}</td>
+                      <td className="text-mono">
+                        {ip.latitude !== undefined && ip.latitude !== null && ip.longitude !== undefined && ip.longitude !== null
+                          ? `${ip.latitude.toFixed(2)}, ${ip.longitude.toFixed(2)}`
+                          : '—'}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -201,6 +205,11 @@ function C2Row({ c2, geoIps }) {
       <td className="c2-indicator">
         <span className="c2-name text-mono" title={indicator}>{indicator}</span>
         {country && <span className="c2-country">{country}</span>}
+        {resolvedIps.length > 0 && c2.domain && (
+          <div className="c2-resolved-ips" style={{ fontSize: '0.72rem', marginTop: '0.2rem', color: '#888' }}>
+            Resolved: {resolvedIps.join(', ')}
+          </div>
+        )}
       </td>
       <td className="c2-detail text-mono" title={detail}>{detail}</td>
       <td><StatusBadge status={status} /></td>

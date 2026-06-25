@@ -293,3 +293,95 @@ def test_malicious_domain_c2_has_high_confidence():
 
 def test_yandex_benign_domain_filtered():
     assert is_benign_url("http://yandex.ru") is True
+
+
+def test_threat_intel_ip_helpers():
+    from backend.threat_intel import _is_valid_ip, _classify_ip
+    
+    assert _is_valid_ip("1.2.3.4") is True
+    assert _is_valid_ip("256.0.0.1") is False
+    assert _is_valid_ip("not-an-ip") is False
+    
+    assert _classify_ip("127.0.0.1") == "loopback"
+    assert _classify_ip("192.168.1.1") == "private"
+    assert _classify_ip("8.8.8.8") == "public"
+    assert _classify_ip("invalid-ip") == "invalid"
+
+
+def test_build_threat_intel_liveness_enrichment(tmp_path, monkeypatch):
+    import json
+    from backend.threat_intel import build_threat_intel
+    from backend.config import settings
+    
+    # Mock settings.WORK_DIR to use our temp path
+    monkeypatch.setattr(settings, "WORK_DIR", tmp_path)
+    
+    # Prepare dummy pipeline result and directories
+    sample_id = "test_sample_123"
+    sample_dir = tmp_path / sample_id
+    sample_dir.mkdir(parents=True, exist_ok=True)
+    
+    pipeline_result = {
+        "sample_id": sample_id,
+        "c2_infrastructure": [
+            {
+                "c2_id": "c2_domain",
+                "domain": "localhost.localdomain",  # should fail or resolve
+                "ip": None,
+            },
+            {
+                "c2_id": "c2_public_ip",
+                "domain": None,
+                "ip": "8.8.8.8",
+            },
+            {
+                "c2_id": "c2_loopback_ip",
+                "domain": None,
+                "ip": "127.0.0.1",
+            }
+        ]
+    }
+    
+    # Save the files to disk so threat_intel can update them
+    pipeline_path = sample_dir / "pipeline_result.json"
+    with open(pipeline_path, "w", encoding="utf-8") as f:
+        json.dump(pipeline_result, f)
+        
+    step5_path = sample_dir / "step5_c2s.json"
+    with open(step5_path, "w", encoding="utf-8") as f:
+        json.dump({"c2_infrastructure": pipeline_result["c2_infrastructure"]}, f)
+        
+    # Run build_threat_intel which triggers on-the-fly resolution
+    data = build_threat_intel(pipeline_result, sample_id)
+    
+    # Verify returning structured fields
+    assert "c2s" in data, f"Keys in data: {list(data.keys())}. Data: {data}"
+    c2s_out = data["c2s"]
+    assert len(c2s_out) == 3
+    
+    # Public IP should be active
+    c2_pub = next(c for c in c2s_out if c["c2_id"] == "c2_public_ip")
+    assert c2_pub["status"] == "active"
+    assert c2_pub["live_dns"]["resolves"] is True
+    assert "8.8.8.8" in c2_pub["live_dns"]["ips"]
+    
+    # Loopback IP should be dead
+    c2_loop = next(c for c in c2s_out if c["c2_id"] == "c2_loopback_ip")
+    assert c2_loop["status"] == "dead"
+    assert c2_loop["live_dns"]["resolves"] is False
+    
+    # Verify that ips_geolocated contains resolved public IP as fallback
+    geo_ips = data.get("ips_geolocated", [])
+    assert len(geo_ips) > 0
+    assert any(g["ip"] == "8.8.8.8" for g in geo_ips)
+    pub_geo = next(g for g in geo_ips if g["ip"] == "8.8.8.8")
+    assert pub_geo["country"] == "Unknown"
+
+    # Check that disk caches were updated
+    with open(pipeline_path, "r", encoding="utf-8") as f:
+        saved_result = json.load(f)
+    saved_c2s = saved_result["c2_infrastructure"]
+    saved_pub = next(c for c in saved_c2s if c["c2_id"] == "c2_public_ip")
+    assert saved_pub["status"] == "active"
+    assert saved_pub["live_dns"]["resolves"] is True
+

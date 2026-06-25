@@ -301,8 +301,26 @@ def extract_apk(apk_path: str, work_dir: Optional[str] = None) -> dict:
         manifest_info = extract_manifest_info(str(apktool_dir))
 
     decompiled_classes = 0
-    if jadx_result["success"]:
+    jadx_success = jadx_result["success"]
+    if jadx_success:
         decompiled_classes = count_decompiled_classes(str(jadx_dir))
+    else:
+        try:
+            from androguard.core.apk import APK
+            from androguard.core.dex import DEX
+            apk = APK(str(apk_path))
+            total_classes = 0
+            for dex_data in apk.get_all_dex():
+                try:
+                    dex = DEX(dex_data)
+                    total_classes += len(list(dex.get_classes()))
+                except Exception:
+                    continue
+            if total_classes > 0:
+                decompiled_classes = total_classes
+                jadx_success = True
+        except Exception:
+            pass
 
     result = {
         "sample_id": sample_id,
@@ -313,9 +331,10 @@ def extract_apk(apk_path: str, work_dir: Optional[str] = None) -> dict:
         "package_name": package_name,
         "manifest_info": manifest_info,
         "apktool_success": apktool_result["success"],
-        "jadx_success": jadx_result["success"],
+        "jadx_success": jadx_success,
         "apktool_output_dir": str(apktool_dir) if apktool_result["success"] else None,
         "jadx_output_dir": str(jadx_dir) if jadx_result["success"] else None,
+        "apk_path": str(apk_path),
         "native_libs_found": list(
             set(s["source"] for s in native_strings)
         ) if native_strings else [],
@@ -327,7 +346,7 @@ def extract_apk(apk_path: str, work_dir: Optional[str] = None) -> dict:
 
     if not apktool_result["success"]:
         result["errors"].append(apktool_result["error"])
-    if not jadx_result["success"]:
+    if not jadx_result["success"] and not jadx_success:
         result["errors"].append(jadx_result["error"])
 
     # Save intermediate result

@@ -372,11 +372,11 @@ class APKDissector:
         }
 
     def list_decompiled_classes(self) -> List[str]:
-        """List Java classes from JADX output for this sample."""
+        """List Java classes from JADX output, falling back to Androguard DEX classes if missing."""
         sample_id = self._sample_id_from_apk()
         sources_dir = self.work_dir / sample_id / "jadx" / "sources"
         if not sources_dir.exists():
-            return []
+            return self._list_classes_from_androguard()
 
         classes = []
         for java_file in sources_dir.rglob("*.java"):
@@ -386,8 +386,32 @@ class APKDissector:
             classes.append(class_name)
         return sorted(classes)
 
+    def _list_classes_from_androguard(self) -> List[str]:
+        """List class names from DEX via Androguard."""
+        try:
+            apk = self._get_apk()
+            classes = []
+            for dex_data in apk.get_all_dex():
+                try:
+                    dex = DEX(dex_data)
+                    for cls in dex.get_classes():
+                        class_name = cls.get_name()
+                        if class_name.startswith("L") and class_name.endswith(";"):
+                            class_name = class_name[1:-1].replace("/", ".")
+                        classes.append(class_name)
+                except Exception:
+                    continue
+            return sorted(classes)
+        except Exception:
+            return []
+
     def list_decompiled_class_objects(self) -> List[Dict[str, Any]]:
         """Return class objects with method/network summaries for the dashboard."""
+        sample_id = self._sample_id_from_apk()
+        sources_dir = self.work_dir / sample_id / "jadx" / "sources"
+        if not sources_dir.exists():
+            return self._list_class_objects_from_androguard()
+
         import re
 
         CONTROL_NAMES = {"if", "for", "while", "switch", "catch", "synchronized", "try", "finally"}
@@ -456,18 +480,106 @@ class APKDissector:
             })
         return classes
 
+    def _list_class_objects_from_androguard(self) -> List[Dict[str, Any]]:
+        """Extract classes and methods from DEX bytecode using Androguard when JADX is unavailable."""
+        classes = []
+        try:
+            apk = self._get_apk()
+            for dex_data in apk.get_all_dex():
+                try:
+                    dex = DEX(dex_data)
+                    for cls in dex.get_classes():
+                        raw_class_name = cls.get_name()
+                        class_name = raw_class_name
+                        if class_name.startswith("L") and class_name.endswith(";"):
+                            class_name = class_name[1:-1].replace("/", ".")
+                        
+                        methods = []
+                        for method in cls.get_methods():
+                            method_name = method.get_name()
+                            body_parts = []
+                            try:
+                                code = method.get_code()
+                                if code:
+                                    for ins in code.get_instructions():
+                                        body_parts.append(f"{ins.get_name()} {ins.get_output()}")
+                            except Exception:
+                                pass
+                            
+                            body = "\n".join(body_parts) if body_parts else "[Bytecode unavailable]"
+                            methods.append({
+                                "name": method_name,
+                                "body": body
+                            })
+                        
+                        classes.append({
+                            "name": class_name,
+                            "methods": methods,
+                            "network_calls": [],
+                            "permissions_used": []
+                        })
+                except Exception:
+                    continue
+        except Exception:
+            pass
+        return sorted(classes, key=lambda x: x["name"])
+
     def read_class_source(self, class_name: str) -> Optional[str]:
-        """Read decompiled Java source for a specific class."""
+        """Read decompiled Java source for a specific class, or fallback to disassembled DEX instructions."""
         sample_id = self._sample_id_from_apk()
         parts = class_name.split(".")
         source_file = self.work_dir / sample_id / "jadx" / "sources" / Path(*parts).with_suffix(".java")
-        if not source_file.exists():
-            return None
+        if source_file.exists():
+            try:
+                with open(source_file, "r", encoding="utf-8", errors="ignore") as f:
+                    return f.read()
+            except Exception:
+                pass
+        return self._disassemble_class_from_androguard(class_name)
+
+    def _disassemble_class_from_androguard(self, class_name: str) -> Optional[str]:
+        """Disassemble a class from DEX using Androguard and return a text representation."""
         try:
-            with open(source_file, "r", encoding="utf-8", errors="ignore") as f:
-                return f.read()
+            apk = self._get_apk()
+            target_raw = "L" + class_name.replace(".", "/") + ";"
+            for dex_data in apk.get_all_dex():
+                try:
+                    dex = DEX(dex_data)
+                    for cls in dex.get_classes():
+                        if cls.get_name() == target_raw:
+                            output = [
+                                f"// Disassembled DEX Class (Fallback for packed/encrypted APK)",
+                                f"class {class_name} {{",
+                                ""
+                            ]
+                            for method in cls.get_methods():
+                                access_flags = method.get_access_flags()
+                                flags = []
+                                if access_flags & 0x1: flags.append("public")
+                                if access_flags & 0x2: flags.append("private")
+                                if access_flags & 0x4: flags.append("protected")
+                                if access_flags & 0x8: flags.append("static")
+                                if access_flags & 0x10: flags.append("final")
+                                if access_flags & 0x100: flags.append("native")
+                                
+                                flag_str = " ".join(flags) + " " if flags else ""
+                                output.append(f"    {flag_str}{method.get_name()}{method.get_descriptor()} {{")
+                                
+                                code = method.get_code()
+                                if code:
+                                    for ins in code.get_instructions():
+                                        output.append(f"        {ins.get_name():<15} {ins.get_output()}")
+                                else:
+                                    output.append("        // No code body (abstract/native/empty)")
+                                output.append("    }")
+                                output.append("")
+                            output.append("}")
+                            return "\n".join(output)
+                except Exception:
+                    continue
         except Exception:
-            return None
+            pass
+        return None
 
     def load_strings(self) -> Optional[Dict[str, Any]]:
         """Load extracted strings from Step 2 result."""

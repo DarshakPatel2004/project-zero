@@ -219,6 +219,31 @@ def extract_resource_strings(apktool_dir: str) -> List[Dict[str, Any]]:
     return results
 
 
+def extract_androguard_strings(apk_path: str) -> List[Dict[str, Any]]:
+    """Extract string literals from DEX bytecode using Androguard when JADX/apktool fail."""
+    results = []
+    try:
+        from androguard.core.apk import APK
+        from androguard.core.dex import DEX
+        apk = APK(str(apk_path))
+        for idx, dex_data in enumerate(apk.get_all_dex()):
+            try:
+                dex = DEX(dex_data)
+                for string in dex.get_strings():
+                    if string and not is_noisy_string(string):
+                        results.append({
+                            "category": "string_literal",
+                            "value": string,
+                            "entropy": round(entropy_of_string(string), 4),
+                            "source": f"classes{idx}.dex",
+                        })
+            except Exception:
+                continue
+    except Exception:
+        pass
+    return results
+
+
 def enumerate_strings(extraction_result: dict) -> dict:
     """
     Full Step 2: Enumerate strings from extracted APK output.
@@ -240,6 +265,7 @@ def enumerate_strings(extraction_result: dict) -> dict:
     apktool_dir = extraction_result.get("apktool_output_dir")
     jadx_dir = extraction_result.get("jadx_output_dir")
     native_strings = extraction_result.get("native_strings", [])
+    apk_path = extraction_result.get("apk_path")
 
     all_strings = []
 
@@ -253,6 +279,11 @@ def enumerate_strings(extraction_result: dict) -> dict:
     if apktool_dir and not java_strings:
         smali_strings = extract_smali_strings(apktool_dir)
         all_strings.extend(smali_strings)
+
+    # Fallback 2: Androguard DEX string extraction if both JADX and smali extraction are empty/fail
+    if not all_strings and apk_path:
+        andro_strings = extract_androguard_strings(apk_path)
+        all_strings.extend(andro_strings)
 
     # Resource strings from apktool output
     if apktool_dir:

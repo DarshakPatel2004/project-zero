@@ -107,17 +107,33 @@ print(f"  Done in {elapsed:.0f}s")
 print(f"\n>>> Classifying {len(all_c2s)} C2s...")
 for c2 in all_c2s:
     domain = c2.get('domain')
-    c2['live_dns'] = live_dns.get(domain, {'resolves': False, 'ips': [], 'error': 'no domain'})
-    circl = {}
-    if domain and domain in pdns_cache:
-        circl['pdns_domain'] = pdns_cache[domain]
-    c2['circl'] = circl
-    live = c2['live_dns'].get('resolves', False)
-    pdns_hit = circl.get('pdns_domain', {}).get('count', 0) > 0
-    if live and pdns_hit:       c2['status'] = 'active'
-    elif live and not pdns_hit: c2['status'] = 'likely_active'
-    elif not live and pdns_hit: c2['status'] = 'historical'
-    else:                       c2['status'] = 'dead'
+    ip = c2.get('ip')
+    if domain:
+        c2['live_dns'] = live_dns.get(domain, {'resolves': False, 'ips': [], 'error': 'resolution failed'})
+        circl = {}
+        if domain in pdns_cache:
+            circl['pdns_domain'] = pdns_cache[domain]
+        c2['circl'] = circl
+        live = c2['live_dns'].get('resolves', False)
+        pdns_hit = circl.get('pdns_domain', {}).get('count', 0) > 0
+        if live and pdns_hit:       c2['status'] = 'active'
+        elif live and not pdns_hit: c2['status'] = 'likely_active'
+        elif not live and pdns_hit: c2['status'] = 'historical'
+        else:                       c2['status'] = 'dead'
+    elif ip:
+        from backend.threat_intel import _classify_ip
+        ip_class = _classify_ip(ip)
+        if ip_class in ('public', 'private', 'vpn'):
+            c2['live_dns'] = {'resolves': True, 'ips': [ip]}
+            c2['status'] = 'active'
+        else:
+            c2['live_dns'] = {'resolves': False, 'ips': [], 'error': 'invalid/loopback ip'}
+            c2['status'] = 'dead'
+        c2['circl'] = {}
+    else:
+        c2['live_dns'] = {'resolves': False, 'ips': [], 'error': 'no target'}
+        c2['status'] = 'dead'
+        c2['circl'] = {}
 
 # --- SUMMARY ---
 sc = defaultdict(int)

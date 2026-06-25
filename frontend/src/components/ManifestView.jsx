@@ -100,22 +100,48 @@ export default function ManifestView({ sample, apiUrl }) {
         if (!response.ok) throw new Error(`HTTP ${response.status}`)
         const data = await response.json()
         if (stale) return
-        setManifest(data)
+        setManifest(data.manifest || {})
 
-        try {
-          const compResponse = await fetch(
-            `${baseUrl}/api/sample/${sampleId}/dissection/components`,
-            { signal: controller.signal }
-          )
-          if (compResponse.ok) {
-            const compData = await compResponse.json()
-            if (!stale) setComponents(compData)
-          }
-        } catch (compErr) {
-          if (compErr.name !== 'AbortError') {
-            console.warn('Components endpoint optional fetch failed:', compErr)
+        // Fetch components (activities, services, etc.)
+        const fetchComponents = async () => {
+          try {
+            const compResponse = await fetch(
+              `${baseUrl}/api/sample/${sampleId}/dissection/components`,
+              { signal: controller.signal }
+            )
+            if (compResponse.ok) {
+              const compData = await compResponse.json()
+              if (!stale) setComponents(compData.components || {})
+            }
+          } catch (compErr) {
+            if (compErr.name !== 'AbortError') {
+              console.warn('Components fetch failed:', compErr)
+            }
           }
         }
+
+        // Fetch permissions separately
+        const fetchPermissions = async () => {
+          try {
+            const permResponse = await fetch(
+              `${baseUrl}/api/sample/${sampleId}/dissection/permissions`,
+              { signal: controller.signal }
+            )
+            if (permResponse.ok) {
+              const permData = await permResponse.json()
+              if (!stale && permData.permissions) {
+                setManifest(prev => ({ ...prev, uses_permissions: permData.permissions }))
+              }
+            }
+          } catch (permErr) {
+            if (permErr.name !== 'AbortError') {
+              console.warn('Permissions fetch failed:', permErr)
+            }
+          }
+        }
+
+        await fetchComponents()
+        await fetchPermissions()
       } catch (err) {
         if (stale || err.name === 'AbortError') return
         setError(err.message)
@@ -175,6 +201,23 @@ export default function ManifestView({ sample, apiUrl }) {
   const receivers = components?.receivers || manifest.receivers || []
   const providers = components?.providers || manifest.providers || []
 
+  // Find main activity: first activity with MAIN/LAUNCHER intent filter
+  let mainActivity = null
+  for (const act of activities) {
+    const filters = act.intent_filters
+    if (filters && !Array.isArray(filters)) {
+      const actions = filters.action || []
+      const categories = filters.category || []
+      if (actions.includes('android.intent.action.MAIN') || categories.includes('android.intent.category.LAUNCHER')) {
+        mainActivity = act.name
+        break
+      }
+    }
+  }
+  if (!mainActivity && activities.length > 0) {
+    mainActivity = activities[0].name
+  }
+
   return (
     <div className="manifest-view tab-panel">
       <div className="card manifest-summary-card">
@@ -182,11 +225,11 @@ export default function ManifestView({ sample, apiUrl }) {
         <dl className="manifest-summary-grid">
           <div>
             <dt>Package</dt>
-            <dd className="text-mono">{manifest.package_name || '—'}</dd>
+            <dd className="text-mono">{manifest.package || '—'}</dd>
           </div>
           <div>
             <dt>Application Label</dt>
-            <dd>{manifest.application_label || '—'}</dd>
+            <dd>{manifest.application?.label || '—'}</dd>
           </div>
           <div>
             <dt>Version Name</dt>
@@ -198,15 +241,15 @@ export default function ManifestView({ sample, apiUrl }) {
           </div>
           <div>
             <dt>Min SDK</dt>
-            <dd className="text-mono">{manifest.min_sdk_version ?? '—'}</dd>
+            <dd className="text-mono">{manifest.min_sdk ?? '—'}</dd>
           </div>
           <div>
             <dt>Target SDK</dt>
-            <dd className="text-mono">{manifest.target_sdk_version ?? '—'}</dd>
+            <dd className="text-mono">{manifest.target_sdk ?? '—'}</dd>
           </div>
           <div className="manifest-summary-wide">
             <dt>Main Activity</dt>
-            <dd className="text-mono">{manifest.main_activity || '—'}</dd>
+            <dd className="text-mono">{mainActivity || '—'}</dd>
           </div>
         </dl>
       </div>

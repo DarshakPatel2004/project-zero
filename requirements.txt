@@ -23,6 +23,7 @@ openai
 
 # DEX / APK Analysis
 androguard
+yara-python
 
 # Testing
 pytest

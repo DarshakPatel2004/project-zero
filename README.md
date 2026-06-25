@@ -52,7 +52,7 @@ copy .env.example .env
 ```
 
 The default model is set to the locally available
-`hf.co/krgl/Llama-Primus-Base_8bit-gguf:latest`. If you prefer a different
+`mistral:7b-instruct-q4_K_M`. If you prefer a different
 model, update `OLLAMA_MODEL` in `.env` and pull it:
 
 ```powershell
@@ -139,7 +139,7 @@ copy .env.example .env
 Key variables:
 
 - `OLLAMA_HOST=http://localhost:11434`
-- `OLLAMA_MODEL=hf.co/krgl/Llama-Primus-Base_8bit-gguf:latest`
+- `OLLAMA_MODEL=mistral:7b-instruct-q4_K_M`
 - `NVIDIA_NIM_API_KEY` (optional; when set, NIM is preferred over Ollama)
 
 ## Testing

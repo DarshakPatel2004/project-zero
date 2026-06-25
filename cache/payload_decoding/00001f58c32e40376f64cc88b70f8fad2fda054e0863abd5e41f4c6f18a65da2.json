@@ -1,0 +1,13 @@
+{
+  "success": true,
+  "data": {
+    "decoded_payloads": [
+      {
+        "encoded": "getPaddingBottom",
+        "decoded": "Oib\u0000h&",
+        "type": "base64"
+      }
+    ],
+    "secondary_indicators": []
+  }
+}
