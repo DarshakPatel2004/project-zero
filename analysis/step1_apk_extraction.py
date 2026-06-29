@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Optional
 
 from backend.config import settings
+from analysis.retry_utils import safe_decompile_apk, DecompilationError
 
 
 class APKExtractionError(Exception):
@@ -285,8 +286,22 @@ def extract_apk(apk_path: str, work_dir: Optional[str] = None) -> dict:
     # Run apktool
     apktool_result = run_apktool(str(apk_path), str(apktool_dir))
 
-    # Run jadx (fallback to smali if jadx fails)
-    jadx_result = run_jadx(str(apk_path), str(jadx_dir))
+    # Run jadx with retry logic (3 attempts, exponential backoff)
+    retry_result = None
+    jadx_result = {"success": False, "output_dir": str(jadx_dir), "error": None}
+    try:
+        retry_result = safe_decompile_apk(
+            str(apk_path),
+            str(jadx_dir),
+            timeout=settings.STEP_TIMEOUT,
+            max_retries=3,
+            jadx_path=settings.JADX_PATH,
+        )
+        jadx_result = {"success": True, "output_dir": str(jadx_dir), "error": None}
+    except DecompilationError as e:
+        jadx_result["error"] = e.to_dict()["message"]
+    except Exception as e:
+        jadx_result["error"] = str(e)
 
     # Extract native strings
     native_strings = []
@@ -300,11 +315,11 @@ def extract_apk(apk_path: str, work_dir: Optional[str] = None) -> dict:
         package_name = extract_package_name(str(apktool_dir))
         manifest_info = extract_manifest_info(str(apktool_dir))
 
-    decompiled_classes = 0
+    decompiled_classes = retry_result.get("classes", 0) if jadx_result["success"] else 0
     jadx_success = jadx_result["success"]
-    if jadx_success:
+    if jadx_success and not decompiled_classes:
         decompiled_classes = count_decompiled_classes(str(jadx_dir))
-    else:
+    if not jadx_success:
         try:
             from androguard.core.apk import APK
             from androguard.core.dex import DEX

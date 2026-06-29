@@ -1,12 +1,17 @@
 import { useState, useEffect, useCallback, useRef, useReducer } from 'react'
 import './App.css'
+import { ToastProvider, useToast } from './components/Toast'
 import UploadPanel from './components/UploadPanel'
 import AnalysisView from './components/AnalysisView'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import ThreatIntelView from './components/ThreatIntelView'
 import DissectionPage from './components/DissectionPage'
 
 const API_URL = 'http://localhost:8000'
 const WS_URL = 'ws://localhost:8000/ws'
+
+const MAX_RETRIES = 5
+const RETRY_BASE_DELAY_MS = 2000
 
 const NAV_ITEMS = [
   { id: 'upload', label: 'Upload & Analyze', icon: '⬆' },
@@ -14,6 +19,42 @@ const NAV_ITEMS = [
   { id: 'dissection', label: 'Code Dissection', icon: '🔬' },
   { id: 'threat-intel', label: 'Threat Intelligence', icon: '🌐' },
 ]
+
+/**
+ * HTTP status codes that should NOT be retried (client errors).
+ */
+const NO_RETRY_STATUSES = new Set([400, 413, 422, 429])
+
+/**
+ * HTTP status codes that should show a retrying message.
+ */
+const RETRYABLE_STATUSES = new Set([500, 502, 503, 504])
+
+/**
+ * Map HTTP status codes to user-facing error messages.
+ */
+function getHttpErrorMessage(status, body) {
+  const detail = body?.detail || ''
+  switch (status) {
+    case 400:
+      return `Invalid request: ${detail || 'Bad request'}`
+    case 413:
+      return detail || 'File too large. Maximum allowed size is 100MB.'
+    case 422:
+      return `Validation failed: ${detail || 'Invalid input'}`
+    case 429:
+      return 'Too many requests. Please wait a moment and try again.'
+    case 500:
+      return 'The server encountered an error. Check the backend logs for details.'
+    case 502:
+    case 503:
+      return 'Backend is starting up or temporarily unavailable.'
+    case 504:
+      return 'The server took too long to respond. It may be overloaded.'
+    default:
+      return detail || `HTTP ${status}: Unexpected error`
+  }
+}
 
 /**
  * Estimate total analysis duration from APK size.
@@ -49,6 +90,7 @@ function analysisReducer(state, action) {
         llmVerifications: {},
         fullReport: null,
         error: null,
+        errorType: null,
       }
 
     case 'ANALYSIS_STARTED':
@@ -62,9 +104,10 @@ function analysisReducer(state, action) {
         stepTimings: {},
         llmVerifications: {},
         error: null,
+        errorType: null,
       }
 
-    case 'STEP_COMPLETED':
+    case 'STEP_COMPLETED': {
       const { step_number, duration_seconds, remaining_eta_seconds, progress_percent, step_name } = action.payload
       const llmVerification = action.payload.llm_verification
       const newState = {
@@ -83,8 +126,9 @@ function analysisReducer(state, action) {
         }
       }
       return newState
+    }
 
-    case 'METRIC_UPDATED':
+    case 'METRIC_UPDATED': {
       const { metric_name, metric_value } = action.payload
       return {
         ...state,
@@ -93,6 +137,7 @@ function analysisReducer(state, action) {
           [metric_name]: metric_value,
         },
       }
+    }
 
     case 'ANALYSIS_COMPLETE':
       return {
@@ -114,6 +159,7 @@ function analysisReducer(state, action) {
         ...state,
         status: 'error',
         error: action.payload.error_message,
+        errorType: action.payload.error_type || 'internal_error',
       }
 
     default:
@@ -121,14 +167,43 @@ function analysisReducer(state, action) {
   }
 }
 
+/**
+ * Upload retry states:
+ * idle | retrying | exhausted | success
+ */
+const RETRY_STATE = {
+  IDLE: 'idle',
+  RETRYING: 'retrying',
+  EXHAUSTED: 'exhausted',
+}
+
 function App() {
+  return (
+    <ToastProvider>
+      <AppInner />
+    </ToastProvider>
+  )
+}
+
+function AppInner() {
+  const { addToast } = useToast()
   const [activeTab, setActiveTab] = useState('upload')
   const [samples, setSamples] = useState([])
   const [selectedSample, setSelectedSample] = useState(null)
-  const [wsState, setWsState] = useState('connecting')
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [backendReady, setBackendReady] = useState(true)
+
+  // Connection states (Phase 6)
+  const [httpStatus, setHttpStatus] = useState('reconnecting') // connected | reconnecting | failed
+  const [wsState, setWsState] = useState('connecting')       // connected | reconnecting | failed
   const wsRef = useRef(null)
+
+  // Upload retry state (Phase 4)
+  const [retryState, setRetryState] = useState(RETRY_STATE.IDLE)
+  const [retryAttempt, setRetryAttempt] = useState(0)
+  const [retryEta, setRetryEta] = useState(null)
+  const retryFileRef = useRef(null)
+  const retryTimerRef = useRef(null)
+  const retryAbortRef = useRef(null)
 
   // Unified analysis state (replaces liveEvents + analysisStatus)
   const [analysisState, dispatch] = useReducer(analysisReducer, {
@@ -148,14 +223,52 @@ function App() {
     llmVerifications: {},
     fullReport: null,
     error: null,
+    errorType: null,
   })
 
-  // Check backend health on mount
-  useEffect(() => {
-    fetch(`${API_URL}/`)
-      .then(r => setBackendReady(r.ok))
-      .catch(() => setBackendReady(false))
+  // --- Backend health check + polling (Phase 5) ---
+  const checkBackendHealth = useCallback(async () => {
+    try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 5000)
+      const response = await fetch(`${API_URL}/`, { signal: controller.signal })
+      clearTimeout(timeoutId)
+      if (response.ok) {
+        setHttpStatus('connected')
+        return true
+      }
+      setHttpStatus('failed')
+      return false
+    } catch {
+      setHttpStatus('failed')
+      return false
+    }
   }, [])
+
+  // Initial health check + polling when offline (Phase 5)
+  useEffect(() => {
+    let pollTimer
+
+    checkBackendHealth().then(ok => {
+      if (!ok) {
+        // Start polling every 2s when backend is offline
+        pollTimer = setInterval(() => {
+          checkBackendHealth().then(recovered => {
+            if (recovered) {
+              clearInterval(pollTimer)
+              addToast('Backend is online', 'success')
+            }
+          })
+        }, 2000)
+      }
+    })
+
+    return () => clearInterval(pollTimer)
+  }, [checkBackendHealth, addToast])
+
+  // Update topbar status dot based on combined HTTP + WS state (Phase 6)
+  const backendReady = httpStatus === 'connected' && wsState === 'connected'
+  const backendReconnecting = httpStatus === 'reconnecting' || wsState === 'reconnecting'
 
   // WebSocket connection for live pipeline events
   useEffect(() => {
@@ -172,6 +285,7 @@ function App() {
         ws.onopen = () => {
           console.log('[WS] Connected')
           setWsState('connected')
+          setHttpStatus(prev => prev === 'failed' ? 'connected' : prev)
           // Send ping to keep connection alive
           ws.send(JSON.stringify({ action: 'ping' }))
           pingTimer = setInterval(() => {
@@ -193,17 +307,17 @@ function App() {
         ws.onclose = () => {
           console.log('[WS] Disconnected, reconnecting in 3s...')
           clearInterval(pingTimer)
-          setWsState('disconnected')
+          setWsState('reconnecting')
           reconnectTimer = setTimeout(connect, 3000)
         }
 
         ws.onerror = (err) => {
           console.error('[WS] Error:', err)
-          setWsState('error')
+          setWsState('failed')
         }
       } catch (err) {
         console.error('[WS] Failed to create WebSocket:', err)
-        setWsState('error')
+        setWsState('failed')
         reconnectTimer = setTimeout(connect, 5000)
       }
     }
@@ -215,11 +329,10 @@ function App() {
       clearInterval(pingTimer)
       if (ws) ws.close()
     }
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   /**
    * Unified WebSocket message handler.
-   * No event array; just update the analysis state directly.
    */
   const handleWsMessage = useCallback((message) => {
     const { event_type, data } = message
@@ -228,101 +341,24 @@ function App() {
 
     switch (event_type) {
       case 'pong':
-        break // Ignore pong
-
+        break
       case 'analysis_started':
         dispatch({ type: 'ANALYSIS_STARTED', payload: data })
         break
-
       case 'step_completed':
         dispatch({ type: 'STEP_COMPLETED', payload: data })
         break
-
       case 'metric_updated':
         dispatch({ type: 'METRIC_UPDATED', payload: data })
         break
-
       case 'analysis_complete':
         dispatch({ type: 'ANALYSIS_COMPLETE', payload: data })
         break
-
       case 'error':
         dispatch({ type: 'ERROR', payload: data })
         break
-
       default:
         console.log('[WS] Unknown event:', event_type)
-    }
-  }, [])
-
-  const handleUpload = useCallback(async (file) => {
-    // Frontend file size check (matches backend MAX_UPLOAD_SIZE_MB=100)
-    const MAX_SIZE_MB = 100
-    if (file.size > MAX_SIZE_MB * 1024 * 1024) {
-      alert(`File is too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Maximum allowed size is ${MAX_SIZE_MB}MB.`)
-      return
-    }
-
-    const formData = new FormData()
-    formData.append('file', file)
-
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 300000) // 5 min timeout
-
-    try {
-      const response = await fetch(`${API_URL}/api/upload`, {
-        method: 'POST',
-        body: formData,
-        signal: controller.signal,
-      })
-      clearTimeout(timeoutId)
-
-      if (!response.ok) {
-        const errorBody = await response.text()
-        throw new Error(`Server error (${response.status}): ${errorBody}`)
-      }
-
-      const data = await response.json()
-
-      const newSample = {
-        uploadId: data.upload_id,
-        sha256: data.sha256,
-        fileName: file.name,
-        status: 'uploaded',
-        uploadedAt: new Date().toISOString(),
-      }
-
-      // Reset analysis state for new sample
-      dispatch({ type: 'RESET' })
-
-      setSamples(prev => [newSample, ...prev])
-      setSelectedSample(newSample)
-      setActiveTab('analysis')
-
-      // Optimistically start the running state so the UI shows the loading
-      // screen immediately while the backend begins the pipeline.
-      dispatch({
-        type: 'ANALYSIS_STARTED',
-        payload: {
-          sample_id: data.upload_id,
-          sample_name: file.name,
-          file_size_bytes: file.size,
-          total_steps: 9,
-          predicted_eta_seconds: estimateEtaSeconds(file.size),
-        },
-      })
-
-      // Start analysis
-      analyzeUpload(data.upload_id)
-    } catch (error) {
-      console.error('Upload failed:', error)
-      if (error.name === 'AbortError') {
-        alert('Upload timed out. The file may be too large or the backend is not responding. Make sure the backend is running (python -m uvicorn backend.main:app --port 8000).')
-      } else if (error.message === 'Failed to fetch' || error.message.includes('Failed to fetch')) {
-        alert('Upload failed: Cannot reach the backend. Ensure the backend is running at http://localhost:8000 (run run_backend.bat or "python -m uvicorn backend.main:app --port 8000" from the backend/ directory).')
-      } else {
-        alert('Upload failed: ' + error.message)
-      }
     }
   }, [])
 
@@ -333,12 +369,235 @@ function App() {
       })
       const data = await response.json()
       console.log('Analysis triggered:', data)
-      // WebSocket events will drive the UI from here
     } catch (error) {
       console.error('Analysis failed:', error)
       dispatch({ type: 'ERROR', payload: { error_message: error.message } })
     }
   }, [])
+
+  const retryAnalysis = useCallback(() => {
+    if (!selectedSample) return
+    const uploadId = selectedSample.uploadId
+    if (!uploadId) return
+
+    dispatch({ type: 'RESET' })
+
+    dispatch({
+      type: 'ANALYSIS_STARTED',
+      payload: {
+        sample_id: selectedSample.sha256,
+        sample_name: selectedSample.fileName,
+        file_size_bytes: 0,
+        total_steps: 9,
+        predicted_eta_seconds: estimateEtaSeconds(selectedSample.fileSize || 0),
+      },
+    })
+
+    analyzeUpload(uploadId)
+  }, [selectedSample, analyzeUpload])
+
+  /**
+   * Core upload function with retry support (Phases 1, 4).
+   * On retryable failure, stores file and begins exponential backoff loop.
+   */
+  const executeUpload = useCallback(async (file, attempt = 0) => {
+    const controller = new AbortController()
+    retryAbortRef.current = controller
+
+    const formData = new FormData()
+    formData.append('file', file)
+
+    try {
+      const response = await fetch(`${API_URL}/api/upload`, {
+        method: 'POST',
+        body: formData,
+        signal: controller.signal,
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+
+        const newSample = {
+          uploadId: data.upload_id,
+          sha256: data.sha256,
+          fileName: file.name,
+          status: 'uploaded',
+          uploadedAt: new Date().toISOString(),
+        }
+
+        dispatch({ type: 'RESET' })
+        setSamples(prev => [newSample, ...prev])
+        setSelectedSample(newSample)
+        setActiveTab('analysis')
+
+        dispatch({
+          type: 'ANALYSIS_STARTED',
+          payload: {
+            sample_id: data.sha256,
+            sample_name: file.name,
+            file_size_bytes: file.size,
+            total_steps: 9,
+            predicted_eta_seconds: estimateEtaSeconds(file.size),
+          },
+        })
+
+      analyzeUpload(data.upload_id)
+
+      addToast('Upload complete. Starting analysis...', 'success')
+      return 'success'
+      }
+
+      // Parse error body
+      let errorBody = {}
+      try {
+        errorBody = await response.json()
+      } catch { /* ignore parse errors */ }
+
+      const errorMsg = getHttpErrorMessage(response.status, errorBody)
+
+      // Don't retry client errors (400, 413, 422, 429)
+      if (NO_RETRY_STATUSES.has(response.status)) {
+        addToast(errorMsg, 'error', { duration: 0 })
+        return 'non-retryable'
+      }
+
+      // Server error (5xx) — retryable
+      if (RETRYABLE_STATUSES.has(response.status) || response.status >= 500) {
+        throw new Error(errorMsg)
+      }
+
+      // Other unexpected status
+      addToast(errorMsg, 'error', { duration: 0 })
+      return 'non-retryable'
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        return false // User cancelled
+      }
+
+      const isNetworkError = error.message === 'Failed to fetch' ||
+        error.message.includes('Failed to fetch') ||
+        error.message.includes('NetworkError') ||
+        error.message.includes('timeout')
+
+      const errorMsg = isNetworkError
+        ? 'Cannot reach backend'
+        : error.message || 'Upload failed'
+
+      throw new Error(errorMsg)
+    }
+  }, [analyzeUpload, addToast])
+
+  /**
+   * Retry loop with exponential backoff (Phase 4).
+   */
+  const startRetryLoop = useCallback(async (file) => {
+    retryFileRef.current = file
+    setRetryState(RETRY_STATE.RETRYING)
+    setRetryAttempt(1)
+
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      setRetryAttempt(attempt)
+
+      // Exponential backoff with jitter: base * 2^(attempt-1) + random jitter
+      const delay = Math.min(
+        RETRY_BASE_DELAY_MS * Math.pow(2, attempt - 1),
+        32000
+      )
+      const jitter = Math.random() * 1000
+      const totalWait = delay + jitter
+
+      // Show countdown
+      const waitSeconds = Math.ceil(totalWait / 1000)
+      setRetryEta(waitSeconds)
+
+      // Countdown timer
+      for (let remaining = waitSeconds; remaining > 0; remaining--) {
+        setRetryEta(remaining)
+        await new Promise((resolve, reject) => {
+          const checkAbort = () => {
+            if (!retryFileRef.current) {
+              clearInterval(checkInterval)
+              clearTimeout(timer)
+              reject(new Error('cancelled'))
+            }
+          }
+          const checkInterval = setInterval(checkAbort, 200)
+          const timer = setTimeout(() => {
+            clearInterval(checkInterval)
+            resolve()
+          }, 1000)
+          retryTimerRef.current = timer
+        }).catch(() => {
+          setRetryState(RETRY_STATE.IDLE)
+          setRetryAttempt(0)
+          setRetryEta(null)
+          return
+        })
+
+        if (!retryFileRef.current) return // Cancelled
+      }
+
+      addToast(`Retrying upload... attempt ${attempt}/${MAX_RETRIES}`, 'warning')
+
+      try {
+      const result = await executeUpload(file, attempt - 1)
+      if (result === 'success') return
+      if (result === 'non-retryable') {
+        setRetryState(RETRY_STATE.IDLE)
+        setRetryAttempt(0)
+        setRetryEta(null)
+        retryFileRef.current = null
+        return
+      }
+      } catch {
+        // Error already shown via toast
+      }
+
+      if (!retryFileRef.current) return // Cancelled
+    }
+
+    // All retries exhausted
+    setRetryState(RETRY_STATE.EXHAUSTED)
+    setRetryAttempt(0)
+    setRetryEta(null)
+    addToast(`Upload failed after ${MAX_RETRIES} attempts`, 'error', { duration: 0 })
+  }, [executeUpload, addToast])
+
+  const cancelRetry = useCallback(() => {
+    clearTimeout(retryTimerRef.current)
+    retryAbortRef.current?.abort()
+    retryFileRef.current = null
+    setRetryState(RETRY_STATE.IDLE)
+    setRetryAttempt(0)
+    setRetryEta(null)
+  }, [])
+
+  /**
+   * Main upload handler — called by UploadPanel (Phases 1, 2, 4).
+   */
+  const handleUpload = useCallback(async (file) => {
+    // If retry is in progress, ignore new selection
+    if (retryState === RETRY_STATE.RETRYING) {
+      addToast('Upload in progress. Cancel current upload first.', 'warning')
+      return
+    }
+
+    // Reset retry state
+    setRetryState(RETRY_STATE.IDLE)
+    setRetryAttempt(0)
+
+    // Execute first attempt
+    addToast('Uploading APK...', 'info')
+    try {
+      const result = await executeUpload(file, 0)
+      if (result !== 'success' && result !== 'non-retryable') {
+        startRetryLoop(file)
+      }
+    } catch (error) {
+      addToast(error.message, 'warning')
+      startRetryLoop(file)
+    }
+  }, [retryState, executeUpload, startRetryLoop, addToast])
 
   const handleSelectSample = (sample) => {
     setSelectedSample(sample)
@@ -349,11 +608,10 @@ function App() {
     const isAnalyzed = sample?.status === 'analyzed' || sample?.status === 'completed'
 
     if (isAnalyzed && sampleId) {
-      // Show the completed result view immediately for previously analyzed samples
       dispatch({
         type: 'ANALYSIS_COMPLETE',
         payload: {
-          sample_id: sampleId,
+          sample_id: sampleId || sample?.sha256,
           total_duration_seconds: null,
           step_timings: {},
           final_verdict: sample?.severity || 'unknown',
@@ -361,13 +619,11 @@ function App() {
         },
       })
     } else {
-      // Reset analysis state when switching to a fresh/uploaded sample
       dispatch({ type: 'RESET' })
     }
   }
 
   const activeLabel = NAV_ITEMS.find(n => n.id === activeTab)?.label || ''
-  const selectedSampleId = selectedSample?.uploadId
 
   return (
     <div className="app-layout">
@@ -412,8 +668,12 @@ function App() {
             <span className="topbar-title">{activeLabel}</span>
           </div>
           <div className="topbar-status">
-            <span className={`status-dot ${backendReady ? 'online' : 'offline'}`}></span>
-            <span>{backendReady ? 'Backend Online' : 'Backend Offline'}</span>
+            <span className={`status-dot ${backendReady ? 'online' : backendReconnecting ? 'reconnecting' : 'offline'}`}></span>
+            <span>
+              {backendReady && 'Backend Online'}
+              {backendReconnecting && 'Reconnecting...'}
+              {!backendReady && !backendReconnecting && 'Backend Offline'}
+            </span>
           </div>
         </header>
 
@@ -424,17 +684,25 @@ function App() {
                 onUpload={handleUpload}
                 samples={samples}
                 onSelectSample={handleSelectSample}
+                retryState={retryState}
+                retryAttempt={retryAttempt}
+                retryEta={retryEta}
+                cancelRetry={cancelRetry}
+                backendOnline={httpStatus === 'connected'}
               />
             </div>
           )}
 
           {activeTab === 'analysis' && selectedSample && (
             <div className="view-wrapper">
-              <AnalysisView
-                sample={selectedSample}
-                analysisState={analysisState}
-                apiUrl={API_URL}
-              />
+              <ErrorBoundary>
+                <AnalysisView
+                  sample={selectedSample}
+                  analysisState={analysisState}
+                  apiUrl={API_URL}
+                  onRetry={retryAnalysis}
+                />
+              </ErrorBoundary>
             </div>
           )}
 
