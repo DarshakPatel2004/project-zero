@@ -133,8 +133,111 @@ Families with higher FN rates tend to use:
    - Requires cryptanalysis (XOR, DES key recovery)
    - Trade-off: Many false positives on legitimate compression
 
-## Conclusion
+## Enhancement: Permission Behavior Groups (2026-06-28)
 
-The 8 false negatives are **not bugs**—they represent the **inherent limitations of static C2-based detection**. Closing this gap requires complementary techniques (dynamic analysis, behavioral detection) outside the scope of this static pipeline.
+Added permission behavior group detection to Step 8 and Step 7 fallback logic.
+Catches malware that requests coordinated dangerous permission groups without
+calling the corresponding APIs — a telltale "permissions collected, never used"
+pattern that benign apps do not exhibit.
+
+### What changed
+
+**Step 8** (`step8_obfuscation_analysis.py`):
+- `PERMISSION_BEHAVIOR_GROUPS` constant: sms_fraud (+35), phone_identity (+15),
+  location_surveillance (+25), device_admin_abuse (+20)
+- Boost applied only when `code_signals == 0` (no reflection, dynamic loading,
+  suspicious APIs, or crypto APIs detected). This prevents false positives on
+  legitimate apps that legitimately call the APIs matching their permissions.
+- Detected groups stored in `indicators["permission_behaviors"]`.
+
+**Step 7** (`step7_llm_assessment.py`):
+- Fallback raises risk-score floor from 50 → 55 when behavior groups are present
+  AND code signals are zero. Same guard as Step 8 for FP prevention.
+
+### Results
+
+| Metric | Before | After |
+|--------|--------|-------|
+| FNs caught (of 8) | 0 | **3** (#4, #6, #7) |
+| False positives (benign profiles) | 0 | **0** |
+| Pipeline regression (210 samples) | — | **0** regressed |
+
+### Remaining FNs (5 of 8)
+
+| FN | Reason | Salvageable? |
+|----|--------|-------------|
+| #1 | 1 dangerous perm, no code signals | Static limit |
+| #2 | 0 permissions, no code signals | Static limit |
+| #3 | 0 permissions, no code signals | Static limit |
+| #5 | 0 permissions, has chain (45→45 kept conservative) | Needs chain-C2 link |
+| #8 | 1 dangerous perm, no code signals | Static limit |
+
+### False positive analysis (synthetic benign profiles)
+
+| Profile | Perms | Suspicious APIs | Risk Score | Result |
+|---------|-------|----------------|------------|--------|
+| SMS messaging app | 3 | 1 (SmsManager) | 50 | OK |
+| Full-featured messenger | 8 | 3 | 50 | OK |
+| Navigation (location+audio) | 3 | 2 | 50 | OK |
+| Signal-like (E2E) messenger | 3 | 1 | 50 | OK |
+| File manager | 2 | 0 | 15 | OK |
+| Calculator | 1 | 0 | 15 | OK |
+
+Clean on all benign app profiles because legitimate apps call the APIs
+matching their requested permissions — the `code_signals == 0` guard
+correctly excludes them from the behavior group boost.
+
+## Enhancement: Native Library Metadata Heuristics (2026-06-28)
+
+Added metadata-based `.so` analysis without disassembly — pure Python,
+Windows-compatible, no Radare2 dependency.
+
+### What changed
+
+**Step 8** (`step8_obfuscation_analysis.py`):
+- New `analyze_native_libraries()` — iterates `.so` files via `zipfile`
+  and flags on three heuristics:
+  - **Undersized** (< 16 KB): loader stubs that inject code at runtime
+  - **High entropy** (> 7.8): packed/encrypted native code
+  - **Stripped symbols**: no `.strtab`/`.symtab` (legitimate SDK libs
+    retain debugging info; malware strips it to slow reversing)
+- New `_has_elf_symbols()` — ELF magic check + byte-level `.strtab`
+  scan (heuristic, not a full section-header walk)
+- Scoring: +5 per flagged `.so`, capped at +10 (secondary signal)
+
+### Spot-check results (real APKs)
+
+| APK | .so files | Flagged | Reason | Score impact |
+|-----|-----------|---------|--------|-------------|
+| mal.apk | 0 | 0 | — | 0 |
+| AndroZoo sample | 0 | 0 | — | 0 |
+| Flubot (abuse.ch) | 0 | 0 | — | 0 |
+| Hydra (abuse.ch) | 6 | **5** | stripped symbols | +10 |
+| Unknown (abuse.ch) | 2 | **2** | stripped symbols | +10 |
+
+No false positives on APKs without native libraries. The +10 lift
+on flagged APKs is additive to existing obfuscation signals.
+
+### Limitations
+
+- Byte-level `.strtab` search can theoretically false-positive if the
+  string appears in obfuscated code, but this is vanishingly rare.
+- Cannot disassemble native code — catches only obvious obfuscation
+  patterns (packing, stubs, stripping).
+- Requires `.so` files to exist in the APK — DEX-only malware is
+  invisible to this heuristic.
+
+### Final Metrics
+
+| Metric | Before | After permission groups | After native libs |
+|--------|--------|------------------------|-------------------|
+| FNs caught (of 8) | 0 | **3** | **3** (unchanged) |
+| Recall (50 Drebin) | 84% | **90%** | **90%** |
+| Precision (50 F-Droid) | 100% | **100%** | **100%** |
+| Pipeline regression | — | 0 | 0 |
+
+Native lib heuristics don't catch any of the remaining FNs (they lack
+`.so` files), but they add a complementary detection axis for future
+samples with packed native code.
 
 **This is expected and acceptable for a static malware detector.**

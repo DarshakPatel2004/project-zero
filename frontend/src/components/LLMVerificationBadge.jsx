@@ -22,7 +22,7 @@ const FP_RISK_CONFIG = {
   unknown: { color: '#999999' }
 }
 
-function LLMVerificationBadge({ llmResult, stage, verbose = false }) {
+function LLMVerificationBadge({ llmResult, stage: _stage, verbose = false }) {
   if (!llmResult) return null
 
   if (llmResult.status === 'disabled' || llmResult.status === 'ollama_disabled') {

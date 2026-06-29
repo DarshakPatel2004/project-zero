@@ -16,6 +16,7 @@ Emits unified progress events for real-time frontend updates.
 """
 
 import json
+import logging
 import time
 from pathlib import Path
 from typing import Callable, Optional
@@ -42,6 +43,7 @@ class PipelineError(Exception):
 # Event emitter callback type: function(event_type, data) -> None
 EventEmitter = Optional[Callable[[str, dict], None]]
 
+logger = logging.getLogger(__name__)
 
 TOTAL_STEPS = 9
 
@@ -64,7 +66,7 @@ def _emit(emitter: EventEmitter, event_type: str, data: dict):
         try:
             emitter(event_type, data)
         except Exception:
-            pass
+            logger.debug("Event emitter failed for %s", event_type)
 
 
 def _estimate_remaining_eta(apk_size: int, remaining_steps: int) -> float:
@@ -404,7 +406,10 @@ def run_pipeline(apk_path: str, work_dir: Optional[str] = None,
     duration = round(time.time() - global_start, 3)
     timeline["total"] = duration
 
-    # Save full result
+    # Save full result (strip lone surrogates so Pydantic serialization never fails)
+    from backend.transformers import _strip_surrogates
+    result = _strip_surrogates(result)
+
     result_path = Path(work_dir) / sample_id / "pipeline_result.json"
     result_path.parent.mkdir(parents=True, exist_ok=True)
     with open(result_path, "w", encoding="utf-8") as f:

@@ -301,7 +301,7 @@ class APKAnalyzer:
                             'value': decoded,
                             'source': lib_name
                         })
-                except:
+                except Exception:
                     continue
         except Exception as e:
             logger.debug(f"Native string extraction error: {e}")
@@ -357,7 +357,7 @@ class APKAnalyzer:
                                 
                                 if method_info['suspicious']:
                                     self.results['bytecode_methods'].append(method_info)
-                        except:
+                        except Exception:
                             continue
             
             logger.info(f"Analyzed {len(self.results['bytecode_methods'])} interesting methods")

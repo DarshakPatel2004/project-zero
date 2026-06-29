@@ -8,6 +8,7 @@ communication type, and confidence scores.
 
 import ipaddress
 import json
+import logging
 import re
 import socket
 from pathlib import Path
@@ -26,6 +27,9 @@ except ImportError:
 class C2ExtractionError(Exception):
     """Raised when C2 extraction fails."""
     pass
+
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -552,7 +556,7 @@ def is_benign_uri_reference(url: str) -> bool:
         if path.endswith((".dtd", ".xsd", ".xsl", ".xml")):
             return True
     except Exception:
-        pass
+        logger.debug("Failed to check URI reference: %s", url)
     return False
 
 
@@ -582,7 +586,7 @@ def is_benign_url(url: str) -> bool:
             if benign_path in parsed.path:
                 return True
     except Exception:
-        pass
+        logger.debug("Failed to check benign URL: %s", url)
     return False
 
 
@@ -668,6 +672,7 @@ def parse_url(url: str) -> Optional[Dict[str, Any]]:
             "query_params": query_params,
         }
     except Exception:
+        logger.debug("Failed to parse URL: %s", url)
         return None
 
 

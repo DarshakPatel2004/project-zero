@@ -129,6 +129,294 @@
   text-align: right;
 }
 
+/* ---- Inline error (Phase 1) ---- */
+.upload-inline-error {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: var(--radius-md);
+  animation: fadeIn 0.2s ease-out;
+}
+
+.upload-inline-error-icon {
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.upload-inline-error-text {
+  flex: 1;
+  font-size: 0.85rem;
+  color: var(--accent-rose);
+  line-height: 1.4;
+}
+
+.upload-inline-error-dismiss {
+  background: none;
+  border: none;
+  color: var(--accent-rose);
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0 0.25rem;
+  line-height: 1;
+  opacity: 0.7;
+  transition: opacity 0.15s ease;
+}
+
+.upload-inline-error-dismiss:hover {
+  opacity: 1;
+}
+
+/* ---- Retry progress bar (Phase 4) ---- */
+.upload-retry-bar {
+  margin-top: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: rgba(245, 158, 11, 0.06);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  border-radius: var(--radius-md);
+  animation: fadeIn 0.2s ease-out;
+}
+
+.retry-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.retry-icon {
+  font-size: 0.9rem;
+}
+
+.retry-text {
+  font-size: 0.85rem;
+  color: var(--accent-amber);
+  font-weight: 500;
+}
+
+.retry-progress-track {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 0.5rem;
+}
+
+.retry-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-amber), var(--accent-rose));
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.retry-cancel-btn {
+  float: right;
+  padding: 0.35rem 0.9rem;
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.retry-cancel-btn:hover {
+  border-color: var(--accent-rose);
+  color: var(--accent-rose);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+/* ---- Exhausted state (Phase 4, 5) ---- */
+.upload-exhausted {
+  margin-top: 0.75rem;
+  padding: 1.25rem;
+  background: rgba(239, 68, 68, 0.06);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: var(--radius-md);
+  text-align: center;
+  animation: fadeIn 0.25s ease-out;
+}
+
+.exhausted-icon {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+.exhausted-title {
+  margin: 0 0 0.25rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--accent-rose);
+}
+
+.exhausted-hint {
+  margin: 0 0 1rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.exhausted-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+}
+
+.retry-again-btn {
+  padding: 0.65rem 1.5rem;
+  font-size: 0.85rem;
+}
+
+.start-backend-btn {
+  padding: 0.65rem 1.5rem;
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  color: var(--text-primary);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.start-backend-btn:hover {
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+  background: rgba(6, 182, 212, 0.08);
+}
+
+/* ---- Backend start instructions (Phase 5) ---- */
+.backend-instructions {
+  margin-top: 0.75rem;
+  padding: 1rem;
+  background: rgba(6, 182, 212, 0.06);
+  border: 1px solid rgba(6, 182, 212, 0.2);
+  border-radius: var(--radius-md);
+  animation: fadeIn 0.25s ease-out;
+}
+
+.backend-instructions-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+}
+
+.instructions-icon {
+  font-size: 1rem;
+}
+
+.backend-instructions-code {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  margin-bottom: 0.75rem;
+}
+
+.backend-instructions-code code {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--accent-cyan);
+  word-break: break-all;
+}
+
+.copy-btn {
+  padding: 0.3rem 0.6rem;
+  background: var(--bg-surface-hover);
+  border: 1px solid var(--border-strong);
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.7rem;
+  font-weight: 600;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.copy-btn:hover {
+  background: var(--accent-cyan);
+  border-color: var(--accent-cyan);
+  color: white;
+}
+
+.backend-instructions-note {
+  margin: 0.25rem 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.backend-instructions-note code {
+  background: var(--bg-surface-hover);
+  padding: 0.1rem 0.3rem;
+  border-radius: 3px;
+  font-size: 0.72rem;
+}
+
+.backend-instructions-dismiss {
+  margin-top: 0.75rem;
+  padding: 0.4rem 1rem;
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 500;
+  transition: all 0.15s ease;
+}
+
+.backend-instructions-dismiss:hover {
+  border-color: var(--text-secondary);
+  color: var(--text-primary);
+}
+
+/* ---- Proactive backend offline notice (Phase 5) ---- */
+.upload-offline-notice {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+  padding: 0.65rem 1rem;
+  background: rgba(245, 158, 11, 0.06);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  border-radius: var(--radius-md);
+  animation: fadeIn 0.2s ease-out;
+}
+
+.offline-icon {
+  font-size: 0.95rem;
+  flex-shrink: 0;
+}
+
+.offline-text {
+  flex: 1;
+  font-size: 0.8rem;
+  color: var(--accent-amber);
+}
+
+/* ---- Reconnecting status dot (Phase 6) ---- */
+.status-dot.reconnecting {
+  background: var(--accent-amber);
+  box-shadow: 0 0 8px var(--accent-amber);
+  animation: pulse-dot 1.5s infinite;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 /* Grid */
 .upload-grid {
   display: grid;
@@ -380,5 +668,9 @@
 
   .validation-banner {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .exhausted-actions {
+    flex-direction: column;
   }
 }

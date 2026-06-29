@@ -45,14 +45,17 @@ export default function SmartDissection({ sample, apiUrl, onSelectClass }) {
   const [search, setSearch] = useState('')
   const [expandAll, setExpandAll] = useState(false)
   const [error, setError] = useState(null)
+  const [jadxWarning, setJadxWarning] = useState(null)
 
   const sampleId = sample?.sampleId || sample?.sha256 || sample?.uploadId
 
   useEffect(() => {
-    fetchDissection()
-  }, [sampleId])
+    let cancelled = false
+    fetchDissection(() => cancelled)
+    return () => { cancelled = true }
+  }, [sampleId, apiUrl])
 
-  const fetchDissection = async () => {
+  const fetchDissection = async (isCancelled) => {
     if (!sampleId) return
     try {
       setLoading(true)
@@ -60,12 +63,14 @@ export default function SmartDissection({ sample, apiUrl, onSelectClass }) {
         fetch(`${apiUrl}/api/sample/${sampleId}/dissection/classes`),
         fetch(`${apiUrl}/api/sample/${sampleId}/obfuscation`),
       ])
+      if (isCancelled && isCancelled()) return
       if (!classesRes.ok) throw new Error(`HTTP ${classesRes.status}`)
       const classesData = await classesRes.json()
       const obfData = obfRes.ok ? await obfRes.json() : null
-      if (classesData.jadx_success === false && classesData.error) {
-        const details = classesData.details ? classesData.details.join('; ') : 'Check JADX installation.'
-        throw new Error(`Code Decompilation Failed: ${classesData.error}. ${details}`)
+      if (classesData.jadx_success === false) {
+        setJadxWarning(classesData.jadx_error || 'JADX decompilation unavailable — showing bytecode-level view.')
+      } else {
+        setJadxWarning(null)
       }
       setDissectionData(classesData)
       setObfuscationData(obfData)
@@ -132,6 +137,9 @@ export default function SmartDissection({ sample, apiUrl, onSelectClass }) {
         <span className="state-icon">⚠</span>
         <h3 className="state-title">Dissection Error</h3>
         <p className="state-description">{error}</p>
+        <button className="filter-button filter-cyan" style={{ marginTop: '1rem' }} onClick={() => { setError(null); fetchDissection() }}>
+          Retry
+        </button>
       </div>
     )
   }
@@ -181,6 +189,13 @@ export default function SmartDissection({ sample, apiUrl, onSelectClass }) {
           </div>
         </div>
       </div>
+
+      {jadxWarning && (
+        <div className="jadx-warning">
+          <span className="jadx-warning-icon">⚡</span>
+          <span>{jadxWarning}</span>
+        </div>
+      )}
 
       <div className="dissection-results card">
         <div className="dissection-results-header">
@@ -238,19 +253,36 @@ function FilterButton({ active, onClick, label, count, color }) {
 function ClassCard({ classData, isObfuscated, expandAll, onSelectClass, sampleId, apiUrl }) {
   const [expanded, setExpanded] = useState(false)
   const [showAllMethods, setShowAllMethods] = useState(false)
+  const [methods, setMethods] = useState(null)
+  const [methodsLoading, setMethodsLoading] = useState(false)
+  const [methodsLoadError, setMethodsLoadError] = useState(null)
 
-  const methods = useMemo(() => {
-    const list = (classData.methods || []).slice().sort((a, b) => {
-      const sa = methodSuspicionScore(a)
-      const sb = methodSuspicionScore(b)
-      return sb - sa
-    })
-    return list
-  }, [classData.methods])
+  // Lazy-load method bodies when first expanded
+  useEffect(() => {
+    if (!expanded || methods !== null || methodsLoading) return
+    setMethodsLoading(true)
+    fetch(`${apiUrl}/api/sample/${sampleId}/dissection/class-methods/${encodeURIComponent(classData.name)}`)
+      .then(r => r.ok ? r.json() : Promise.reject(`HTTP ${r.status}`))
+      .then(data => {
+        const sorted = (data.methods || []).slice().sort((a, b) => {
+          return methodSuspicionScore(b) - methodSuspicionScore(a)
+        })
+        setMethods(sorted)
+      })
+      .catch(err => {
+        setMethodsLoadError(String(err))
+        setMethods([])
+      })
+      .finally(() => setMethodsLoading(false))
+  }, [expanded, methods, methodsLoading, sampleId, apiUrl, classData.name])  
 
-  const suspiciousMethodCount = methods.filter(m => methodSuspicionScore(m) > 0).length
+  const methodCount = classData.method_count || (classData.methods || []).length
+  const methodNames = classData.method_names || (classData.methods || []).map(m => m.name)
+  const suspiciousMethodCount = methods
+    ? methods.filter(m => methodSuspicionScore(m) > 0).length
+    : methodNames.filter(n => SUSPICIOUS_KEYWORDS.some(kw => n.toLowerCase().includes(kw.toLowerCase()))).length
   const isSuspicious = suspiciousMethodCount > 0 || hasNetworkCall(classData)
-  const displayMethods = showAllMethods ? methods : methods.slice(0, METHODS_PREVIEW_LIMIT)
+  const displayMethods = methods && (showAllMethods ? methods : methods.slice(0, METHODS_PREVIEW_LIMIT))
 
   return (
     <div className={`class-card ${isSuspicious ? 'suspicious' : ''} ${isObfuscated ? 'obfuscated' : ''}`}>
@@ -280,7 +312,7 @@ function ClassCard({ classData, isObfuscated, expandAll, onSelectClass, sampleId
               View source
             </button>
           )}
-          <span className="class-badge badge-slate">{methods.length} method(s)</span>
+          <span className="class-badge badge-slate">{methodCount} method(s)</span>
         </div>
       </div>
 
@@ -289,9 +321,14 @@ function ClassCard({ classData, isObfuscated, expandAll, onSelectClass, sampleId
           <div className="class-section">
             <div className="class-section-header">
               <h4 className="section-title">Methods</h4>
-              <span className="class-section-meta">{methods.length} total</span>
+              <span className="class-section-meta">{methods ? methods.length : methodCount} total</span>
             </div>
-            {methods.length > 0 ? (
+            {methodsLoading ? (
+              <div className="llm-shimmer" style={{ padding: '1rem' }}>
+                <div className="shimmer-bar shimmer-bar-long" />
+                <div className="shimmer-bar shimmer-bar-medium" />
+              </div>
+            ) : displayMethods && displayMethods.length > 0 ? (
               <div className="methods-list">
                 {displayMethods.map((method, idx) => (
                   <MethodCard
@@ -303,7 +340,7 @@ function ClassCard({ classData, isObfuscated, expandAll, onSelectClass, sampleId
                     apiUrl={apiUrl}
                   />
                 ))}
-                {methods.length > METHODS_PREVIEW_LIMIT && (
+                {methods && methods.length > METHODS_PREVIEW_LIMIT && (
                   <button
                     className="show-more-methods"
                     onClick={() => setShowAllMethods(v => !v)}
@@ -311,6 +348,13 @@ function ClassCard({ classData, isObfuscated, expandAll, onSelectClass, sampleId
                     {showAllMethods ? `Show first ${METHODS_PREVIEW_LIMIT} methods` : `Show ${methods.length - METHODS_PREVIEW_LIMIT} more methods`}
                   </button>
                 )}
+              </div>
+            ) : methodsLoadError ? (
+              <div className="methods-error">
+                <p className="class-empty">Failed to load methods: {methodsLoadError}</p>
+                <button className="filter-button filter-cyan" onClick={() => { setMethodsLoadError(null); setMethodsLoading(true); setMethods(null); }}>
+                  Retry
+                </button>
               </div>
             ) : (
               <p className="class-empty">No methods available</p>
@@ -374,7 +418,8 @@ const THREAT_TYPE_LABELS = {
 
 function MethodCard({ method, expandAll, sampleId, className, apiUrl }) {
   const [expanded, setExpanded] = useState(false)
-  const [annotation, setAnnotation] = useState(null)   // { line_annotations, llm }
+  const [annotation, setAnnotation] = useState(null)
+  const [annotationError, setAnnotationError] = useState(null)
   const [annotating, setAnnotating] = useState(false)
 
   useEffect(() => {
@@ -402,11 +447,11 @@ function MethodCard({ method, expandAll, sampleId, className, apiUrl }) {
         flags,
       }),
     })
-      .then(r => r.ok ? r.json() : null)
+      .then(r => r.ok ? r.json() : Promise.reject(`HTTP ${r.status}`))
       .then(data => { if (data) setAnnotation(data) })
-      .catch(() => {})
+      .catch(err => setAnnotationError(String(err)))
       .finally(() => setAnnotating(false))
-  }, [expanded])
+  }, [expanded, sampleId, apiUrl, className, method.name, method.body]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const matchedKeyword = SUSPICIOUS_KEYWORDS.find(kw =>
     method.name.toLowerCase().includes(kw.toLowerCase()) ||
@@ -463,6 +508,10 @@ function MethodCard({ method, expandAll, sampleId, className, apiUrl }) {
                     )}
                   </div>
                   <p className="llm-summary-text">{annotation.llm.summary}</p>
+                </div>
+              ) : annotationError ? (
+                <div className="annotation-error">
+                  AI analysis unavailable: {annotationError}
                 </div>
               ) : null}
             </div>
@@ -523,11 +572,14 @@ function highlightSyntax(line) {
 
 function methodSuspicionScore(method) {
   let score = 0
-  if (!method.body) return score
+  if (!method.body && !method.name) return score
+  const nameLower = (method.name || '').toLowerCase()
   SUSPICIOUS_KEYWORDS.forEach(kw => {
-    if (method.name.toLowerCase().includes(kw.toLowerCase())) score += 2
-    const bodyLower = method.body.toLowerCase()
-    if (bodyLower.includes(kw.toLowerCase())) score += 1
+    if (nameLower.includes(kw.toLowerCase())) score += 2
+    if (method.body) {
+      const bodyLower = method.body.toLowerCase()
+      if (bodyLower.includes(kw.toLowerCase())) score += 1
+    }
   })
   return score
 }
@@ -536,7 +588,11 @@ function isSuspiciousClass(cls) {
   if (UNWANTED_PATTERNS.some(pattern => pattern.test(cls.name))) {
     return false
   }
-  if ((cls.methods || []).some(method => methodSuspicionScore(method) > 0)) {
+  // Lightweight check using method_names (no body needed)
+  const methodNames = cls.method_names || []
+  if (methodNames.some(name =>
+    SUSPICIOUS_KEYWORDS.some(kw => name.toLowerCase().includes(kw.toLowerCase()))
+  )) {
     return true
   }
   return hasNetworkCall(cls)
@@ -544,10 +600,11 @@ function isSuspiciousClass(cls) {
 
 function hasNetworkCall(cls) {
   const networkPatterns = ['HttpURLConnection', 'socket', 'URLConnection', 'okhttp', 'retrofit']
+  // Check network_calls array first (available in lightweight payload)
+  if ((cls.network_calls || []).length > 0) return true
+  // Fallback: check method names
+  const methodNames = cls.method_names || []
   return networkPatterns.some(pattern =>
-    (cls.methods || []).some(method =>
-      method.name.toLowerCase().includes(pattern.toLowerCase()) ||
-      (method.body && method.body.toLowerCase().includes(pattern.toLowerCase()))
-    )
+    methodNames.some(name => name.toLowerCase().includes(pattern.toLowerCase()))
   )
 }

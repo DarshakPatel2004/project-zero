@@ -1,0 +1,12 @@
+{
+  "metadata": {
+    "sample_id": "test-no-jadx-001",
+    "sample_name": "app.apk",
+    "apk_path": "D:\\DroidForensix\\work\\test-no-jadx-001\\app.apk"
+  },
+  "static": {},
+  "dynamic": {},
+  "extraction": {
+    "jadx_success": false
+  }
+}

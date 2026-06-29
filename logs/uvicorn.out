@@ -1,0 +1,4 @@
+[STARTUP] Initializing DroidForensix backend...
+[LLMVerifier] Ollama already running at http://127.0.0.1:11434
+[STARTUP] [OK] Ollama ready (model: mistral:7b-instruct-q4_K_M)
+[STARTUP] [OK] Backend ready

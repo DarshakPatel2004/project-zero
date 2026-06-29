@@ -191,6 +191,50 @@ def sanity_check(assessment: dict, chains_result: dict, c2_result: dict, obfusca
     return assessment
 
 
+PERMISSION_BEHAVIOR_GROUPS = {
+    "sms_fraud": {
+        "permissions": {"SEND_SMS", "READ_SMS", "RECEIVE_SMS"},
+        "boost": 35,
+        "description": "SMS hijacking/fraud (send + intercept)",
+    },
+    "phone_identity": {
+        "permissions": {"READ_PHONE_STATE"},
+        "boost": 15,
+        "description": "Phone identity theft / device fingerprinting",
+    },
+    "location_surveillance": {
+        "permissions": {"ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION", "RECORD_AUDIO"},
+        "boost": 25,
+        "description": "Coordinated location + audio surveillance",
+    },
+    "device_admin_abuse": {
+        "permissions": {"BIND_DEVICE_ADMIN", "SYSTEM_ALERT_WINDOW"},
+        "boost": 20,
+        "description": "Device admin abuse (persistence/control)",
+    },
+}
+
+
+def _perm_short_name(perm: str) -> str:
+    return perm.split(".")[-1] if "." in perm else perm
+
+
+def _match_behavior_groups(app_permissions: list) -> list:
+    """Return list of matched behavior groups for the app's dangerous permissions."""
+    short_names = {_perm_short_name(p) for p in app_permissions}
+    matches = []
+    for group_name, group_config in PERMISSION_BEHAVIOR_GROUPS.items():
+        required = group_config["permissions"]
+        if required.issubset(short_names):
+            matches.append({
+                "group": group_name,
+                "description": group_config["description"],
+                "boost": group_config["boost"],
+                "matched_permissions": list(required),
+            })
+    return matches
+
+
 def fallback_assessment(chains_result: dict, c2_result: dict, obfuscation_result: Optional[dict] = None) -> dict:
     """Rule-based fallback assessment when LLM fails, anchored by obfuscation/permissions when chains are empty."""
     c2_count = c2_result.get("total_c2s", 0)
@@ -202,7 +246,9 @@ def fallback_assessment(chains_result: dict, c2_result: dict, obfuscation_result
     suspicious_apis = indicators.get("suspicious_apis", [])
     reflection = indicators.get("reflection", [])
     dynamic_loading = indicators.get("dynamic_loading", [])
-
+    permission_behaviors = indicators.get("permission_behaviors", []) or _match_behavior_groups(dangerous_perms)
+    crypto_apis = indicators.get("crypto_apis", [])
+ 
     if c2_count > 0:
         severity = "high"
         risk_score = 75
@@ -212,13 +258,29 @@ def fallback_assessment(chains_result: dict, c2_result: dict, obfuscation_result
     elif chain_count > 0:
         severity = "medium"
         risk_score = 45
+        if permission_behaviors:
+            code_signals = len(reflection) + len(dynamic_loading) + len(suspicious_apis)
+            if code_signals == 0:
+                risk_score = 55
+                severity = "medium"
         narrative = f"Detected {chain_count} threat chain(s) but no confirmed active C2. Obfuscation/encoding present."
         primary_threat = "other"
         actions = ["Review decoded artifacts", "Investigate encoding functions"]
-    elif obf_score >= 50 or len(dangerous_perms) >= 3:
-        # Obfuscation/permissions anchor when decompilation fails or chains are empty
+    elif obf_score >= 50 or len(dangerous_perms) >= 3 or permission_behaviors:
+        # Obfuscation/permissions anchor when decompilation fails or chains are empty.
+        # Base floor is 50 for any permission-dense sample.
+        # Raise to 55 only when permission behavior groups are present WITHOUT
+        # corresponding code-level API calls (reflection, dynamic loading, suspicious
+        # APIs). This pattern — requesting coordinated dangerous permissions but never
+        # calling the relevant APIs — is a strong malware signal that distinguishes
+        # malicious apps from legitimate apps that genuinely need those permissions.
         severity = "high" if obf_score >= 70 else "medium"
-        risk_score = min(100, max(50, int(obf_score)))
+        floor = 50
+        if permission_behaviors:
+            code_signals = len(reflection) + len(dynamic_loading) + len(suspicious_apis)
+            if code_signals == 0:
+                floor = 55
+        risk_score = min(100, max(floor, int(obf_score)))
         narrative = (
             f"No decoded threat chains, but static analysis shows {obf_level} obfuscation "
             f"(score {obf_score}) with {len(dangerous_perms)} dangerous permissions, "
@@ -360,7 +422,8 @@ def assess_with_llm(chains_result: dict, c2_result: dict, obfuscation_result: Op
         work_dir.mkdir(parents=True, exist_ok=True)
     except OSError:
         # If the work directory cannot be created, still return a fallback.
-        pass
+        import logging
+        logging.getLogger(__name__).debug("Could not create work dir %s", work_dir)
 
     try:
         context = format_threat_context(chains_result, c2_result, obfuscation_result)
@@ -471,6 +534,36 @@ Output must be valid JSON only. No markdown, no preamble, no code blocks. Schema
   "threat_type": "c2_communication|data_exfiltration|payload_delivery|command_execution|benign|unknown",
   "confidence": 0.0-1.0
 }
+"""
+
+
+DISSECTION_SUMMARY_SYSTEM_PROMPT = """/no_think
+
+You are an Android malware threat analyst performing a forensic assessment of an APK.
+You will receive a condensed dissection of the APK's structure: metadata, permissions,
+components, DEX statistics, and the top suspicious classes (by network calls and
+permission usage).
+
+Produce a structured threat assessment. Be specific — reference actual permission names,
+class names, component names, and DEX statistics. Do not write generic descriptions.
+Ground every claim in the data provided.
+
+Output must be valid JSON only. No markdown, no preamble, no code blocks. Schema:
+{
+  "threat_level": "critical|high|medium|low",
+  "risk_score": 0-100,
+  "summary": "2-3 sentence forensic narrative summarizing the APK's threat posture",
+  "key_behaviors": ["behavior 1 (with specific class/permission reference)", ...],
+  "suspicious_methods": [{"class": "com.example.Foo", "method": "bar", "reason": "why suspicious"}, ...],
+  "c2_indicators": ["IP/domain/URL pattern observed", ...],
+  "recommended_focus": ["area 1 the analyst should investigate further", ...]
+}
+
+Severity mapping:
+- critical (80-100): Confirmed C2 exfiltration, ransomware behavior, rootkit, or banking trojan with active C2
+- high (60-79): Suspicious network callbacks + dangerous permissions + obfuscation or dynamic loading
+- medium (40-59): Some suspicious patterns but no confirmed malicious behavior (e.g., adware, excessive permissions)
+- low (0-39): Benign or minimal risk — standard app with normal permissions and no suspicious patterns
 """
 
 
@@ -609,6 +702,204 @@ def explain_method(
 
     except Exception as e:
         fallback["summary"] = f"Explanation error: {e}"[:300]
+        return fallback
+
+
+def _condense_dissection(dissection: dict, class_objects: list | None = None) -> str:
+    """Build a condensed text representation of the dissection for LLM input.
+    Focuses on the sections most relevant for threat assessment.
+    Truncates to fit within ~3500 tokens (leaving room for system prompt + response).
+    """
+    parts = []
+
+    # Metadata
+    meta = dissection.get("metadata", {})
+    parts.append("=== METADATA ===")
+    parts.append(f"Package: {meta.get('package_name', 'unknown')}")
+    parts.append(f"Version: {meta.get('version_name', '?')} (code {meta.get('version_code', '?')})")
+    parts.append(f"Min SDK: {meta.get('min_sdk_version', '?')}, Target SDK: {meta.get('target_sdk_version', '?')}")
+    parts.append(f"File size: {meta.get('file_size_bytes', 0) / 1024 / 1024:.1f} MB")
+    parts.append(f"Multidex: {meta.get('is_multidex', False)}")
+
+    # Permissions
+    perms = dissection.get("permissions", [])
+    parts.append(f"\n=== PERMISSIONS ({len(perms)}) ===")
+    dangerous = [p for p in perms if p.get("protection_level") == "dangerous"]
+    normal = [p for p in perms if p.get("protection_level") == "normal"]
+    sig = [p for p in perms if p.get("protection_level") == "signature"]
+    parts.append(f"Dangerous ({len(dangerous)}): {', '.join(p['name'] for p in dangerous[:15])}")
+    if len(dangerous) > 15:
+        parts.append(f"  ... and {len(dangerous) - 15} more dangerous permissions")
+    parts.append(f"Normal ({len(normal)}): {', '.join(p['name'] for p in normal[:10])}")
+    if sig:
+        parts.append(f"Signature ({len(sig)}): {', '.join(p['name'] for p in sig[:5])}")
+
+    # Components
+    comps = dissection.get("components", {})
+    parts.append(f"\n=== COMPONENTS ===")
+    for ctype in ["activities", "services", "receivers", "providers"]:
+        items = comps.get(ctype, [])
+        exported = [i for i in items if i.get("exported")]
+        parts.append(f"{ctype}: {len(items)} total, {len(exported)} exported")
+        if exported:
+            for e in exported[:5]:
+                parts.append(f"  [exported] {e.get('name', '?')}")
+            if len(exported) > 5:
+                parts.append(f"  ... and {len(exported) - 5} more exported {ctype}")
+
+    # DEX stats
+    dex = dissection.get("dex_stats", {})
+    parts.append(f"\n=== DEX STATISTICS ===")
+    parts.append(f"DEX files: {dex.get('dex_count', '?')}")
+    parts.append(f"Total classes: {dex.get('total_classes', '?')}")
+    parts.append(f"Total methods: {dex.get('total_methods', '?')}")
+    parts.append(f"Total strings: {dex.get('total_strings', '?')}")
+
+    # Native libs
+    native = dissection.get("native_libs", [])
+    if native:
+        parts.append(f"\n=== NATIVE LIBRARIES ({len(native)}) ===")
+        for lib in native[:10]:
+            if isinstance(lib, dict):
+                parts.append(f"  {lib.get('name', '?')} ({lib.get('size', '?')} bytes)")
+            else:
+                parts.append(f"  {lib}")
+
+    # File structure overview
+    fs = dissection.get("file_structure", {})
+    top_dirs = fs.get("top_level_directories", [])
+    if top_dirs:
+        parts.append(f"\n=== FILE STRUCTURE ===")
+        parts.append(f"Top-level directories: {', '.join(top_dirs[:15])}")
+        parts.append(f"Total files: {fs.get('total_files', '?')}")
+
+    # Top suspicious classes (from class objects)
+    if class_objects:
+        by_net = sorted(
+            [c for c in class_objects if c.get("network_calls")],
+            key=lambda c: len(c.get("network_calls", [])),
+            reverse=True,
+        )
+        by_perm = sorted(
+            [c for c in class_objects if c.get("permissions_used")],
+            key=lambda c: len(c.get("permissions_used", [])),
+            reverse=True,
+        )
+        parts.append(f"\n=== TOP SUSPICIOUS CLASSES (by network calls) ===")
+        for c in by_net[:10]:
+            nc = len(c.get("network_calls", []))
+            mc = len(c.get("methods", []))
+            methods_preview = ", ".join(m["name"] for m in c.get("methods", [])[:3])
+            parts.append(f"  {c['name']}: {nc} network calls, {mc} methods [{methods_preview}]")
+
+        if by_perm:
+            parts.append(f"\n=== TOP SUSPICIOUS CLASSES (by permission usage) ===")
+            for c in by_perm[:5]:
+                used = c.get("permissions_used", [])
+                parts.append(f"  {c['name']}: {len(used)} permission refs")
+
+    result = "\n".join(parts)
+    # Hard truncate if still too long (rough estimate: 4 chars per token)
+    if len(result) > 14000:
+        result = result[:14000] + "\n... [truncated]"
+    return result
+
+
+def summarize_dissection(dissection: dict, class_objects: list | None = None) -> dict:
+    """Call LLM to produce a structured threat assessment from dissection data.
+    
+    Returns a dict with: threat_level, risk_score, summary, key_behaviors,
+    suspicious_methods, c2_indicators, recommended_focus.
+    Never raises — returns a fallback dict on any error.
+    """
+    fallback = {
+        "threat_level": "unknown",
+        "risk_score": 0,
+        "summary": "LLM summary unavailable.",
+        "key_behaviors": [],
+        "suspicious_methods": [],
+        "c2_indicators": [],
+        "recommended_focus": [],
+        "status": "fallback",
+    }
+
+    provider = (os.environ.get("LLM_PROVIDER") or settings.LLM_PROVIDER or "auto").lower()
+    nim_api_key = os.environ.get("NVIDIA_NIM_API_KEY")
+    use_nvidia = provider == "nvidia" or (provider == "auto" and nim_api_key)
+
+    condensed = _condense_dissection(dissection, class_objects)
+    combined = f"{DISSECTION_SUMMARY_SYSTEM_PROMPT}\n\nAPK DISSECTION DATA:\n{condensed}\n\nTHREAT ASSESSMENT:"
+
+    try:
+        if use_nvidia:
+            raw_output = _call_nvidia_nim(
+                combined,
+                settings.NIM_MODEL or os.environ.get("NIM_MODEL", ""),
+                settings.NIM_HOST or os.environ.get("NVIDIA_NIM_BASE_URL", ""),
+                nim_api_key,
+                max_retries=2,
+            )
+        else:
+            ollama_host = os.environ.get("OLLAMA_HOST") or settings.OLLAMA_HOST
+            ollama_model = os.environ.get("OLLAMA_MODEL") or settings.OLLAMA_MODEL
+            import ollama as _ollama
+            client = _ollama.Client(
+                host=_normalize_ollama_host(ollama_host),
+                timeout=120,
+            )
+            resp = client.generate(
+                model=ollama_model,
+                prompt=combined,
+                format="json",
+                options={"num_ctx": 4096, "temperature": 0.1},
+            )
+            raw_output = resp.get("response", "")
+
+        parsed = parse_llm_json(raw_output)
+        if not parsed:
+            fallback["raw_output"] = raw_output[:500]
+            return fallback
+
+        # Validate and normalize
+        threat_level = str(parsed.get("threat_level", "unknown")).lower()
+        if threat_level not in ("critical", "high", "medium", "low"):
+            threat_level = "unknown"
+
+        risk_score = parsed.get("risk_score", 0)
+        try:
+            risk_score = max(0, min(100, int(risk_score)))
+        except (TypeError, ValueError):
+            risk_score = 0
+
+        key_behaviors = parsed.get("key_behaviors", [])
+        if not isinstance(key_behaviors, list):
+            key_behaviors = [str(key_behaviors)]
+
+        suspicious_methods = parsed.get("suspicious_methods", [])
+        if not isinstance(suspicious_methods, list):
+            suspicious_methods = []
+
+        c2_indicators = parsed.get("c2_indicators", [])
+        if not isinstance(c2_indicators, list):
+            c2_indicators = [str(c2_indicators)]
+
+        recommended_focus = parsed.get("recommended_focus", [])
+        if not isinstance(recommended_focus, list):
+            recommended_focus = [str(recommended_focus)]
+
+        return {
+            "threat_level": threat_level,
+            "risk_score": risk_score,
+            "summary": str(parsed.get("summary", ""))[:500],
+            "key_behaviors": key_behaviors,
+            "suspicious_methods": suspicious_methods,
+            "c2_indicators": c2_indicators,
+            "recommended_focus": recommended_focus,
+            "status": "ok",
+        }
+
+    except Exception as e:
+        fallback["summary"] = f"LLM summary error: {e}"[:300]
         return fallback
 
 

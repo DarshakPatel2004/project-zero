@@ -6,10 +6,12 @@ Provides REST API and WebSocket endpoint for real-time analysis streaming.
 
 import asyncio
 import json
+import logging
 import os
+import shutil
 import sys
 import time
-import socket
+
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -18,7 +20,7 @@ from typing import Dict, List, Optional, Set
 # Ensure project root is in path so imports work from any directory (backend/ or root)
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, Query, WebSocket, WebSocketDisconnect, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse, Response
 from pydantic import BaseModel
@@ -27,7 +29,7 @@ import subprocess
 import uuid
 
 from analysis.pipeline import run_pipeline
-from analysis.step7_llm_assessment import explain_method, explain_threat_chain, _ollama_available, _normalize_ollama_host
+from analysis.step7_llm_assessment import explain_method, explain_threat_chain, summarize_dissection, _ollama_available, _normalize_ollama_host
 from droidforensix_llm import LLMVerifier, get_verifier, set_verifier
 from backend.pdf_report import generate_report
 from backend.config import settings
@@ -41,12 +43,15 @@ from backend.transformers import (
     transform_timeline,
     transform_samples_list,
 )
-from backend.dissection import APKDissector, load_dissection
+from backend.dissection import APKDissector, SampleAPKCache, load_dissection
 from backend import threat_intel as ti
 from backend.family_id import identify_family
 from backend.obfuscation_view import build_obfuscation_view, deobfuscate_text
 from backend.core.apk_processor import APKProcessor
 from backend.core.androguard_analyzer import APKAnalyzer
+
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -108,13 +113,17 @@ class ConnectionManager:
         for connection in self.active_connections:
             try:
                 await connection.send_text(text)
-            except Exception:
+            except Exception as e:
+                logger.debug("Broadcast failed, removing connection: %s", e)
                 disconnected.add(connection)
         for conn in disconnected:
             self.disconnect(conn)
 
 
 manager = ConnectionManager()
+
+# Shared APK parse cache — one parse per sample across all endpoints
+_dissection_cache = SampleAPKCache()
 
 # In-memory store for upload -> sample mapping and analysis status
 upload_registry: Dict[str, dict] = {}
@@ -305,8 +314,17 @@ def _get_sample_apk_path(sample_id: str) -> Optional[Path]:
     return None
 
 
-def _get_or_create_dissection(sample_id: str) -> dict:
+def _get_or_create_dissection(sample_id: str, refresh: bool = False) -> dict:
     """Return cached dissection.json or generate and cache it."""
+    if refresh:
+        _dissection_cache.invalidate(sample_id)
+        dissection_path = WORK_DIR / sample_id / "dissection.json"
+        if dissection_path.exists():
+            try:
+                dissection_path.unlink()
+            except Exception as e:
+                logger.debug("Failed to remove stale dissection cache: %s", e)
+
     cached = load_dissection(str(WORK_DIR), sample_id)
     if cached is not None:
         return cached
@@ -316,77 +334,85 @@ def _get_or_create_dissection(sample_id: str) -> dict:
         raise HTTPException(status_code=404, detail="APK file not found for sample")
 
     try:
-        dissector = APKDissector(str(apk_path), work_dir=str(WORK_DIR))
+        dissector = APKDissector(str(apk_path), work_dir=str(WORK_DIR), cache=_dissection_cache)
         data = dissector.dissect()
         # Cache for future requests
         dissection_path = WORK_DIR / sample_id / "dissection.json"
         try:
             with open(dissection_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, default=str)
-        except Exception:
-            pass
+        except Exception as ex:
+            logger.debug("Failed to cache dissection to disk: %s", ex)
         return data
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Dissection failed: {e}")
 
 
 @app.get("/api/sample/{sample_id}/dissection")
-async def api_get_dissection(sample_id: str) -> dict:
+async def api_get_dissection(sample_id: str, refresh: bool = Query(False)) -> dict:
     """Get full dissected APK structure (cached or on-demand)."""
     result = load_result(sample_id)
     if result is None:
         raise HTTPException(status_code=404, detail="Sample not found")
 
-    return _get_or_create_dissection(sample_id)
+    return _get_or_create_dissection(sample_id, refresh=refresh)
 
 
 @app.get("/api/sample/{sample_id}/dissection/manifest")
-async def api_get_dissection_manifest(sample_id: str) -> dict:
+async def api_get_dissection_manifest(sample_id: str, refresh: bool = Query(False)) -> dict:
     """Get parsed AndroidManifest.xml."""
     result = load_result(sample_id)
     if result is None:
         raise HTTPException(status_code=404, detail="Sample not found")
 
-    data = _get_or_create_dissection(sample_id)
+    data = _get_or_create_dissection(sample_id, refresh=refresh)
     return {"manifest": data.get("manifest", {})}
 
 
 @app.get("/api/sample/{sample_id}/dissection/permissions")
-async def api_get_dissection_permissions(sample_id: str) -> dict:
+async def api_get_dissection_permissions(sample_id: str, refresh: bool = Query(False)) -> dict:
     """Get declared permissions with risk levels."""
     result = load_result(sample_id)
     if result is None:
         raise HTTPException(status_code=404, detail="Sample not found")
 
-    data = _get_or_create_dissection(sample_id)
+    data = _get_or_create_dissection(sample_id, refresh=refresh)
     return {"permissions": data.get("permissions", [])}
 
 
 @app.get("/api/sample/{sample_id}/dissection/components")
-async def api_get_dissection_components(sample_id: str) -> dict:
+async def api_get_dissection_components(sample_id: str, refresh: bool = Query(False)) -> dict:
     """Get activities, services, receivers, providers."""
     result = load_result(sample_id)
     if result is None:
         raise HTTPException(status_code=404, detail="Sample not found")
 
-    data = _get_or_create_dissection(sample_id)
+    data = _get_or_create_dissection(sample_id, refresh=refresh)
     return {"components": data.get("components", {})}
 
 
 @app.get("/api/sample/{sample_id}/dissection/dex")
-async def api_get_dissection_dex(sample_id: str) -> dict:
+async def api_get_dissection_dex(sample_id: str, refresh: bool = Query(False)) -> dict:
     """Get DEX statistics."""
     result = load_result(sample_id)
     if result is None:
         raise HTTPException(status_code=404, detail="Sample not found")
 
-    data = _get_or_create_dissection(sample_id)
+    data = _get_or_create_dissection(sample_id, refresh=refresh)
     return {"dex_stats": data.get("dex_stats", {})}
 
 
 @app.get("/api/sample/{sample_id}/dissection/classes")
-async def api_get_dissection_classes(sample_id: str) -> dict:
-    """Get list of decompiled Java class names."""
+async def api_get_dissection_classes(
+    sample_id: str,
+    refresh: bool = Query(False),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+) -> dict:
+    """Get list of decompiled Java classes (lightweight — no method bodies).
+    Method bodies are fetched on demand via /dissection/class-methods.
+    Supports pagination via offset/limit.
+    """
     result = load_result(sample_id)
     if result is None:
         raise HTTPException(status_code=404, detail="Sample not found")
@@ -395,34 +421,86 @@ async def api_get_dissection_classes(sample_id: str) -> dict:
     if apk_path is None:
         raise HTTPException(status_code=404, detail="APK file not found for sample")
 
-    # Cache parsed classes to disk — parsing 1500+ files is expensive
-    cache_path = WORK_DIR / sample_id / "dissection_classes_cache.json"
-    if cache_path.exists():
-        try:
-            with open(cache_path, "r", encoding="utf-8") as f:
-                cached = json.load(f)
-            return {"classes": cached, "total": len(cached), "jadx_success": True, "cached": True}
-        except Exception:
-            pass  # Cache corrupt, rebuild below
+    if refresh:
+        _dissection_cache.invalidate(sample_id)
+        classes_cache = WORK_DIR / sample_id / "dissection_classes_cache.json"
+        if classes_cache.exists():
+            try:
+                classes_cache.unlink()
+            except Exception as ex:
+                logger.debug("Failed to remove classes cache: %s", ex)
 
     try:
-        dissector = APKDissector(str(apk_path), work_dir=str(WORK_DIR))
-        import asyncio
+        dissector = APKDissector(str(apk_path), work_dir=str(WORK_DIR), cache=_dissection_cache)
         loop = asyncio.get_event_loop()
-        classes = await loop.run_in_executor(None, dissector.list_decompiled_class_objects)
-        # Write cache
-        try:
-            with open(cache_path, "w", encoding="utf-8") as f:
-                json.dump(classes, f)
-        except Exception:
-            pass  # Cache write failure is non-fatal
-        return {"classes": classes, "total": len(classes), "jadx_success": True}
+        # list_decompiled_class_objects now handles its own disk caching
+        all_classes = await loop.run_in_executor(None, dissector.list_decompiled_class_objects)
+
+        # Strip method bodies to reduce payload size — return only names + metadata
+        lightweight = []
+        for cls in all_classes:
+            lightweight.append({
+                "name": cls["name"],
+                "method_count": len(cls.get("methods", [])),
+                "method_names": [m["name"] for m in cls.get("methods", [])],
+                "network_calls": cls.get("network_calls", []),
+                "permissions_used": cls.get("permissions_used", []),
+            })
+
+        total = len(lightweight)
+        page = lightweight[offset:offset + limit]
+        jadx_ok = dissector.jadx_available()
+        resp = {"classes": page, "total": total, "offset": offset, "limit": limit, "jadx_success": jadx_ok}
+        if not jadx_ok:
+            resp["jadx_error"] = (
+                "JADX decompilation unavailable — showing bytecode-level view from Androguard. "
+                "Method bodies will show DEX instructions instead of Java source."
+            )
+        return resp
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Dissection failed: {e}")
 
 
+@app.get("/api/sample/{sample_id}/dissection/class-methods/{class_name:path}")
+async def api_get_class_methods(sample_id: str, class_name: str, refresh: bool = Query(False)) -> dict:
+    """Return method bodies for a single class on demand.
+    Uses the cached class objects to avoid re-reading source files.
+    """
+    result = load_result(sample_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Sample not found")
+
+    apk_path = _get_sample_apk_path(sample_id)
+    if apk_path is None:
+        raise HTTPException(status_code=404, detail="APK file not found for sample")
+
+    if refresh:
+        _dissection_cache.invalidate(sample_id)
+        classes_cache = WORK_DIR / sample_id / "dissection_classes_cache.json"
+        if classes_cache.exists():
+            try:
+                classes_cache.unlink()
+            except Exception as ex:
+                logger.debug("Failed to remove classes cache: %s", ex)
+
+    try:
+        from backend.dissection import get_class_methods_lite
+        dissector = APKDissector(str(apk_path), work_dir=str(WORK_DIR), cache=_dissection_cache)
+        loop = asyncio.get_event_loop()
+        all_classes = await loop.run_in_executor(None, dissector.list_decompiled_class_objects)
+
+        cls = get_class_methods_lite(all_classes, class_name)
+        if cls is None:
+            raise HTTPException(status_code=404, detail=f"Class '{class_name}' not found")
+        return {"class_name": class_name, "methods": cls.get("methods", [])}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to load class methods: {e}")
+
+
 @app.get("/api/sample/{sample_id}/dissection/code/{class_name}")
-async def api_get_class_code(sample_id: str, class_name: str) -> dict:
+async def api_get_class_code(sample_id: str, class_name: str, refresh: bool = Query(False)) -> dict:
     """Get decompiled source for a specific Java class."""
     result = load_result(sample_id)
     if result is None:
@@ -432,8 +510,11 @@ async def api_get_class_code(sample_id: str, class_name: str) -> dict:
     if apk_path is None:
         raise HTTPException(status_code=404, detail="APK file not found for sample")
 
+    if refresh:
+        _dissection_cache.invalidate(sample_id)
+
     try:
-        dissector = APKDissector(str(apk_path), work_dir=str(WORK_DIR))
+        dissector = APKDissector(str(apk_path), work_dir=str(WORK_DIR), cache=_dissection_cache)
         code = dissector.read_class_source(class_name)
         if code is None:
             raise HTTPException(status_code=404, detail="Class source not found")
@@ -458,8 +539,10 @@ async def api_get_dissection_strings(sample_id: str) -> dict:
     try:
         with open(strings_path, "r", encoding="utf-8") as f:
             return json.load(f)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to load strings: {e}")
+    except json.JSONDecodeError as e:
+        raise HTTPException(status_code=500, detail=f"Failed to parse strings JSON: {e}")
+    except OSError as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read strings file: {e}")
 
 
 # ---------------------------------------------------------------------------
@@ -536,7 +619,7 @@ _STATIC_PATTERN_LABELS: dict = {
 }
 
 
-def _annotate_lines(code: str) -> dict[int, dict]:
+def _annotate_lines(code: str) -> Dict[int, dict]:
     """
     Scan code lines for suspicious patterns.
     Returns {line_index: {type, label}} for any line that matches.
@@ -567,7 +650,6 @@ async def api_explain_method(sample_id: str, request: ExplainMethodRequest) -> d
     line_annotations = _annotate_lines(request.method_code)
 
     # Layer 2: LLM explanation — run in thread pool so we don't block the event loop
-    import asyncio
     loop = asyncio.get_event_loop()
     try:
         llm_result = await loop.run_in_executor(
@@ -597,7 +679,6 @@ async def api_explain_method(sample_id: str, request: ExplainMethodRequest) -> d
 @app.post("/api/sample/{sample_id}/explain-chain")
 async def api_explain_chain(sample_id: str, request: ExplainChainRequest) -> dict:
     """Return LLM explanation for a threat chain."""
-    import asyncio
     loop = asyncio.get_event_loop()
     try:
         llm_result = await loop.run_in_executor(
@@ -610,6 +691,75 @@ async def api_explain_chain(sample_id: str, request: ExplainChainRequest) -> dic
             "confidence": 0.0,
         }
     return {"chain_id": request.chain.get("chain_id"), "llm": llm_result}
+
+
+@app.get("/api/sample/{sample_id}/dissection/summary")
+async def api_get_dissection_summary(sample_id: str, refresh: bool = Query(False)) -> dict:
+    """Return an LLM-generated threat assessment from the dissection data."""
+    result = load_result(sample_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Sample not found")
+
+    # Check for cached summary (unless refresh requested)
+    summary_path = WORK_DIR / sample_id / "dissection_summary.json"
+    if not refresh and summary_path.exists():
+        try:
+            with open(summary_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            logger.debug("Failed to load cached summary, regenerating")
+
+    # Load dissection data
+    dissection = load_dissection(str(WORK_DIR), sample_id)
+    if dissection is None:
+        # Try to generate dissection on the fly
+        apk_path = _get_sample_apk_path(sample_id)
+        if apk_path is None:
+            raise HTTPException(status_code=404, detail="APK file not found for sample")
+        try:
+            dissector = APKDissector(str(apk_path), work_dir=str(WORK_DIR), cache=_dissection_cache)
+            dissection = dissector.dissect()
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Dissection failed: {e}")
+
+    # Load class objects for suspicious class analysis
+    apk_path = _get_sample_apk_path(sample_id)
+    class_objects = None
+    if apk_path is not None:
+        try:
+            dissector = APKDissector(str(apk_path), work_dir=str(WORK_DIR), cache=_dissection_cache)
+            loop = asyncio.get_event_loop()
+            class_objects = await loop.run_in_executor(None, dissector.list_decompiled_class_objects)
+        except Exception:
+            logger.debug("Failed to load class objects for summary, continuing without")
+
+    # Call LLM
+    loop = asyncio.get_event_loop()
+    try:
+        summary = await loop.run_in_executor(
+            None, lambda: summarize_dissection(dissection, class_objects),
+        )
+    except Exception as e:
+        summary = {
+            "threat_level": "unknown",
+            "risk_score": 0,
+            "summary": f"LLM summary unavailable: {e}",
+            "key_behaviors": [],
+            "suspicious_methods": [],
+            "c2_indicators": [],
+            "recommended_focus": [],
+            "status": "error",
+        }
+
+    # Cache the summary
+    try:
+        summary_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(summary_path, "w", encoding="utf-8") as f:
+            json.dump(summary, f, indent=2, default=str)
+    except Exception:
+        logger.debug("Failed to cache summary to disk")
+
+    return summary
 
 
 @app.post("/api/sample/{sample_id}/report/pdf")
@@ -630,9 +780,9 @@ async def api_generate_pdf_report(sample_id: str, request: dict) -> Response:
     # Gather supporting data
     threat_data = ti.build_threat_intel(result, sample_id)
     try:
-        from backend.obfuscation_view import build_obfuscation_view
-        obfuscation = build_obfuscation_view(sample_id, result)
+        obfuscation = build_obfuscation_view(sample_id, result.get("obfuscation_analysis"))
     except Exception:
+        logger.debug("Failed to build obfuscation view for PDF report")
         obfuscation = {}
 
     # Get suspicious classes + methods
@@ -641,7 +791,7 @@ async def api_generate_pdf_report(sample_id: str, request: dict) -> Response:
 
     if apk_path:
         try:
-            dissector = APKDissector(str(apk_path), work_dir=str(WORK_DIR))
+            dissector = APKDissector(str(apk_path), work_dir=str(WORK_DIR), cache=_dissection_cache)
             classes = dissector.list_decompiled_class_objects()
 
             SUSPICIOUS_KEYWORDS = [
@@ -711,7 +861,6 @@ async def api_generate_pdf_report(sample_id: str, request: dict) -> Response:
             pass
 
     # Generate PDF
-    import asyncio
     loop = asyncio.get_event_loop()
     try:
         pdf_bytes = await loop.run_in_executor(
@@ -805,12 +954,53 @@ async def get_sample(sample_id: str) -> dict:
 # Upload and analysis endpoints
 # ---------------------------------------------------------------------------
 
+def _check_disk_space(min_bytes: int) -> None:
+    """Raise 507 if insufficient disk space for the upload."""
+    try:
+        usage = shutil.disk_usage(str(settings.UPLOADS_DIR))
+        if usage.free < min_bytes:
+            free_mb = usage.free / (1024 * 1024)
+            raise HTTPException(
+                status_code=507,
+                detail=f"Insufficient disk space ({free_mb:.0f}MB free). Need at least {min_bytes / (1024 * 1024):.0f}MB.",
+            )
+    except HTTPException:
+        raise
+    except Exception:
+        logger.debug("Disk space check failed, continuing")  # Non-critical
+
+
+# Deduplicated uploads keyed by SHA-256 so re-uploads are cheap.
+_sha256_to_upload: Dict[str, str] = {}  # sha256 → upload_id
+
+
 @app.post("/api/upload")
 async def api_upload_file(file: UploadFile = File(...)) -> dict:
     """Upload an APK file and return an upload ID for analysis."""
+    # --- Phase 3: structured server-side validation ---
+
+    # Filename validation
+    if not file.filename or not file.filename.strip():
+        raise HTTPException(status_code=400, detail="Invalid filename: filename is empty")
+    if any(c in file.filename for c in '<>:"|?*\x00'):
+        raise HTTPException(status_code=400, detail=f"Invalid filename: {file.filename}")
+
+    # File size check
     max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
     if file.size and file.size > max_bytes:
-        raise HTTPException(status_code=413, detail=f"File too large ({file.size / 1024 / 1024:.1f}MB). Maximum allowed: {settings.MAX_UPLOAD_SIZE_MB}MB")
+        size_mb = file.size / (1024 * 1024)
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large ({size_mb:.1f}MB). Maximum allowed: {settings.MAX_UPLOAD_SIZE_MB}MB",
+        )
+
+    # Empty file check
+    if file.size is not None and file.size == 0:
+        raise HTTPException(status_code=400, detail="File is empty")
+
+    # Disk space check (require upload size + 10MB headroom for work copies)
+    min_space = (file.size or 0) + 10 * 1024 * 1024
+    _check_disk_space(min_space)
 
     upload_id = str(uuid.uuid4())
     upload_dir = settings.UPLOADS_DIR / upload_id
@@ -831,6 +1021,42 @@ async def api_upload_file(file: UploadFile = File(...)) -> dict:
 
     sha256 = sha256_hash.hexdigest()
 
+    # Validate ZIP/APK magic bytes (PK\x03\x04)
+    try:
+        with open(dest_path, "rb") as f:
+            header = f.read(4)
+        if len(header) < 4 or header[:4] != b"PK\x03\x04":
+            # Clean up invalid file
+            try:
+                dest_path.unlink()
+                upload_dir.rmdir()
+            except Exception:
+                logger.debug("Failed to clean up after invalid upload")
+            raise HTTPException(status_code=400, detail="Invalid APK file: not a valid ZIP archive (bad header)")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to validate file: {e}")
+
+    # SHA-256 dedup: if this exact file was uploaded before, return existing upload_id
+    if sha256 in _sha256_to_upload:
+        existing_id = _sha256_to_upload[sha256]
+        # Clean up the duplicate file
+        try:
+            dest_path.unlink()
+            upload_dir.rmdir()
+        except Exception:
+            logger.debug("Failed to clean up duplicate upload directory")
+        return {
+            "upload_id": existing_id,
+            "filename": file.filename,
+            "sha256": sha256,
+            "status": "uploaded",
+            "deduplicated": True,
+            "message": "File already uploaded. Reusing existing upload.",
+        }
+
+    _sha256_to_upload[sha256] = upload_id
     upload_registry[upload_id] = {
         "upload_id": upload_id,
         "filename": file.filename,
@@ -1046,7 +1272,8 @@ async def websocket_endpoint(websocket: WebSocket):
                 pass
     except WebSocketDisconnect:
         manager.disconnect(websocket)
-    except Exception:
+    except Exception as e:
+        logger.debug("WebSocket error: %s", e)
         manager.disconnect(websocket)
 
 

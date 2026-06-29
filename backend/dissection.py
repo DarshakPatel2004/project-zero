@@ -7,16 +7,25 @@ running the full analysis pipeline.
 """
 
 import json
+import logging
 import math
+import os
+import threading
+import time
 import zipfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from androguard.core.apk import APK
 from androguard.core.dex import DEX
 
 from backend.config import settings
 
+logger = logging.getLogger(__name__)
+
+# Per-sample locks for atomic class cache writes
+_class_cache_locks: Dict[str, threading.Lock] = {}
+_class_cache_locks_lock = threading.Lock()
 
 # Android namespace used in binary XML manifests
 ANDROID_NS = "{http://schemas.android.com/apk/res/android}"
@@ -99,18 +108,62 @@ def _shannon_entropy(data: bytes) -> float:
     return entropy
 
 
+class SampleAPKCache:
+    """Thread-safe per-sample APK cache.
+
+    Ensures one APK parse per sample_id across all endpoints.
+    Also caches the SHA-256 hash so it's computed once.
+    """
+
+    def __init__(self):
+        self._cache: Dict[str, Tuple[APK, str]] = {}
+        self._lock = threading.RLock()
+
+    def get_or_parse(self, sample_id: str, apk_path: str) -> Tuple[APK, str]:
+        """Return cached (APK, sha256) or parse and cache."""
+        with self._lock:
+            entry = self._cache.get(sample_id)
+            if entry is not None:
+                return entry
+
+            start = time.perf_counter()
+            apk = APK(apk_path)
+            elapsed = time.perf_counter() - start
+            logger.info(f"APK parse: {elapsed:.3f}s for sample={sample_id[:12]} ({Path(apk_path).stat().st_size / 1e6:.1f}MB)")
+
+            sha256 = self._compute_sha256(apk_path)
+            self._cache[sample_id] = (apk, sha256)
+            return apk, sha256
+
+    def invalidate(self, sample_id: str) -> None:
+        """Remove cached entry, forcing re-parse on next request."""
+        with self._lock:
+            self._cache.pop(sample_id, None)
+
+    @staticmethod
+    def _compute_sha256(path: str) -> str:
+        import hashlib
+        h = hashlib.sha256()
+        with open(path, "rb") as f:
+            for chunk in iter(lambda: f.read(65536), b""):
+                h.update(chunk)
+        return h.hexdigest()
+
+
 class APKDissector:
     """Fast APK structural dissection."""
 
-    def __init__(self, apk_path: str, work_dir: str = None):
+    def __init__(self, apk_path: str, work_dir: str = None, cache: Optional[SampleAPKCache] = None):
         self.apk_path = Path(apk_path)
         self.work_dir = Path(work_dir) if work_dir else settings.WORK_DIR
+        self._cache = cache or SampleAPKCache()
         self._apk: Optional[APK] = None
+        self._sample_id_cache: Optional[str] = None
 
     def _get_apk(self) -> APK:
-        if self._apk is None:
-            self._apk = APK(str(self.apk_path))
-        return self._apk
+        sample_id = self._sample_id_from_apk()
+        apk, _ = self._cache.get_or_parse(sample_id, str(self.apk_path))
+        return apk
 
     def dissect(self) -> Dict[str, Any]:
         """Return all dissected APK data as a JSON-serializable dict."""
@@ -337,6 +390,7 @@ class APKDissector:
                 methods = len(list(dex.get_methods()))
                 strings = len(list(dex.get_strings()))
             except Exception:
+                logger.debug("Failed to parse DEX at index %d, using zero stats", idx)
                 classes = methods = strings = 0
 
             stats["dex_files"].append({
@@ -400,18 +454,60 @@ class APKDissector:
                             class_name = class_name[1:-1].replace("/", ".")
                         classes.append(class_name)
                 except Exception:
+                    logger.debug("Skipping malformed DEX class entry in androguard fallback")
                     continue
             return sorted(classes)
         except Exception:
+            logger.debug("Androguard class listing failed, returning empty")
             return []
 
-    def list_decompiled_class_objects(self) -> List[Dict[str, Any]]:
-        """Return class objects with method/network summaries for the dashboard."""
+    def jadx_available(self) -> bool:
+        """Check if JADX decompilation output is available for this sample."""
         sample_id = self._sample_id_from_apk()
         sources_dir = self.work_dir / sample_id / "jadx" / "sources"
-        if not sources_dir.exists():
-            return self._list_class_objects_from_androguard()
+        return sources_dir.exists() and any(sources_dir.rglob("*.java"))
 
+    def list_decompiled_class_objects(self) -> List[Dict[str, Any]]:
+        """Return class objects with method/network summaries for the dashboard.
+        Cached to disk so subsequent loads are instant.
+        """
+        sample_id = self._sample_id_from_apk()
+        cache_path = self.work_dir / sample_id / "dissection_classes_cache.json"
+
+        # Return cached result if available
+        if cache_path.exists():
+            try:
+                with open(cache_path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception:
+                logger.debug("Class cache corrupt, rebuilding")
+
+        sources_dir = self.work_dir / sample_id / "jadx" / "sources"
+        if not sources_dir.exists():
+            result = self._list_class_objects_from_androguard()
+        else:
+            result = self._list_class_objects_from_jadx(sources_dir)
+
+        # Atomic write cache with per-sample lock
+        with _class_cache_locks_lock:
+            if sample_id not in _class_cache_locks:
+                _class_cache_locks[sample_id] = threading.Lock()
+            lock = _class_cache_locks[sample_id]
+
+        with lock:
+            try:
+                cache_path.parent.mkdir(parents=True, exist_ok=True)
+                tmp_path = cache_path.with_suffix(".tmp")
+                with open(tmp_path, "w", encoding="utf-8") as f:
+                    json.dump(result, f)
+                os.replace(tmp_path, cache_path)
+            except Exception:
+                logger.debug("Cache write failed (non-fatal)")
+
+        return result
+
+    def _list_class_objects_from_jadx(self, sources_dir: Path) -> List[Dict[str, Any]]:
+        """Build class objects from JADX source files (with method bodies)."""
         import re
 
         CONTROL_NAMES = {"if", "for", "while", "switch", "catch", "synchronized", "try", "finally"}
@@ -421,19 +517,17 @@ class APKDissector:
             re.compile(r"\b(HttpURLConnection|URLConnection|Socket|ServerSocket|InetAddress)\b"),
             re.compile(r"\b(okhttp3|retrofit2)\b", re.IGNORECASE),
         ]
+        method_pattern = re.compile(
+            r"^\s*(?:(?:public|private|protected|static|final|abstract|synchronized)\s+)+"
+            r"(?:[\w\[\]<>?]+(?:\s*<[^>]+>\s*)?\s+)+"
+            r"(\w+)\s*\([^)]*\)\s*\{",
+            re.MULTILINE,
+        )
 
         classes = []
         for class_name in self.list_decompiled_classes():
             source = self.read_class_source(class_name) or ""
             lines = source.splitlines()
-
-            # Extract method declarations more carefully.
-            method_pattern = re.compile(
-                r"^\s*(?:(?:public|private|protected|static|final|abstract|synchronized)\s+)+"
-                r"(?:[\w\[\]<>?]+(?:\s*<[^>]+>\s*)?\s+)+"
-                r"(\w+)\s*\([^)]*\)\s*\{",
-                re.MULTILINE,
-            )
 
             methods = []
             for m in method_pattern.finditer(source):
@@ -504,14 +598,14 @@ class APKDissector:
                                     for ins in code.get_instructions():
                                         body_parts.append(f"{ins.get_name()} {ins.get_output()}")
                             except Exception:
-                                pass
-                            
+                                logger.debug("Failed to extract method instructions in androguard fallback")
+
                             body = "\n".join(body_parts) if body_parts else "[Bytecode unavailable]"
                             methods.append({
                                 "name": method_name,
                                 "body": body
                             })
-                        
+
                         classes.append({
                             "name": class_name,
                             "methods": methods,
@@ -519,9 +613,10 @@ class APKDissector:
                             "permissions_used": []
                         })
                 except Exception:
+                    logger.debug("Skipping DEX class in androguard fallback")
                     continue
         except Exception:
-            pass
+            logger.debug("Androguard class object extraction failed entirely")
         return sorted(classes, key=lambda x: x["name"])
 
     def read_class_source(self, class_name: str) -> Optional[str]:
@@ -534,7 +629,7 @@ class APKDissector:
                 with open(source_file, "r", encoding="utf-8", errors="ignore") as f:
                     return f.read()
             except Exception:
-                pass
+                logger.debug("Failed to read source file for %s, trying androguard fallback", class_name)
         return self._disassemble_class_from_androguard(class_name)
 
     def _disassemble_class_from_androguard(self, class_name: str) -> Optional[str]:
@@ -576,9 +671,10 @@ class APKDissector:
                             output.append("}")
                             return "\n".join(output)
                 except Exception:
+                    logger.debug("Failed to disassemble DEX for class %s", class_name)
                     continue
         except Exception:
-            pass
+            logger.debug("Androguard disassemble failed for class %s", class_name)
         return None
 
     def load_strings(self) -> Optional[Dict[str, Any]]:
@@ -591,16 +687,32 @@ class APKDissector:
             with open(strings_path, "r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception:
+            logger.debug("Failed to load strings JSON for sample %s", self._sample_id_from_apk())
             return None
 
     def _sample_id_from_apk(self) -> str:
-        """Compute sample_id as SHA-256 of the APK, matching Step 1."""
+        """Compute sample_id as SHA-256 of the APK, matching Step 1.
+        Cached per instance to avoid re-hashing on every call.
+        """
+        if self._sample_id_cache is not None:
+            return self._sample_id_cache
         import hashlib
         h = hashlib.sha256()
         with open(self.apk_path, "rb") as f:
-            for chunk in iter(lambda: f.read(8192), b""):
+            for chunk in iter(lambda: f.read(65536), b""):
                 h.update(chunk)
-        return h.hexdigest()
+        self._sample_id_cache = h.hexdigest()
+        return self._sample_id_cache
+
+
+def get_class_methods_lite(class_objects: List[Dict[str, Any]], class_name: str) -> Optional[Dict[str, Any]]:
+    """Return a single class with its methods (from cached class objects).
+    Used for on-demand method body loading after the lightweight list is returned.
+    """
+    for cls in class_objects:
+        if cls["name"] == class_name:
+            return cls
+    return None
 
 
 def load_dissection(work_dir: str, sample_id: str) -> Optional[Dict[str, Any]]:
@@ -612,6 +724,7 @@ def load_dissection(work_dir: str, sample_id: str) -> Optional[Dict[str, Any]]:
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception:
+        logger.debug("Failed to load dissection.json for %s", sample_id)
         return None
 
 

@@ -1,0 +1,255 @@
+2026-06-29 11:07:16,716 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmpqkzl3xpb\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmpqkzl3xpb\output
+2026-06-29 11:07:16,716 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-06-29 11:07:16,717 [ERROR] droidforenix.retry: Attempt 1: incomplete - JADX succeeded but output structure is unexpected
+2026-06-29 11:07:16,717 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-06-29 11:07:18,717 [DEBUG] droidforenix.retry: Attempt 2/3: Running JADX (timeout=10s)
+2026-06-29 11:07:18,718 [ERROR] droidforenix.retry: Attempt 2: incomplete - JADX succeeded but output structure is unexpected
+2026-06-29 11:07:18,718 [INFO] droidforenix.retry: Waiting 4s before retry...
+2026-06-29 11:07:22,719 [DEBUG] droidforenix.retry: Attempt 3/3: Running JADX (timeout=10s)
+2026-06-29 11:07:22,719 [ERROR] droidforenix.retry: Attempt 3: incomplete - JADX succeeded but output structure is unexpected
+2026-06-29 11:07:22,719 [ERROR] droidforenix.retry: All 3 attempts failed: JADX succeeded but output structure is unexpected
+2026-06-29 11:07:22,861 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmpy2gecqwt\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmpy2gecqwt\output
+2026-06-29 11:07:22,861 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-06-29 11:07:22,861 [WARNING] droidforenix.retry: Attempt 1/3: JADX timeout after 10s
+2026-06-29 11:07:22,861 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-06-29 11:07:24,861 [DEBUG] droidforenix.retry: Attempt 2/3: Running JADX (timeout=10s)
+2026-06-29 11:07:24,862 [WARNING] droidforenix.retry: Attempt 2/3: JADX timeout after 10s
+2026-06-29 11:07:24,862 [INFO] droidforenix.retry: Waiting 4s before retry...
+2026-06-29 11:07:28,863 [DEBUG] droidforenix.retry: Attempt 3/3: Running JADX (timeout=10s)
+2026-06-29 11:07:28,863 [ERROR] droidforenix.retry: Attempt 3: incomplete - JADX succeeded but output structure is unexpected
+2026-06-29 11:07:28,863 [ERROR] droidforenix.retry: All 3 attempts failed: JADX succeeded but output structure is unexpected
+2026-06-29 11:07:28,876 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmpaneo615k\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmpaneo615k\output
+2026-06-29 11:07:28,877 [DEBUG] droidforenix.retry: Attempt 1/2: Running JADX (timeout=10s)
+2026-06-29 11:07:28,877 [WARNING] droidforenix.retry: Attempt 1/2: JADX timeout after 10s
+2026-06-29 11:07:28,877 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-06-29 11:07:30,877 [DEBUG] droidforenix.retry: Attempt 2/2: Running JADX (timeout=10s)
+2026-06-29 11:07:30,877 [WARNING] droidforenix.retry: Attempt 2/2: JADX timeout after 10s
+2026-06-29 11:07:30,878 [ERROR] droidforenix.retry: All 2 attempts failed: JADX decompilation timed out after 10s. Large APKs may need more time.
+2026-06-29 11:07:30,882 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmp3i49jx3w\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmp3i49jx3w\output
+2026-06-29 11:07:30,882 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-06-29 11:07:30,882 [ERROR] droidforenix.retry: Attempt 1: malformed - APK file is corrupted or not a valid ZIP archive
+2026-06-29 11:07:30,886 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmpvqw_4zr7\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmpvqw_4zr7\output
+2026-06-29 11:07:30,887 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-06-29 11:07:30,887 [ERROR] droidforenix.retry: Attempt 1: disk_space - Not enough disk space to extract APK
+2026-06-29 11:07:30,891 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmpzz30ohff\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmpzz30ohff\output
+2026-06-29 11:07:30,891 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-06-29 11:07:30,891 [WARNING] droidforenix.retry: Attempt 1/3: JADX timeout after 10s
+2026-06-29 11:07:30,891 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-06-29 11:07:30,892 [DEBUG] droidforenix.retry: Attempt 2/3: Running JADX (timeout=10s)
+2026-06-29 11:07:30,892 [WARNING] droidforenix.retry: Attempt 2/3: JADX timeout after 10s
+2026-06-29 11:07:30,892 [INFO] droidforenix.retry: Waiting 4s before retry...
+2026-06-29 11:07:30,892 [DEBUG] droidforenix.retry: Attempt 3/3: Running JADX (timeout=10s)
+2026-06-29 11:07:30,892 [WARNING] droidforenix.retry: Attempt 3/3: JADX timeout after 10s
+2026-06-29 11:07:30,892 [ERROR] droidforenix.retry: All 3 attempts failed: JADX decompilation timed out after 10s. Large APKs may need more time.
+2026-06-29 11:08:10,704 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmpsxsvtoym\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmpsxsvtoym\output
+2026-06-29 11:08:10,704 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-06-29 11:08:10,705 [INFO] droidforenix.retry: Success on attempt 1: 1 classes extracted
+2026-06-29 11:08:10,709 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmp0p3m8ik5\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmp0p3m8ik5\output
+2026-06-29 11:08:10,709 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-06-29 11:08:10,709 [WARNING] droidforenix.retry: Attempt 1/3: JADX timeout after 10s
+2026-06-29 11:08:10,709 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-06-29 11:08:12,710 [DEBUG] droidforenix.retry: Attempt 2/3: Running JADX (timeout=10s)
+2026-06-29 11:08:12,710 [WARNING] droidforenix.retry: Attempt 2/3: JADX timeout after 10s
+2026-06-29 11:08:12,710 [INFO] droidforenix.retry: Waiting 4s before retry...
+2026-06-29 11:08:16,711 [DEBUG] droidforenix.retry: Attempt 3/3: Running JADX (timeout=10s)
+2026-06-29 11:08:16,711 [ERROR] droidforenix.retry: Attempt 3: Unexpected error: AttributeError: '_JadxMock' object has no attribute 'returncode'
+2026-06-29 11:08:16,711 [ERROR] droidforenix.retry: All 3 attempts failed: Unexpected error: AttributeError
+2026-06-29 11:08:16,845 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmp_r5mj_cz\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmp_r5mj_cz\output
+2026-06-29 11:08:16,845 [DEBUG] droidforenix.retry: Attempt 1/2: Running JADX (timeout=10s)
+2026-06-29 11:08:16,845 [WARNING] droidforenix.retry: Attempt 1/2: JADX timeout after 10s
+2026-06-29 11:08:16,845 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-06-29 11:08:18,847 [DEBUG] droidforenix.retry: Attempt 2/2: Running JADX (timeout=10s)
+2026-06-29 11:08:18,847 [WARNING] droidforenix.retry: Attempt 2/2: JADX timeout after 10s
+2026-06-29 11:08:18,847 [ERROR] droidforenix.retry: All 2 attempts failed: JADX decompilation timed out after 10s. Large APKs may need more time.
+2026-06-29 11:08:18,852 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmpibkwmy07\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmpibkwmy07\output
+2026-06-29 11:08:18,852 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-06-29 11:08:18,852 [ERROR] droidforenix.retry: Attempt 1: malformed - APK file is corrupted or not a valid ZIP archive
+2026-06-29 11:08:18,856 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmp4gaxojq2\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmp4gaxojq2\output
+2026-06-29 11:08:18,856 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-06-29 11:08:18,856 [ERROR] droidforenix.retry: Attempt 1: disk_space - Not enough disk space to extract APK
+2026-06-29 11:08:18,860 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmpullh05_a\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmpullh05_a\output
+2026-06-29 11:08:18,860 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-06-29 11:08:18,861 [WARNING] droidforenix.retry: Attempt 1/3: JADX timeout after 10s
+2026-06-29 11:08:18,861 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-06-29 11:08:18,861 [DEBUG] droidforenix.retry: Attempt 2/3: Running JADX (timeout=10s)
+2026-06-29 11:08:18,861 [WARNING] droidforenix.retry: Attempt 2/3: JADX timeout after 10s
+2026-06-29 11:08:18,861 [INFO] droidforenix.retry: Waiting 4s before retry...
+2026-06-29 11:08:18,861 [DEBUG] droidforenix.retry: Attempt 3/3: Running JADX (timeout=10s)
+2026-06-29 11:08:18,861 [WARNING] droidforenix.retry: Attempt 3/3: JADX timeout after 10s
+2026-06-29 11:08:18,861 [ERROR] droidforenix.retry: All 3 attempts failed: JADX decompilation timed out after 10s. Large APKs may need more time.
+2026-06-29 11:08:58,791 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmpa21ia9tu\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmpa21ia9tu\output
+2026-06-29 11:08:58,791 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-06-29 11:08:58,793 [INFO] droidforenix.retry: Success on attempt 1: 1 classes extracted
+2026-06-29 11:08:58,797 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmptobbzrv7\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmptobbzrv7\output
+2026-06-29 11:08:58,797 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-06-29 11:08:58,797 [WARNING] droidforenix.retry: Attempt 1/3: JADX timeout after 10s
+2026-06-29 11:08:58,797 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-06-29 11:09:00,798 [DEBUG] droidforenix.retry: Attempt 2/3: Running JADX (timeout=10s)
+2026-06-29 11:09:00,798 [WARNING] droidforenix.retry: Attempt 2/3: JADX timeout after 10s
+2026-06-29 11:09:00,798 [INFO] droidforenix.retry: Waiting 4s before retry...
+2026-06-29 11:09:04,799 [DEBUG] droidforenix.retry: Attempt 3/3: Running JADX (timeout=10s)
+2026-06-29 11:09:04,799 [ERROR] droidforenix.retry: Attempt 3: Unexpected error: AttributeError: 'function' object has no attribute 'returncode'
+2026-06-29 11:09:04,799 [ERROR] droidforenix.retry: All 3 attempts failed: Unexpected error: AttributeError
+2026-06-29 11:09:04,933 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmp5pvr1vk6\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmp5pvr1vk6\output
+2026-06-29 11:09:04,933 [DEBUG] droidforenix.retry: Attempt 1/2: Running JADX (timeout=10s)
+2026-06-29 11:09:04,933 [WARNING] droidforenix.retry: Attempt 1/2: JADX timeout after 10s
+2026-06-29 11:09:04,933 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-06-29 11:09:06,933 [DEBUG] droidforenix.retry: Attempt 2/2: Running JADX (timeout=10s)
+2026-06-29 11:09:06,933 [WARNING] droidforenix.retry: Attempt 2/2: JADX timeout after 10s
+2026-06-29 11:09:06,933 [ERROR] droidforenix.retry: All 2 attempts failed: JADX decompilation timed out after 10s. Large APKs may need more time.
+2026-06-29 11:09:06,938 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmp3b2sz4t6\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmp3b2sz4t6\output
+2026-06-29 11:09:06,938 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-06-29 11:09:06,938 [ERROR] droidforenix.retry: Attempt 1: malformed - APK file is corrupted or not a valid ZIP archive
+2026-06-29 11:09:06,942 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmp4wig_syo\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmp4wig_syo\output
+2026-06-29 11:09:06,943 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-06-29 11:09:06,943 [ERROR] droidforenix.retry: Attempt 1: disk_space - Not enough disk space to extract APK
+2026-06-29 11:09:06,946 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmp9fs75cjg\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmp9fs75cjg\output
+2026-06-29 11:09:06,946 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-06-29 11:09:06,947 [WARNING] droidforenix.retry: Attempt 1/3: JADX timeout after 10s
+2026-06-29 11:09:06,947 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-06-29 11:09:06,947 [DEBUG] droidforenix.retry: Attempt 2/3: Running JADX (timeout=10s)
+2026-06-29 11:09:06,947 [WARNING] droidforenix.retry: Attempt 2/3: JADX timeout after 10s
+2026-06-29 11:09:06,947 [INFO] droidforenix.retry: Waiting 4s before retry...
+2026-06-29 11:09:06,947 [DEBUG] droidforenix.retry: Attempt 3/3: Running JADX (timeout=10s)
+2026-06-29 11:09:06,947 [WARNING] droidforenix.retry: Attempt 3/3: JADX timeout after 10s
+2026-06-29 11:09:06,947 [ERROR] droidforenix.retry: All 3 attempts failed: JADX decompilation timed out after 10s. Large APKs may need more time.
+2026-06-29 11:09:35,466 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmpibehso24\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmpibehso24\output
+2026-06-29 11:09:35,466 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-06-29 11:09:35,468 [INFO] droidforenix.retry: Success on attempt 1: 1 classes extracted
+2026-06-29 11:09:35,472 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmpyyi4m2fk\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmpyyi4m2fk\output
+2026-06-29 11:09:35,472 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-06-29 11:09:35,472 [WARNING] droidforenix.retry: Attempt 1/3: JADX timeout after 10s
+2026-06-29 11:09:35,472 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-06-29 11:09:37,473 [DEBUG] droidforenix.retry: Attempt 2/3: Running JADX (timeout=10s)
+2026-06-29 11:09:37,473 [WARNING] droidforenix.retry: Attempt 2/3: JADX timeout after 10s
+2026-06-29 11:09:37,473 [INFO] droidforenix.retry: Waiting 4s before retry...
+2026-06-29 11:09:41,474 [DEBUG] droidforenix.retry: Attempt 3/3: Running JADX (timeout=10s)
+2026-06-29 11:09:41,476 [INFO] droidforenix.retry: Success on attempt 3: 1 classes extracted
+2026-06-29 11:09:41,480 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmp9dmb_vcn\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmp9dmb_vcn\output
+2026-06-29 11:09:41,480 [DEBUG] droidforenix.retry: Attempt 1/2: Running JADX (timeout=10s)
+2026-06-29 11:09:41,480 [WARNING] droidforenix.retry: Attempt 1/2: JADX timeout after 10s
+2026-06-29 11:09:41,480 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-06-29 11:09:43,481 [DEBUG] droidforenix.retry: Attempt 2/2: Running JADX (timeout=10s)
+2026-06-29 11:09:43,481 [WARNING] droidforenix.retry: Attempt 2/2: JADX timeout after 10s
+2026-06-29 11:09:43,481 [ERROR] droidforenix.retry: All 2 attempts failed: JADX decompilation timed out after 10s. Large APKs may need more time.
+2026-06-29 11:09:43,486 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmpasmoesv1\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmpasmoesv1\output
+2026-06-29 11:09:43,486 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-06-29 11:09:43,486 [ERROR] droidforenix.retry: Attempt 1: malformed - APK file is corrupted or not a valid ZIP archive
+2026-06-29 11:09:43,490 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmp38g2j5w7\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmp38g2j5w7\output
+2026-06-29 11:09:43,491 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-06-29 11:09:43,491 [ERROR] droidforenix.retry: Attempt 1: disk_space - Not enough disk space to extract APK
+2026-06-29 11:09:43,495 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmpzfghfib6\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmpzfghfib6\output
+2026-06-29 11:09:43,495 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-06-29 11:09:43,495 [WARNING] droidforenix.retry: Attempt 1/3: JADX timeout after 10s
+2026-06-29 11:09:43,495 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-06-29 11:09:43,496 [DEBUG] droidforenix.retry: Attempt 2/3: Running JADX (timeout=10s)
+2026-06-29 11:09:43,496 [WARNING] droidforenix.retry: Attempt 2/3: JADX timeout after 10s
+2026-06-29 11:09:43,496 [INFO] droidforenix.retry: Waiting 4s before retry...
+2026-06-29 11:09:43,496 [DEBUG] droidforenix.retry: Attempt 3/3: Running JADX (timeout=10s)
+2026-06-29 11:09:43,496 [WARNING] droidforenix.retry: Attempt 3/3: JADX timeout after 10s
+2026-06-29 11:09:43,496 [ERROR] droidforenix.retry: All 3 attempts failed: JADX decompilation timed out after 10s. Large APKs may need more time.
+2026-06-29 11:12:32,338 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmpcwptl91j\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmpcwptl91j\output
+2026-06-29 11:12:32,338 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-06-29 11:12:32,340 [INFO] droidforenix.retry: Success on attempt 1: 1 classes extracted
+2026-06-29 11:12:32,343 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmpoc4bn0q4\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmpoc4bn0q4\output
+2026-06-29 11:12:32,344 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-06-29 11:12:32,344 [WARNING] droidforenix.retry: Attempt 1/3: JADX timeout after 10s
+2026-06-29 11:12:32,344 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-06-29 11:12:34,344 [DEBUG] droidforenix.retry: Attempt 2/3: Running JADX (timeout=10s)
+2026-06-29 11:12:34,345 [WARNING] droidforenix.retry: Attempt 2/3: JADX timeout after 10s
+2026-06-29 11:12:34,345 [INFO] droidforenix.retry: Waiting 4s before retry...
+2026-06-29 11:12:38,345 [DEBUG] droidforenix.retry: Attempt 3/3: Running JADX (timeout=10s)
+2026-06-29 11:12:38,348 [INFO] droidforenix.retry: Success on attempt 3: 1 classes extracted
+2026-06-29 11:12:38,352 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmpr91qnhj5\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmpr91qnhj5\output
+2026-06-29 11:12:38,353 [DEBUG] droidforenix.retry: Attempt 1/2: Running JADX (timeout=10s)
+2026-06-29 11:12:38,353 [WARNING] droidforenix.retry: Attempt 1/2: JADX timeout after 10s
+2026-06-29 11:12:38,353 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-06-29 11:12:40,353 [DEBUG] droidforenix.retry: Attempt 2/2: Running JADX (timeout=10s)
+2026-06-29 11:12:40,353 [WARNING] droidforenix.retry: Attempt 2/2: JADX timeout after 10s
+2026-06-29 11:12:40,353 [ERROR] droidforenix.retry: All 2 attempts failed: JADX decompilation timed out after 10s. Large APKs may need more time.
+2026-06-29 11:12:40,358 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmp93a4hh79\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmp93a4hh79\output
+2026-06-29 11:12:40,358 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-06-29 11:12:40,358 [ERROR] droidforenix.retry: Attempt 1: malformed - APK file is corrupted or not a valid ZIP archive
+2026-06-29 11:12:40,362 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmp6c3ubsln\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmp6c3ubsln\output
+2026-06-29 11:12:40,363 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-06-29 11:12:40,363 [ERROR] droidforenix.retry: Attempt 1: disk_space - Not enough disk space to extract APK
+2026-06-29 11:12:40,366 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmp_oxmqbsh\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmp_oxmqbsh\output
+2026-06-29 11:12:40,367 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-06-29 11:12:40,367 [WARNING] droidforenix.retry: Attempt 1/3: JADX timeout after 10s
+2026-06-29 11:12:40,367 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-06-29 11:12:40,367 [DEBUG] droidforenix.retry: Attempt 2/3: Running JADX (timeout=10s)
+2026-06-29 11:12:40,367 [WARNING] droidforenix.retry: Attempt 2/3: JADX timeout after 10s
+2026-06-29 11:12:40,367 [INFO] droidforenix.retry: Waiting 4s before retry...
+2026-06-29 11:12:40,367 [DEBUG] droidforenix.retry: Attempt 3/3: Running JADX (timeout=10s)
+2026-06-29 11:12:40,367 [WARNING] droidforenix.retry: Attempt 3/3: JADX timeout after 10s
+2026-06-29 11:12:40,368 [ERROR] droidforenix.retry: All 3 attempts failed: JADX decompilation timed out after 10s. Large APKs may need more time.
+2026-06-29 11:36:32,091 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmpb9tw1qpl\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmpb9tw1qpl\output
+2026-06-29 11:36:32,091 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-06-29 11:36:32,093 [INFO] droidforenix.retry: Success on attempt 1: 1 classes extracted
+2026-06-29 11:36:32,098 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmpte9jrxzd\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmpte9jrxzd\output
+2026-06-29 11:36:32,098 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-06-29 11:36:32,098 [WARNING] droidforenix.retry: Attempt 1/3: JADX timeout after 10s
+2026-06-29 11:36:32,098 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-06-29 11:36:34,099 [DEBUG] droidforenix.retry: Attempt 2/3: Running JADX (timeout=10s)
+2026-06-29 11:36:34,099 [WARNING] droidforenix.retry: Attempt 2/3: JADX timeout after 10s
+2026-06-29 11:36:34,099 [INFO] droidforenix.retry: Waiting 4s before retry...
+2026-06-29 11:36:38,100 [DEBUG] droidforenix.retry: Attempt 3/3: Running JADX (timeout=10s)
+2026-06-29 11:36:38,103 [INFO] droidforenix.retry: Success on attempt 3: 1 classes extracted
+2026-06-29 11:36:38,109 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmpdryqfvoz\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmpdryqfvoz\output
+2026-06-29 11:36:38,109 [DEBUG] droidforenix.retry: Attempt 1/2: Running JADX (timeout=10s)
+2026-06-29 11:36:38,110 [WARNING] droidforenix.retry: Attempt 1/2: JADX timeout after 10s
+2026-06-29 11:36:38,110 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-06-29 11:36:40,110 [DEBUG] droidforenix.retry: Attempt 2/2: Running JADX (timeout=10s)
+2026-06-29 11:36:40,110 [WARNING] droidforenix.retry: Attempt 2/2: JADX timeout after 10s
+2026-06-29 11:36:40,111 [ERROR] droidforenix.retry: All 2 attempts failed: JADX decompilation timed out after 10s. Large APKs may need more time.
+2026-06-29 11:36:40,117 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmppfer1vbj\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmppfer1vbj\output
+2026-06-29 11:36:40,117 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-06-29 11:36:40,117 [ERROR] droidforenix.retry: Attempt 1: malformed - APK file is corrupted or not a valid ZIP archive
+2026-06-29 11:36:40,122 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmpgzhgucov\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmpgzhgucov\output
+2026-06-29 11:36:40,122 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-06-29 11:36:40,123 [ERROR] droidforenix.retry: Attempt 1: disk_space - Not enough disk space to extract APK
+2026-06-29 11:36:40,128 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmp05xpa4gm\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmp05xpa4gm\output
+2026-06-29 11:36:40,128 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-06-29 11:36:40,129 [WARNING] droidforenix.retry: Attempt 1/3: JADX timeout after 10s
+2026-06-29 11:36:40,129 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-06-29 11:36:40,129 [DEBUG] droidforenix.retry: Attempt 2/3: Running JADX (timeout=10s)
+2026-06-29 11:36:40,129 [WARNING] droidforenix.retry: Attempt 2/3: JADX timeout after 10s
+2026-06-29 11:36:40,129 [INFO] droidforenix.retry: Waiting 4s before retry...
+2026-06-29 11:36:40,129 [DEBUG] droidforenix.retry: Attempt 3/3: Running JADX (timeout=10s)
+2026-06-29 11:36:40,129 [WARNING] droidforenix.retry: Attempt 3/3: JADX timeout after 10s
+2026-06-29 11:36:40,129 [ERROR] droidforenix.retry: All 3 attempts failed: JADX decompilation timed out after 10s. Large APKs may need more time.
+2026-06-29 11:40:33,382 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmp6tal_sp6\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmp6tal_sp6\output
+2026-06-29 11:40:33,382 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-06-29 11:40:33,384 [INFO] droidforenix.retry: Success on attempt 1: 1 classes extracted
+2026-06-29 11:40:33,389 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmpv435sbyw\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmpv435sbyw\output
+2026-06-29 11:40:33,389 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-06-29 11:40:33,389 [WARNING] droidforenix.retry: Attempt 1/3: JADX timeout after 10s
+2026-06-29 11:40:33,389 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-06-29 11:40:35,390 [DEBUG] droidforenix.retry: Attempt 2/3: Running JADX (timeout=10s)
+2026-06-29 11:40:35,391 [WARNING] droidforenix.retry: Attempt 2/3: JADX timeout after 10s
+2026-06-29 11:40:35,391 [INFO] droidforenix.retry: Waiting 4s before retry...
+2026-06-29 11:40:39,391 [DEBUG] droidforenix.retry: Attempt 3/3: Running JADX (timeout=10s)
+2026-06-29 11:40:39,394 [INFO] droidforenix.retry: Success on attempt 3: 1 classes extracted
+2026-06-29 11:40:39,400 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmpz7dlh172\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmpz7dlh172\output
+2026-06-29 11:40:39,400 [DEBUG] droidforenix.retry: Attempt 1/2: Running JADX (timeout=10s)
+2026-06-29 11:40:39,400 [WARNING] droidforenix.retry: Attempt 1/2: JADX timeout after 10s
+2026-06-29 11:40:39,400 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-06-29 11:40:41,401 [DEBUG] droidforenix.retry: Attempt 2/2: Running JADX (timeout=10s)
+2026-06-29 11:40:41,401 [WARNING] droidforenix.retry: Attempt 2/2: JADX timeout after 10s
+2026-06-29 11:40:41,401 [ERROR] droidforenix.retry: All 2 attempts failed: JADX decompilation timed out after 10s. Large APKs may need more time.
+2026-06-29 11:40:41,406 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmpvmsetszl\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmpvmsetszl\output
+2026-06-29 11:40:41,406 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-06-29 11:40:41,407 [ERROR] droidforenix.retry: Attempt 1: malformed - APK file is corrupted or not a valid ZIP archive
+2026-06-29 11:40:41,411 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmp3e8wbfir\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmp3e8wbfir\output
+2026-06-29 11:40:41,411 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-06-29 11:40:41,411 [ERROR] droidforenix.retry: Attempt 1: disk_space - Not enough disk space to extract APK
+2026-06-29 11:40:41,417 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmpubjyngvg\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmpubjyngvg\output
+2026-06-29 11:40:41,417 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-06-29 11:40:41,417 [WARNING] droidforenix.retry: Attempt 1/3: JADX timeout after 10s
+2026-06-29 11:40:41,417 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-06-29 11:40:41,417 [DEBUG] droidforenix.retry: Attempt 2/3: Running JADX (timeout=10s)
+2026-06-29 11:40:41,418 [WARNING] droidforenix.retry: Attempt 2/3: JADX timeout after 10s
+2026-06-29 11:40:41,418 [INFO] droidforenix.retry: Waiting 4s before retry...
+2026-06-29 11:40:41,418 [DEBUG] droidforenix.retry: Attempt 3/3: Running JADX (timeout=10s)
+2026-06-29 11:40:41,418 [WARNING] droidforenix.retry: Attempt 3/3: JADX timeout after 10s
+2026-06-29 11:40:41,418 [ERROR] droidforenix.retry: All 3 attempts failed: JADX decompilation timed out after 10s. Large APKs may need more time.

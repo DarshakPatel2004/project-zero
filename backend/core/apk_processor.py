@@ -371,8 +371,8 @@ class APKProcessor:
                             'decoded': decoded[:100],
                             'type': 'base64'
                         })
-                except:
-                    pass
+                except Exception:
+                    logger.debug("Failed to decode base64 payload: %s", item['encoded'][:30])
             
             step_result = {
                 'success': True,

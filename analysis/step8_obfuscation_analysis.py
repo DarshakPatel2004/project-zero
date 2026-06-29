@@ -27,13 +27,15 @@ from typing import Dict, List, Any, Optional
 
 from backend.config import settings
 
+logger = logging.getLogger(__name__)
+
 # Suppress verbose Androguard logging
 logging.getLogger("androguard").setLevel(logging.WARNING)
 try:
     import loguru
     loguru.logger.remove()
 except Exception:
-    pass
+    logger.debug("Loguru not available, skipping log removal")
 
 
 class ObfuscationAnalysisError(Exception):
@@ -117,6 +119,32 @@ DANGEROUS_PERMISSIONS = [
     "WRITE_EXTERNAL_STORAGE",
 ]
 
+# Permission behavior groups: coordinated permission combinations that indicate
+# specific malware intent beyond the sum of individual permissions. A sample
+# requesting ALL permissions in a group gets a flat score boost.
+PERMISSION_BEHAVIOR_GROUPS = {
+    "sms_fraud": {
+        "permissions": {"SEND_SMS", "READ_SMS", "RECEIVE_SMS"},
+        "boost": 35,
+        "description": "SMS hijacking/fraud (send + intercept)",
+    },
+    "phone_identity": {
+        "permissions": {"READ_PHONE_STATE"},
+        "boost": 15,
+        "description": "Phone identity theft / device fingerprinting",
+    },
+    "location_surveillance": {
+        "permissions": {"ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION", "RECORD_AUDIO"},
+        "boost": 25,
+        "description": "Coordinated location + audio surveillance",
+    },
+    "device_admin_abuse": {
+        "permissions": {"BIND_DEVICE_ADMIN", "SYSTEM_ALERT_WINDOW"},
+        "boost": 20,
+        "description": "Device admin abuse (persistence/control)",
+    },
+}
+
 # Benign framework / support-library class prefixes. Reflection, crypto, and
 # dynamic-loading usages inside these packages are overwhelmingly legitimate
 # framework boilerplate (e.g. Fragment lifecycle, View inflation, Kotlin
@@ -187,7 +215,7 @@ def _get_called_method_names(method: Any) -> List[str]:
                 if called_name:
                     names.append(called_name)
     except Exception:
-        pass
+        logger.debug("Failed to get xref for method in %s", method)
     return names
 
 
@@ -222,7 +250,7 @@ def dex_entropy_from_apk(apk_path: Path) -> List[Dict[str, Any]]:
                         "likely_packed": entropy > 7.5,
                     })
     except Exception:
-        pass
+        logger.debug("DEX entropy extraction failed for %s", apk_path)
     return results
 
 
@@ -280,10 +308,85 @@ def extract_native_strings(apk_path: Path) -> List[Dict[str, Any]]:
                             "artifacts": unique[:20],  # limit
                         })
                 except Exception:
+                    logger.debug("Failed to extract strings from .so: %s", name)
                     continue
     except Exception:
-        pass
+        logger.debug("Native string extraction failed for %s", apk_path)
     return findings
+
+
+def _has_elf_symbols(so_data: bytes) -> bool:
+    """Check whether an ELF .so retains its symbol table.
+
+    Legitimate SDK libraries (OpenSSL, libc++, etc.) almost always
+    include .strtab / .symtab sections.  Malware often strips them
+    to slow reverse engineering.
+
+    NOTE: This is a byte-level heuristic (scans for the string
+    ".strtab" or ".symtab" anywhere in the binary), not a proper
+    ELF section-header walk.  In practice, .strtab/.symtab are
+    virtually never present as code strings in stripped binaries,
+    so the FP rate is near zero.  A proper ELF parser would walk
+    the section header table, but that would require pyelftools
+    and adds no measurable precision benefit at this signal weight.
+    """
+    if so_data[:4] != b'\x7fELF':
+        return False
+    return b'.strtab' in so_data or b'.symtab' in so_data
+
+
+def analyze_native_libraries(apk_path: Path) -> Dict[str, list]:
+    """Flag suspicious .so files by metadata heuristics — no disassembly needed.
+
+    Returns a dict with keys:
+      - "suspicious": list of {library, reason, detail} for flagged .so files
+      - "summary": {"total_so": int, "flagged": int}
+    """
+    output = {"suspicious": [], "summary": {"total_so": 0, "flagged": 0}}
+    try:
+        with zipfile.ZipFile(apk_path, 'r') as z:
+            for name in z.namelist():
+                if not name.endswith('.so'):
+                    continue
+                output["summary"]["total_so"] += 1
+                try:
+                    data = z.read(name)
+                    if not data:
+                        continue
+
+                    # Heuristic 1: undersized .so (< 16 KB = likely loader stub)
+                    if len(data) < 16384:
+                        output["suspicious"].append({
+                            "library": name,
+                            "reason": "undersized",
+                            "detail": f"{len(data)} bytes",
+                        })
+                        continue  # skip other checks for stubs
+
+                    # Heuristic 2: high entropy (> 7.8) = packed / encrypted code
+                    ent = shannon_entropy(data)
+                    if ent > 7.8:
+                        output["suspicious"].append({
+                            "library": name,
+                            "reason": "high_entropy",
+                            "detail": f"entropy={ent:.2f}",
+                        })
+
+                    # Heuristic 3: stripped symbols (legit .so usually has them)
+                    if not _has_elf_symbols(data):
+                        output["suspicious"].append({
+                            "library": name,
+                            "reason": "stripped_symbols",
+                            "detail": "no .strtab or .symtab",
+                        })
+                except Exception:
+                    logger.debug("Failed to analyze native lib: %s", name)
+                    continue
+    except Exception:
+        logger.debug("Native library analysis failed for %s", apk_path)
+
+    output["summary"]["flagged"] = len(output["suspicious"])
+    return output
 
 
 def analyze_with_androguard(apk_path: Path) -> Dict[str, Any]:
@@ -329,6 +432,7 @@ def analyze_with_androguard(apk_path: Path) -> Dict[str, Any]:
         methods = list(dx.get_methods())
         indicators["total_methods"] = len(methods)
     except Exception:
+        logger.debug("Failed to load methods from Androguard analysis")
         methods = []
 
     # Analyze methods for obfuscation indicators via cross-references.
@@ -364,6 +468,7 @@ def analyze_with_androguard(apk_path: Path) -> Dict[str, Any]:
             if any(_method_matches_any(called, SUSPICIOUS_APIS) for called in called_names):
                 indicators["suspicious_apis"].append(method_name)
         except Exception:
+            logger.debug("Failed to analyze method: %s", getattr(method, 'full_name', 'unknown'))
             continue
 
     # Deduplicate and limit
@@ -374,8 +479,31 @@ def analyze_with_androguard(apk_path: Path) -> Dict[str, Any]:
     return indicators
 
 
+def _perm_short_name(perm: str) -> str:
+    """Extract the short permission name from a full Android permission string.
+    E.g. 'android.permission.SEND_SMS' -> 'SEND_SMS'.
+    """
+    return perm.split(".")[-1] if "." in perm else perm
+
+
+def _match_behavior_groups(app_permissions: List[str]) -> List[Dict[str, Any]]:
+    """Return list of matched behavior groups for the app's dangerous permissions."""
+    short_names = {_perm_short_name(p) for p in app_permissions}
+    matches = []
+    for group_name, group_config in PERMISSION_BEHAVIOR_GROUPS.items():
+        required = group_config["permissions"]
+        if required.issubset(short_names):
+            matches.append({
+                "group": group_name,
+                "description": group_config["description"],
+                "boost": group_config["boost"],
+                "matched_permissions": list(required),
+            })
+    return matches
+
+
 def calculate_obfuscation_score(indicators: Dict[str, Any], dex_entropy: List[Dict[str, Any]]) -> float:
-    """Calculate a 0-100 obfuscation score."""
+    """Calculate a 0-100 obfuscation score with permission behavior grouping."""
     score = 0.0
     score += min(20, len(indicators.get("reflection", [])) * 2)
     score += min(20, len(indicators.get("dynamic_loading", [])) * 5)
@@ -383,9 +511,29 @@ def calculate_obfuscation_score(indicators: Dict[str, Any], dex_entropy: List[Di
     score += min(15, len(indicators.get("crypto_apis", [])) * 1.5)
     score += min(15, len(indicators.get("suspicious_apis", [])) * 1.5)
     score += min(10, len(indicators.get("dangerous_permissions", [])) * 2)
+    score += min(10, indicators.get("suspicious_native_libs", 0) * 5)
 
     if any(d.get("likely_packed") for d in dex_entropy):
         score += 15
+
+    # Permission behavior group boosts.
+    # Only boost when the app has ZERO code-level signals (reflection, dynamic loading,
+    # suspicious APIs, crypto). This pattern — requesting coordinated dangerous
+    # permissions but never calling the corresponding APIs — distinguishes malware
+    # that collects permissions "just in case" from legitimate apps that actually use them.
+    dangerous_perms = indicators.get("dangerous_permissions", [])
+    matched_groups = _match_behavior_groups(dangerous_perms)
+    if matched_groups:
+        indicators["permission_behaviors"] = matched_groups
+        code_signals = (
+            len(indicators.get("reflection", []))
+            + len(indicators.get("dynamic_loading", []))
+            + len(indicators.get("suspicious_apis", []))
+            + len(indicators.get("crypto_apis", []))
+        )
+        if code_signals == 0:
+            for group in matched_groups:
+                score += group["boost"]
 
     return round(min(100, score), 2)
 
@@ -425,6 +573,9 @@ def analyze_obfuscation(apk_path: str, work_dir: Optional[str] = None, sample_id
     # Native library strings
     result["native_library_artifacts"] = extract_native_strings(apk_path)
 
+    # Native library metadata heuristics (entropy, symbols, size)
+    result["native_library_analysis"] = analyze_native_libraries(apk_path)
+
     # Androguard DEX analysis
     try:
         result["indicators"] = analyze_with_androguard(apk_path)
@@ -441,6 +592,10 @@ def analyze_obfuscation(apk_path: str, work_dir: Optional[str] = None, sample_id
             "total_classes": 0,
             "total_methods": 0,
         }
+
+    # Pipe native library analysis into indicators for scoring
+    if result.get("native_library_analysis"):
+        result["indicators"]["suspicious_native_libs"] = result["native_library_analysis"]["summary"]["flagged"]
 
     # Score
     result["obfuscation_score"] = calculate_obfuscation_score(

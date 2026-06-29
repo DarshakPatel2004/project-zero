@@ -41,6 +41,27 @@ EDGE_COLORS = {
 
 
 # ---------------------------------------------------------------------------
+# Surrogate sanitizer
+# ---------------------------------------------------------------------------
+
+
+def _strip_surrogates(obj):
+    """Recursively replace lone surrogates with U+FFFD.
+
+    Binary APK data decoded as UTF-8 can leave lone surrogates in strings.
+    Python's json.dump tolerates them, but Pydantic's JSON serializer
+    (used by FastAPI) raises UnicodeEncodeError on them.
+    """
+    if isinstance(obj, str):
+        return obj.encode("utf-8", "surrogatepass").decode("utf-8", "ignore")
+    if isinstance(obj, dict):
+        return {k: _strip_surrogates(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_strip_surrogates(v) for v in obj]
+    return obj
+
+
+# ---------------------------------------------------------------------------
 # Load helpers
 # ---------------------------------------------------------------------------
 
@@ -52,6 +73,9 @@ def load_result(sample_id: str) -> Optional[Dict[str, Any]]:
         return None
     with open(path, "r", encoding="utf-8") as f:
         result = json.load(f)
+
+    # Strip lone surrogates so Pydantic/JSON serialization never fails
+    result = _strip_surrogates(result)
 
     # Backfill family identification for legacy results
     if result and "family_identification" not in result:
@@ -78,7 +102,7 @@ def load_all_results() -> List[Dict[str, Any]]:
         result_path = sample_dir / "pipeline_result.json"
         if result_path.exists():
             with open(result_path, "r", encoding="utf-8") as f:
-                results.append(json.load(f))
+                results.append(_strip_surrogates(json.load(f)))
     return results
 
 

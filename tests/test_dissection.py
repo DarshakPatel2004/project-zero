@@ -3,6 +3,8 @@ Tests for APK dissection backend.
 """
 
 import json
+import os
+import threading
 from pathlib import Path
 
 import pytest
@@ -10,7 +12,7 @@ from fastapi.testclient import TestClient
 
 from backend.config import settings
 from backend.main import app
-from backend.dissection import APKDissector, load_dissection
+from backend.dissection import APKDissector, SampleAPKCache, load_dissection, _class_cache_locks, _class_cache_locks_lock
 from backend.transformers import load_all_results
 
 
@@ -182,4 +184,271 @@ class TestDissectionEndpoints:
 
     def test_dissection_not_found(self, client):
         response = client.get("/api/sample/nonexistent_sample_id/dissection")
+        assert response.status_code == 404
+
+
+class TestSampleAPKCache:
+    def test_cache_hit_and_miss(self, test_apk_path):
+        cache = SampleAPKCache()
+        apk_path_str = str(test_apk_path)
+        # Miss — first parse
+        apk1, sha1 = cache.get_or_parse("test_sample_miss", apk_path_str)
+        assert apk1 is not None
+        assert len(sha1) == 64
+        # Hit — second call returns cached
+        apk2, sha2 = cache.get_or_parse("test_sample_miss", apk_path_str)
+        assert apk2 is apk1
+        assert sha2 == sha1
+
+    def test_cache_invalidation(self, test_apk_path):
+        cache = SampleAPKCache()
+        apk_path_str = str(test_apk_path)
+        apk1, _ = cache.get_or_parse("test_sample_inval", apk_path_str)
+        assert apk1 is not None
+        cache.invalidate("test_sample_inval")
+        # After invalidation, next call should re-parse
+        apk2, _ = cache.get_or_parse("test_sample_inval", apk_path_str)
+        assert apk2 is not apk1
+
+    def test_cache_separate_samples(self, test_apk_path):
+        cache = SampleAPKCache()
+        apk_path_str = str(test_apk_path)
+        apk1, sha1 = cache.get_or_parse("sample_a", apk_path_str)
+        apk2, sha2 = cache.get_or_parse("sample_b", apk_path_str)
+        assert apk1 is not apk2
+        assert sha1 == sha2  # Same file, same hash
+
+    def test_cache_thread_safety(self, test_apk_path):
+        cache = SampleAPKCache()
+        apk_path_str = str(test_apk_path)
+        errors = []
+        lock = threading.Lock()
+
+        def get_sample(idx):
+            try:
+                apk, _ = cache.get_or_parse(f"thread_{idx}", apk_path_str)
+                assert apk is not None
+            except Exception as e:
+                with lock:
+                    errors.append(e)
+
+        threads = [threading.Thread(target=get_sample, args=(i,)) for i in range(10)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        assert not errors, f"Thread safety failures: {errors}"
+
+
+class TestAtomicClassCache:
+    def test_atomic_write_creates_file(self, test_apk_path, tmp_path):
+        sample_id = "test_atomic"
+        cache_path = tmp_path / sample_id / "dissection_classes_cache.json"
+        lock_key = sample_id
+        with _class_cache_locks_lock:
+            if lock_key not in _class_cache_locks:
+                _class_cache_locks[lock_key] = threading.Lock()
+        lock = _class_cache_locks[lock_key]
+        with lock:
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = cache_path.with_suffix(".tmp")
+            data = [{"name": "com.test.TestClass", "methods": [], "network_calls": [], "permissions_used": []}]
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(data, f)
+            os.replace(tmp, cache_path)
+        assert cache_path.exists()
+        with open(cache_path, "r", encoding="utf-8") as f:
+            loaded = json.load(f)
+        assert loaded[0]["name"] == "com.test.TestClass"
+
+    def test_atomic_write_no_partial_read(self, test_apk_path, tmp_path):
+        """Verify that a half-written tmp file doesn't leave a corrupt cache."""
+        sample_id = "test_atomic_partial"
+        cache_path = tmp_path / sample_id / "dissection_classes_cache.json"
+        lock_key = sample_id
+        with _class_cache_locks_lock:
+            if lock_key not in _class_cache_locks:
+                _class_cache_locks[lock_key] = threading.Lock()
+        lock = _class_cache_locks[lock_key]
+        with lock:
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = cache_path.with_suffix(".tmp")
+            # Simulate partial write (truncated JSON)
+            with open(tmp, "w", encoding="utf-8") as f:
+                f.write('{"incomplete": true')
+            # Crash before os.replace — tmp file should be removed on next write
+            if tmp.exists():
+                tmp.unlink()
+            # Now write properly
+            data = [{"name": "com.test.OK", "methods": [], "network_calls": [], "permissions_used": []}]
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(data, f)
+            os.replace(tmp, cache_path)
+        with open(cache_path, "r", encoding="utf-8") as f:
+            loaded = json.load(f)
+        assert loaded[0]["name"] == "com.test.OK"
+
+
+class TestJadxErrorPropagation:
+    def test_jadx_available_false_for_bogus_path(self):
+        """APKDissector with a non-existent APK should report JADX as unavailable."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            bogus_apk = Path(tmp) / "nonexistent.apk"
+            bogus_apk.write_text("this is not an APK", encoding="utf-8")
+            dissector = APKDissector(str(bogus_apk), work_dir=tmp)
+            assert dissector.jadx_available() is False
+
+    def test_classes_endpoint_has_jadx_success(self, client, existing_sample_id):
+        response = client.get(f"/api/sample/{existing_sample_id}/dissection/classes")
+        assert response.status_code == 200
+        data = response.json()
+        assert "jadx_success" in data
+        assert isinstance(data["jadx_success"], bool)
+
+    def test_refresh_param_invalidates_cache(self, client, existing_sample_id):
+        """?refresh=true should not throw and should return valid data."""
+        response = client.get(f"/api/sample/{existing_sample_id}/dissection/classes?refresh=true")
+        assert response.status_code == 200
+        data = response.json()
+        assert "classes" in data
+        assert isinstance(data["classes"], list)
+
+
+class TestPagination:
+    def test_pagination_defaults(self, client, existing_sample_id):
+        response = client.get(f"/api/sample/{existing_sample_id}/dissection/classes")
+        assert response.status_code == 200
+        data = response.json()
+        assert "offset" in data
+        assert "limit" in data
+        assert data["offset"] == 0
+        assert data["limit"] == 50
+        assert "total" in data
+        assert isinstance(data["total"], int)
+
+    def test_pagination_offset(self, client, existing_sample_id):
+        # Get first page
+        first = client.get(f"/api/sample/{existing_sample_id}/dissection/classes?offset=0&limit=5")
+        assert first.status_code == 200
+        first_data = first.json()
+        # Get second page
+        if first_data["total"] > 5:
+            second = client.get(f"/api/sample/{existing_sample_id}/dissection/classes?offset=5&limit=5")
+            assert second.status_code == 200
+            second_data = second.json()
+            assert len(second_data["classes"]) > 0
+            assert second_data["classes"][0]["name"] != first_data["classes"][0]["name"]
+
+    def test_pagination_limit_clamped(self, client, existing_sample_id):
+        response = client.get(f"/api/sample/{existing_sample_id}/dissection/classes?limit=999")
+        assert response.status_code == 422  # FastAPI validation error
+
+    def test_pagination_negative_offset_rejected(self, client, existing_sample_id):
+        response = client.get(f"/api/sample/{existing_sample_id}/dissection/classes?offset=-1")
+        assert response.status_code == 422
+
+
+class TestLLMSummary:
+    def test_condense_dissection_produces_readable_text(self):
+        """_condense_dissection should produce a readable condensed text from dissection JSON."""
+        from analysis.step7_llm_assessment import _condense_dissection
+        dissection = {
+            "metadata": {
+                "package_name": "com.test.malware",
+                "version_name": "1.0",
+                "version_code": 1,
+                "min_sdk_version": 21,
+                "target_sdk_version": 30,
+                "file_size_bytes": 5 * 1024 * 1024,
+                "is_multidex": True,
+            },
+            "permissions": [
+                {"name": "android.permission.INTERNET", "protection_level": "normal"},
+                {"name": "android.permission.READ_SMS", "protection_level": "dangerous"},
+                {"name": "android.permission.CAMERA", "protection_level": "dangerous"},
+            ],
+            "components": {
+                "activities": [
+                    {"name": "com.test.MainActivity", "exported": True},
+                    {"name": "com.test.Hidden", "exported": False},
+                ],
+                "services": [
+                    {"name": "com.test.C2Service", "exported": True},
+                ],
+                "receivers": [],
+                "providers": [],
+            },
+            "native_libs": [{"name": "libnative.so", "size": 12345}],
+            "dex_stats": {"dex_count": 2, "total_classes": 500, "total_methods": 3000, "total_strings": 8000},
+            "file_structure": {"top_level_directories": ["lib", "res", "assets"], "total_files": 200},
+        }
+        result = _condense_dissection(dissection)
+        assert "com.test.malware" in result
+        assert "READ_SMS" in result
+        assert "CAMERA" in result
+        assert "C2Service" in result
+        assert "exported" in result
+        assert "libnative.so" in result
+        assert "500" in result  # total_classes
+
+    def test_condense_dissection_with_class_objects(self):
+        """_condense_dissection should include suspicious classes when provided."""
+        from analysis.step7_llm_assessment import _condense_dissection
+        dissection = {
+            "metadata": {"package_name": "com.test"},
+            "permissions": [],
+            "components": {"activities": [], "services": [], "receivers": [], "providers": []},
+            "dex_stats": {"dex_count": 1, "total_classes": 10, "total_methods": 50, "total_strings": 100},
+        }
+        class_objects = [
+            {
+                "name": "com.test.C2Client",
+                "methods": [{"name": "sendData"}, {"name": "connect"}],
+                "network_calls": ["HttpURLConnection.openConnection()"],
+                "permissions_used": ["android.permission.INTERNET"],
+            },
+            {
+                "name": "com.test.Benign",
+                "methods": [{"name": "onCreate"}],
+                "network_calls": [],
+                "permissions_used": [],
+            },
+        ]
+        result = _condense_dissection(dissection, class_objects)
+        assert "C2Client" in result
+        assert "sendData" in result
+        assert "1 network calls" in result
+
+    def test_condense_dissection_truncates_long_output(self):
+        """_condense_dissection should truncate if output exceeds ~14000 chars."""
+        from analysis.step7_llm_assessment import _condense_dissection
+        # Build a dissection with many permissions to exceed limit
+        dissection = {
+            "metadata": {"package_name": "com.test"},
+            "permissions": [{"name": f"android.permission.FAKE_{i}", "protection_level": "dangerous"} for i in range(500)],
+            "components": {"activities": [], "services": [], "receivers": [], "providers": []},
+            "dex_stats": {"dex_count": 1, "total_classes": 10, "total_methods": 50, "total_strings": 100},
+        }
+        result = _condense_dissection(dissection)
+        assert len(result) <= 14100  # Some margin for the truncation message
+
+    def test_summarize_dissection_fallback_on_no_ollama(self):
+        """summarize_dissection should return fallback when Ollama is unavailable."""
+        from analysis.step7_llm_assessment import summarize_dissection
+        dissection = {
+            "metadata": {"package_name": "com.test"},
+            "permissions": [],
+            "components": {"activities": [], "services": [], "receivers": [], "providers": []},
+            "dex_stats": {"dex_count": 1, "total_classes": 10, "total_methods": 50, "total_strings": 100},
+        }
+        # This will fail to connect to Ollama (not running in test env)
+        result = summarize_dissection(dissection)
+        assert "threat_level" in result
+        assert "summary" in result
+        assert result["threat_level"] in ("critical", "high", "medium", "low", "unknown")
+
+    def test_dissection_summary_endpoint_not_found(self, client):
+        """Summary endpoint should return 404 for nonexistent sample."""
+        response = client.get("/api/sample/nonexistent_sample/dissection/summary")
         assert response.status_code == 404
