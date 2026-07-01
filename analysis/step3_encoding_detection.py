@@ -16,6 +16,8 @@ from typing import Dict, List, Any, Optional, Tuple
 
 from backend.config import settings
 
+from analysis.decoding_engine import classify_entropy
+
 
 class EncodingDetectionError(Exception):
     """Raised when encoding detection fails."""
@@ -372,6 +374,7 @@ def detect_encoding(strings_result: dict) -> dict:
                     "confidence": calculate_confidence(1.0, 1.0, meaningful,
                                                         0.8 if 3.0 < entropy < 6.0 else 0.5),
                     "entropy": entropy,
+                    "entropy_classification": classify_entropy(entropy),
                     "source_location": source,
                     "decoded_preview": decoded[:200],
                     "validation_status": "valid" if meaningful > 0.5 else "uncertain",
@@ -393,6 +396,7 @@ def detect_encoding(strings_result: dict) -> dict:
                     "confidence": calculate_confidence(1.0, 1.0, meaningful,
                                                         0.8 if 2.0 < entropy < 5.0 else 0.5),
                     "entropy": entropy,
+                    "entropy_classification": classify_entropy(entropy),
                     "source_location": source,
                     "decoded_preview": decoded[:200],
                     "validation_status": "valid" if meaningful > 0.5 else "uncertain",
@@ -413,6 +417,7 @@ def detect_encoding(strings_result: dict) -> dict:
                     "original_string": clean,
                     "confidence": calculate_confidence(1.0, 1.0, meaningful, 0.7),
                     "entropy": entropy,
+                    "entropy_classification": classify_entropy(entropy),
                     "source_location": source,
                     "decoded_preview": decoded[:200],
                     "validation_status": "valid" if meaningful > 0.5 else "uncertain",
@@ -439,6 +444,7 @@ def detect_encoding(strings_result: dict) -> dict:
                             "confidence": calculate_confidence(0.7, 0.9 if best_score > 0.8 else 0.6,
                                                                 meaningful, 0.8),
                             "entropy": entropy,
+                            "entropy_classification": classify_entropy(entropy),
                             "source_location": source,
                             "decoded_preview": best_text[:200],
                             "xor_key": best_key,
@@ -459,6 +465,7 @@ def detect_encoding(strings_result: dict) -> dict:
                 "original_string": clean,
                 "confidence": 0.4,
                 "entropy": entropy,
+                "entropy_classification": classify_entropy(entropy),
                 "source_location": source,
                 "decoded_preview": "",
                 "validation_status": "uncertain",

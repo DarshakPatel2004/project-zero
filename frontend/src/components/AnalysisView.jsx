@@ -422,6 +422,7 @@ LLMSummaryTab.displayName = 'LLMSummaryTab'
 
 /**
  * Dissection Summary Tab — real-time LLM threat assessment from dissection data
+ * FIXED: Sanitizes response to prevent "Objects are not valid as React child" error
  */
 const DissectionSummaryTab = memo(({ sampleId, apiUrl }) => {
   const [summary, setSummary] = useState(null)
@@ -442,7 +443,34 @@ const DissectionSummaryTab = memo(({ sampleId, apiUrl }) => {
           throw new Error(errData.detail || `HTTP ${res.status}`)
         }
         const data = await res.json()
-        if (!cancelled) setSummary(data)
+        if (!cancelled) {
+          // Backend (_format_behavior_item / _format_c2_item in step7) already
+          // normalizes list entries to strings. Re-sanitizing here caused
+          // drift (e.g. {"value":"x.com","indicator_type":"domain"} rendered
+          // as just "domain"). Only guarantee that primitives are strings so
+          // React can't choke on accidental objects.
+          const asStringArray = (items) => (
+            Array.isArray(items)
+              ? items.filter(b => b != null).map(b => typeof b === 'string' ? b : (b.value || b.text || String(b)))
+              : []
+          )
+          const sanitized = {
+            ...data,
+            summary: typeof data?.summary === 'string' ? data.summary : 'No summary available.',
+            threat_level: typeof data?.threat_level === 'string' ? data.threat_level : 'unknown',
+            risk_score: typeof data?.risk_score === 'number' ? data.risk_score : 0,
+            status: data?.status,
+            key_behaviors: asStringArray(data?.key_behaviors),
+            suspicious_methods: Array.isArray(data?.suspicious_methods)
+              ? data.suspicious_methods.filter(m => m != null)
+              : [],
+            c2_indicators: asStringArray(data?.c2_indicators),
+            recommended_focus: Array.isArray(data?.recommended_focus)
+              ? data.recommended_focus.filter(r => typeof r === 'string').map(r => r)
+              : [],
+          }
+          setSummary(sanitized)
+        }
       } catch (err) {
         if (!cancelled) setError(err.message)
       } finally {
@@ -533,7 +561,9 @@ const DissectionSummaryTab = memo(({ sampleId, apiUrl }) => {
           <h3>Key Behaviors ({summary.key_behaviors.length})</h3>
           <ul style={{ paddingLeft: '20px' }}>
             {summary.key_behaviors.map((b, i) => (
-              <li key={i} style={{ marginBottom: '8px', lineHeight: '1.5' }}>{b}</li>
+              <li key={i} style={{ marginBottom: '8px', lineHeight: '1.5' }}>
+                {b}
+              </li>
             ))}
           </ul>
         </div>
@@ -558,9 +588,11 @@ const DissectionSummaryTab = memo(({ sampleId, apiUrl }) => {
                 }}
               >
                 <div style={{ fontWeight: 500 }}>
-                  {typeof m === 'string' ? m : `${m.class || '?'}.${m.method || '?'}`}
+                  {typeof m === 'string'
+                    ? m
+                    : `${m.class || '?'}.${m.method || m.name || '?'}`}
                 </div>
-                {m.reason && (
+                {typeof m === 'object' && m && typeof m.reason === 'string' && (
                   <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
                     {m.reason}
                   </div>
@@ -588,7 +620,7 @@ const DissectionSummaryTab = memo(({ sampleId, apiUrl }) => {
                 fontSize: '13px',
                 color: 'var(--accent-rose)',
               }}>
-                {c}
+                {typeof c === 'string' ? c : String(c)}
               </li>
             ))}
           </ul>
@@ -601,7 +633,9 @@ const DissectionSummaryTab = memo(({ sampleId, apiUrl }) => {
           <h3>Recommended Focus</h3>
           <ul style={{ paddingLeft: '20px' }}>
             {summary.recommended_focus.map((r, i) => (
-              <li key={i} style={{ marginBottom: '6px', lineHeight: '1.5' }}>{r}</li>
+              <li key={i} style={{ marginBottom: '6px', lineHeight: '1.5' }}>
+                {typeof r === 'string' ? r : String(r)}
+              </li>
             ))}
           </ul>
         </div>
@@ -633,38 +667,38 @@ const STEP_TYPE_ICONS = {
 
 const SEVERITY_META = {
   critical: { badge: 'rose', icon: '🚨', description: 'High-confidence chain to confirmed public C2.' },
-  high:     { badge: 'rose', icon: '🔴', description: 'Strong indicators of malicious infrastructure.' },
-  medium:   { badge: 'amber', icon: '🟡', description: 'Moderate indicators — may be benign or partial chain.' },
-  low:      { badge: 'emerald', icon: '🟢', description: 'Weak indicators — likely benign or incomplete.' },
+  high: { badge: 'rose', icon: '🔴', description: 'Strong indicators of malicious infrastructure.' },
+  medium: { badge: 'amber', icon: '🟡', description: 'Moderate indicators — may be benign or partial chain.' },
+  low: { badge: 'emerald', icon: '🟢', description: 'Weak indicators — likely benign or incomplete.' },
 }
 
 const CHAIN_THREAT_TYPE_LABELS = {
-  c2_communication:   'C2 Communication',
-  data_exfiltration:  'Data Exfiltration',
-  payload_delivery:   'Payload Delivery',
-  command_execution:  'Command Execution',
-  benign:             'Benign',
-  unknown:            'Unknown',
+  c2_communication: 'C2 Communication',
+  data_exfiltration: 'Data Exfiltration',
+  payload_delivery: 'Payload Delivery',
+  command_execution: 'Command Execution',
+  benign: 'Benign',
+  unknown: 'Unknown',
 }
 
 const CHAIN_THREAT_TYPE_COLORS = {
-  c2_communication:  'rose',
+  c2_communication: 'rose',
   data_exfiltration: 'rose',
-  payload_delivery:  'amber',
+  payload_delivery: 'amber',
   command_execution: 'rose',
-  benign:            'emerald',
-  unknown:           'slate',
+  benign: 'emerald',
+  unknown: 'slate',
 }
 
 /**
  * Individual Chain Card with on-demand LLM explanation.
  */
 const STEP_DESCRIPTIONS = {
-  encoded_string:     'The original obfuscated or encoded string as found in the APK bytecode or resources.',
-  decoding_function:  'The Java/Kotlin method or library responsible for decoding the encoded string.',
-  decoded_artifact:   'The result after decoding — often a URL, domain, IP, or command payload.',
-  usage:              'Where the decoded artifact is consumed — typically a network call or intent.',
-  c2_infrastructure:  'The command-and-control server or endpoint contacted by the decoded payload.',
+  encoded_string: 'The original obfuscated or encoded string as found in the APK bytecode or resources.',
+  decoding_function: 'The Java/Kotlin method or library responsible for decoding the encoded string.',
+  decoded_artifact: 'The result after decoding — often a URL, domain, IP, or command payload.',
+  usage: 'Where the decoded artifact is consumed — typically a network call or intent.',
+  c2_infrastructure: 'The command-and-control server or endpoint contacted by the decoded payload.',
 }
 
 function ChainCard({ chain, sampleId, apiUrl }) {
@@ -685,9 +719,9 @@ function ChainCard({ chain, sampleId, apiUrl }) {
     })
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data?.llm) setLlmResult(data.llm) })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLlmLoading(false))
-  }, [expanded, llmResult, llmLoading, sampleId, apiUrl, chain])  
+  }, [expanded, llmResult, llmLoading, sampleId, apiUrl, chain])
 
   const threatType = llmResult?.threat_type
   const threatLabel = CHAIN_THREAT_TYPE_LABELS[threatType]

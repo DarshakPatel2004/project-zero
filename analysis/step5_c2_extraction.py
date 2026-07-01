@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional
 from urllib.parse import urlparse, parse_qs
 
+from analysis.ip_validation import calculate_ip_legitimacy_score
 from backend.config import settings
 
 try:
@@ -676,7 +677,7 @@ def parse_url(url: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-def calculate_c2_confidence(parsed: dict, source_context: str) -> float:
+def calculate_c2_confidence(parsed: dict, source_context: str, ip_legitimacy: Optional[Dict] = None) -> float:
     """Calculate confidence score for a C2 record."""
     score = 0.5
 
@@ -693,6 +694,12 @@ def calculate_c2_confidence(parsed: dict, source_context: str) -> float:
             score += 0.25
         elif ip_class == "loopback":
             score -= 0.2
+
+        # Incorporate IP legitimacy scoring
+        if ip_legitimacy and ip_legitimacy.get("verdict") == "likely_malicious":
+            score += 0.15
+        elif ip_legitimacy and ip_legitimacy.get("verdict") == "uncertain":
+            score += 0.05
     elif parsed["domain"]:
         # Real domain with TLD
         if "." in parsed["domain"] and len(parsed["domain"].split(".")[-1]) >= 2:
@@ -789,8 +796,14 @@ def extract_c2_infrastructure(payloads_result: dict, strings_result: dict) -> di
                 if parsed is None or is_benign_url(url):
                     continue
 
-                confidence = calculate_c2_confidence(parsed, source_location)
-                c2_records.append({
+                ip_legitimacy = None
+                if parsed["ip"]:
+                    ip_legitimacy = calculate_ip_legitimacy_score(
+                        parsed["ip"], url, source_location
+                    )
+
+                confidence = calculate_c2_confidence(parsed, source_location, ip_legitimacy)
+                record = {
                     "c2_id": f"c2_{c2_id:03d}",
                     "payload_id": payload_id,
                     "raw_url": url,
@@ -806,7 +819,10 @@ def extract_c2_infrastructure(payloads_result: dict, strings_result: dict) -> di
                     "source_location": source_location,
                     "confidence": confidence,
                     "threat_category": "adware" if parsed["domain"] and is_ad_network(parsed["domain"]) else "malware",
-                })
+                }
+                if ip_legitimacy:
+                    record["ip_legitimacy"] = ip_legitimacy
+                c2_records.append(record)
                 c2_id += 1
 
     # Also scan source strings directly for URLs not caught by payloads
@@ -826,8 +842,14 @@ def extract_c2_infrastructure(payloads_result: dict, strings_result: dict) -> di
                 if parsed is None or is_benign_url(url):
                     continue
 
-                confidence = round(calculate_c2_confidence(parsed, source_location), 4)
-                c2_records.append({
+                ip_legitimacy = None
+                if parsed["ip"]:
+                    ip_legitimacy = calculate_ip_legitimacy_score(
+                        parsed["ip"], url, source_location
+                    )
+
+                confidence = round(calculate_c2_confidence(parsed, source_location, ip_legitimacy), 4)
+                record = {
                     "c2_id": f"c2_{c2_id:03d}",
                     "payload_id": None,
                     "raw_url": url,
@@ -843,7 +865,10 @@ def extract_c2_infrastructure(payloads_result: dict, strings_result: dict) -> di
                     "source_location": source_location,
                     "confidence": confidence,
                     "threat_category": "adware" if parsed["domain"] and is_ad_network(parsed["domain"]) else "malware",
-                })
+                }
+                if ip_legitimacy:
+                    record["ip_legitimacy"] = ip_legitimacy
+                c2_records.append(record)
                 c2_id += 1
 
     # Optional CIRCL enrichment (pSSL/pDNS) — never fail the pipeline

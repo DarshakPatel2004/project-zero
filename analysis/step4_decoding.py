@@ -16,6 +16,8 @@ from urllib.parse import urlparse
 
 import phonenumbers
 
+from analysis.decoding_engine import multi_layer_decode
+from analysis.ip_validation import calculate_ip_legitimacy_score
 from backend.config import settings
 
 
@@ -202,12 +204,25 @@ def extract_artifacts(decoded_bytes: bytes, encoding_type: str) -> List[Dict[str
             "confidence": 0.95,
         })
 
-    # IPs
+    # IPs with legitimacy validation. Every extracted IP is emitted; the verdict
+    # adjusts confidence so analysts and downstream steps can still distinguish
+    # public, suspicious, and reserved ranges. Previously these IPs were
+    # silently dropped when "likely_benign", which hid legitimate internal
+    # C2 infrastructure (RFC 1918) from the report.
+    IP_CONFIDENCE_BY_VERDICT = {
+        "likely_malicious": 0.95,
+        "uncertain": 0.75,
+        "likely_benign": 0.50,
+    }
     for ip in extract_ips(text):
+        verdict = calculate_ip_legitimacy_score(ip, text, encoding_type)
         artifacts.append({
             "type": "ip",
             "value": ip,
-            "confidence": 0.90,
+            "confidence": round(IP_CONFIDENCE_BY_VERDICT.get(verdict["verdict"], 0.75), 4),
+            "legitimacy_score": verdict["legitimacy_score"],
+            "legitimacy_verdict": verdict["verdict"],
+            "legitimacy_factors": verdict.get("factors"),
         })
 
     # Domains
@@ -313,7 +328,32 @@ def decode_payloads(encodings_result: dict) -> dict:
             if "url" in artifact_types or "ip" in artifact_types:
                 confidence = min(1.0, confidence + 0.1)
 
-        payloads.append({
+        # --- Decoding Engine enrichment ---
+        # multi_layer_decode() has already applied c2_confidence_boost to its
+        # total_confidence, so we surface the engine's score rather than
+        # re-bumping confidence here (which would double-count URL/IP
+        # indicators against the boost at line 326).
+        original = encoding.get("original_string", "")
+        dec_engine = None
+        heur_score = None
+        c2_inds = None
+        if original:
+            ml_result = multi_layer_decode(original)
+            if ml_result.get("layers"):
+                heur_score = ml_result["heuristic_scores"][-1] if ml_result["heuristic_scores"] else None
+                c2_inds = ml_result.get("c2_indicators")
+                dec_engine = {
+                    "original_entropy": ml_result["original_entropy"],
+                    "original_entropy_classification": ml_result["original_entropy_classification"],
+                    "chain_path": ml_result["chain_path"],
+                    "num_layers": len(ml_result["layers"]),
+                    "heuristic_score": heur_score,
+                    "total_confidence": ml_result["total_confidence"],
+                    "c2_indicators": c2_inds,
+                    "c2_confidence_boost": ml_result.get("c2_confidence_boost", 0),
+                }
+
+        entry = {
             "payload_id": f"pld_{payload_id:03d}",
             "encoding_id": encoding.get("encoding_id", ""),
             "decoded_content": decoded_text[:1000],
@@ -323,7 +363,10 @@ def decode_payloads(encodings_result: dict) -> dict:
             "binary_detected": any(a["type"] == "binary" for a in artifacts),
             "magic_bytes": decoded_bytes[:4].hex() if decoded_bytes else None,
             "confidence": round(confidence, 4),
-        })
+        }
+        if dec_engine:
+            entry["decoding_engine"] = dec_engine
+        payloads.append(entry)
         payload_id += 1
 
     result = {

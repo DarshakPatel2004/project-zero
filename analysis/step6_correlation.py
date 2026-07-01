@@ -7,7 +7,7 @@ C2 infrastructure. Calculates composite confidence scores and severity indicator
 
 import json
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 
 from backend.config import settings
 
@@ -113,6 +113,10 @@ def build_threat_chains(encodings_result: dict, payloads_result: dict,
             pld_source = payload.get("source_location", enc_source)
             pld_confidence = payload.get("confidence", 0.5)
             decoded_preview = payload.get("decoded_content", "")[:200]
+            dec_engine = payload.get("decoding_engine")
+            heur_score = dec_engine.get("heuristic_score") if dec_engine else None
+            chain_path = dec_engine.get("chain_path") if dec_engine else None
+            c2_inds = dec_engine.get("c2_indicators") if dec_engine else None
 
             c2s = c2s_by_payload.get(pld_id, [])
             if not c2s:
@@ -138,6 +142,8 @@ def build_threat_chains(encodings_result: dict, payloads_result: dict,
                         "artifact": decoded_preview,
                         "source_location": pld_source,
                         "confidence": pld_confidence,
+                        "heuristic_score": heur_score,
+                        "decoding_chain": chain_path,
                     },
                 ]
                 chain_confidence = round(
@@ -149,6 +155,9 @@ def build_threat_chains(encodings_result: dict, payloads_result: dict,
                     "chain_id": f"chain_{chain_id:03d}",
                     "severity": "medium",
                     "confidence": chain_confidence,
+                    "heuristic_score": heur_score,
+                    "decoding_chain": chain_path,
+                    "c2_indicators": c2_inds,
                     "steps": steps,
                 })
                 chain_id += 1

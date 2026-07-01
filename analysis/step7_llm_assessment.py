@@ -78,10 +78,29 @@ def format_threat_context(chains_result: dict, c2_result: dict, obfuscation_resu
     lines.append("")
 
     for chain in chains_result.get("threat_chains", [])[:10]:  # Limit to 10 chains
-        lines.append(f"Chain {chain.get('chain_id')}: severity={chain.get('severity')}, confidence={chain.get('confidence')}")
+        heur = chain.get("heuristic_score")
+        dec_chain = chain.get("decoding_chain")
+        c2_inds = chain.get("c2_indicators")
+        extras = []
+        if heur is not None:
+            extras.append(f"heuristic_score={heur}")
+        if dec_chain:
+            extras.append(f"decoding_chain={' -> '.join(dec_chain)}")
+        if c2_inds:
+            extras.append(f"c2_count={len(c2_inds)}")
+        extra_str = f" [{', '.join(extras)}]" if extras else ""
+        lines.append(f"Chain {chain.get('chain_id')}: severity={chain.get('severity')}, confidence={chain.get('confidence')}{extra_str}")
         for step in chain.get("steps", []):
             artifact = str(step.get("artifact", ""))[:80]
-            lines.append(f"  Step {step.get('step')}: {step.get('type')} -> {artifact}")
+            step_heur = step.get("heuristic_score")
+            step_chain = step.get("decoding_chain")
+            meta = ""
+            if step_heur is not None:
+                meta = f" (hs={step_heur}"
+                if step_chain:
+                    meta += f", dc={'->'.join(step_chain)}"
+                meta += ")"
+            lines.append(f"  Step {step.get('step')}: {step.get('type')} -> {artifact}{meta}")
         lines.append("")
 
     lines.append("C2 Infrastructure Summary:")
@@ -805,6 +824,57 @@ def _condense_dissection(dissection: dict, class_objects: list | None = None) ->
     return result
 
 
+def _format_behavior_item(b) -> str:
+    """Normalize a key_behaviors item to a display string."""
+    if isinstance(b, str):
+        return b
+    if isinstance(b, dict):
+        for key in ("value", "text", "behavior"):
+            v = b.get(key)
+            if v is not None and str(v).strip():
+                return str(v).strip()
+        parts = []
+        if b.get("class"):
+            parts.append(b["class"])
+        if b.get("method"):
+            parts.append(f".{b['method']}")
+        if b.get("permission"):
+            if parts:
+                parts.append(f" — {b['permission']}")
+            else:
+                parts.append(b["permission"])
+        if b.get("reason"):
+            if parts:
+                parts.append(f": {b['reason']}")
+            else:
+                parts.append(b["reason"])
+        if parts:
+            return "".join(parts)
+        return json.dumps(b, ensure_ascii=False)
+    return str(b)
+
+
+def _format_c2_item(c) -> str:
+    """Normalize a c2_indicators item to a display string.
+
+    When the LLM emits a dict, prefer named indicator keys first so the
+    actual indicator is shown instead of a label like "domain".
+    """
+    if isinstance(c, str):
+        return c
+    if isinstance(c, dict):
+        preferred_keys = ("value", "indicator", "ip", "domain", "url", "raw", "text")
+        for key in preferred_keys:
+            v = c.get(key)
+            if v is not None and str(v).strip():
+                return str(v).strip()
+        for v in c.values():
+            if v and str(v).strip().lower() != "not applicable":
+                return str(v).strip()
+        return next((str(v).strip() for v in c.values() if str(v).strip()), json.dumps(c, ensure_ascii=False))
+    return str(c)
+
+
 def summarize_dissection(dissection: dict, class_objects: list | None = None) -> dict:
     """Call LLM to produce a structured threat assessment from dissection data.
     
@@ -874,6 +944,7 @@ def summarize_dissection(dissection: dict, class_objects: list | None = None) ->
         key_behaviors = parsed.get("key_behaviors", [])
         if not isinstance(key_behaviors, list):
             key_behaviors = [str(key_behaviors)]
+        key_behaviors = [_format_behavior_item(b) for b in key_behaviors if b is not None]
 
         suspicious_methods = parsed.get("suspicious_methods", [])
         if not isinstance(suspicious_methods, list):
@@ -882,6 +953,7 @@ def summarize_dissection(dissection: dict, class_objects: list | None = None) ->
         c2_indicators = parsed.get("c2_indicators", [])
         if not isinstance(c2_indicators, list):
             c2_indicators = [str(c2_indicators)]
+        c2_indicators = [_format_c2_item(c) for c in c2_indicators if c is not None]
 
         recommended_focus = parsed.get("recommended_focus", [])
         if not isinstance(recommended_focus, list):
