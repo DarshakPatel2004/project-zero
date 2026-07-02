@@ -159,7 +159,9 @@ def get_family_graph_data() -> Dict[str, Any]:
     # Needs a cap or incremental-update strategy once the index passes a
     # few thousand samples. Not blocking at current corpus scale.
     """
-    index = load_index()
+    from analysis.cross_sample_index import index_lock
+    with index_lock:
+        index = load_index()
     nodes = []
     edges = []
 

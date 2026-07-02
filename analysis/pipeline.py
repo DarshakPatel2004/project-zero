@@ -554,15 +554,25 @@ def run_pipeline(apk_path: str, work_dir: Optional[str] = None,
 
 
 if __name__ == "__main__":
-    import sys
-    if len(sys.argv) < 2:
-        print("Usage: python pipeline.py <apk_path> [work_dir]")
-        sys.exit(1)
-    apk = sys.argv[1]
-    work = sys.argv[2] if len(sys.argv) > 2 else str(settings.WORK_DIR)
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="DroidForensix Analysis Pipeline (18 steps)")
+    parser.add_argument("apk_path", help="Path to APK file")
+    parser.add_argument("--work-dir", default=str(settings.WORK_DIR),
+                        help="Working directory for analysis outputs")
+    parser.add_argument("--rebuild-index", action="store_true",
+                        help="Reset the cross-sample similarity index before running")
+
+    args = parser.parse_args()
+
+    if args.rebuild_index:
+        from analysis.cross_sample_index import clear_index
+        clear_index()
+        print("[INFO] Cross-sample index cleared for rebuild")
 
     def print_event(event_type, data):
         print(f"[EVENT] {event_type}: {json.dumps(data, default=str)[:150]}")
 
-    result = run_pipeline(apk, work, event_emitter=print_event)
+    result = run_pipeline(args.apk_path, args.work_dir, event_emitter=print_event)
     print(json.dumps(result, indent=2, default=str))
