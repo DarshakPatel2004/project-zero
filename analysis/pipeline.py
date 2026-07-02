@@ -1,16 +1,25 @@
 """
 DroidForensix Analysis Pipeline Orchestrator
 
-Coordinates the 9-step analysis pipeline:
-1. APK Extraction
-2. String Enumeration
-3. Encoding Detection
-4. Payload Decoding
-5. C2 Extraction
-6. Threat Chain Correlation
-7. Obfuscation Analysis
-8. LLM Assessment
-9. Family Identification
+Coordinates the 18-step analysis pipeline:
+ 1. APK Extraction
+ 2. String Enumeration
+ 3. Encoding Detection
+ 4. Payload Decoding
+ 5. C2 Extraction
+ 6. Threat Chain Correlation
+ 7. Obfuscation Analysis
+ 8. LLM Assessment
+ 9. Family Identification
+10. Binary Packing Detection
+11. String Entropy & Clustering
+12. Reflective Method Tracing
+13. Native ELF Analysis
+14. Network Protocol Analysis
+15. Reflective Permission Correlation
+16. Certificate Analysis
+17. Family Clustering
+18. Threat Synthesis
 
 Emits unified progress events for real-time frontend updates.
 """
@@ -31,6 +40,15 @@ from analysis.step6_correlation import build_threat_chains
 from analysis.step7_llm_assessment import assess_with_llm
 from analysis.step8_obfuscation_analysis import analyze_obfuscation
 from analysis.step9_post_process import post_process_result
+from analysis.step10_binary_packing import detect_binary_packing
+from analysis.step11_string_clustering import cluster_high_entropy_strings
+from analysis.step12_reflective_tracing import find_reflective_calls
+from analysis.step13_native_elf_analysis import analyze_native_libraries_from_apk
+from analysis.step14_network_protocol_analysis import analyze_network_protocols
+from analysis.step15_reflective_permission_correlation import correlate_reflective_permission_usage
+from analysis.step16_certificate_analysis import analyze_certificate
+from analysis.step17_family_clustering import cluster_family
+from analysis.step18_threat_synthesis import synthesize_threat_profile
 from backend.family_id import identify_family
 from backend.dissection import APKDissector
 
@@ -45,7 +63,7 @@ EventEmitter = Optional[Callable[[str, dict], None]]
 
 logger = logging.getLogger(__name__)
 
-TOTAL_STEPS = 9
+TOTAL_STEPS = 18
 
 STEP_NAMES = {
     1: "APK Extraction",
@@ -57,6 +75,15 @@ STEP_NAMES = {
     7: "Obfuscation Analysis",
     8: "LLM Assessment",
     9: "Family Identification",
+    10: "Binary Packing Detection",
+    11: "String Entropy & Clustering",
+    12: "Reflective Method Tracing",
+    13: "Native ELF Analysis",
+    14: "Network Protocol Analysis",
+    15: "Reflective Permission Correlation",
+    16: "Certificate Analysis",
+    17: "Family Clustering",
+    18: "Threat Synthesis",
 }
 
 
@@ -353,6 +380,15 @@ def run_pipeline(apk_path: str, work_dir: Optional[str] = None,
         "threat_chains": chains_result["threat_chains"],
         "llm_assessment": llm_assessment,
         "obfuscation_analysis": obfuscation_result,
+        "binary_packing": packing_result,
+        "string_clustering": string_cluster_result,
+        "reflective_tracing": reflective_result,
+        "native_elf_analysis": native_elf_result,
+        "network_protocols": network_result,
+        "reflective_permission_correlation": permission_result,
+        "certificate_analysis": cert_result,
+        "family_clustering": family_cluster_result,
+        "threat_synthesis": synthesis_result,
         "timeline": timeline,
     }
 
@@ -403,6 +439,78 @@ def run_pipeline(apk_path: str, work_dir: Optional[str] = None,
             "severity": "low",
         })
 
+    # Step 10: Binary Packing Detection
+    packing_result, timeline["step10"] = _run_step(
+        10, sample_id, apk_size, global_start, event_emitter, work_dir,
+        detect_binary_packing, {"apk_path": apk_path}
+    )
+
+    # Step 11: String Entropy & Clustering
+    all_strings = []
+    for cat in strings_result.get("categories", {}).values():
+        if isinstance(cat, list):
+            all_strings.extend(cat)
+        elif isinstance(cat, dict):
+            all_strings.extend(cat.get("values", cat.get("strings", [])))
+    string_cluster_result, timeline["step11"] = _run_step(
+        11, sample_id, apk_size, global_start, event_emitter, work_dir,
+        cluster_high_entropy_strings, all_strings
+    )
+
+    # Step 12: Reflective Method Tracing
+    reflective_result, timeline["step12"] = _run_step(
+        12, sample_id, apk_size, global_start, event_emitter, work_dir,
+        find_reflective_calls, extraction
+    )
+
+    # Step 13: Native ELF Analysis
+    native_elf_result, timeline["step13"] = _run_step(
+        13, sample_id, apk_size, global_start, event_emitter, work_dir,
+        analyze_native_libraries_from_apk, apk_path, extraction.get("extracted_path")
+    )
+
+    # Step 14: Network Protocol Analysis
+    network_result, timeline["step14"] = _run_step(
+        14, sample_id, apk_size, global_start, event_emitter, work_dir,
+        analyze_network_protocols, all_strings
+    )
+
+    # Step 15: Reflective Permission Correlation
+    manifest_perms = manifest.get("uses_permissions", [])
+    reflective_calls_list = reflective_result.get("reflective_calls", [])
+    permission_result, timeline["step15"] = _run_step(
+        15, sample_id, apk_size, global_start, event_emitter, work_dir,
+        correlate_reflective_permission_usage, manifest_perms, reflective_calls_list
+    )
+
+    # Step 16: Certificate Analysis
+    cert_result, timeline["step16"] = _run_step(
+        16, sample_id, apk_size, global_start, event_emitter, work_dir,
+        analyze_certificate, apk_path
+    )
+
+    # Step 17: Family Clustering (cross-sample)
+    family_cluster_result, timeline["step17"] = _run_step(
+        17, sample_id, apk_size, global_start, event_emitter, work_dir,
+        cluster_family, sample_id, extraction, result
+    )
+
+    # Step 18: Threat Synthesis
+    synthesis_context = {
+        "packing": packing_result,
+        "reflective_tracing": reflective_result,
+        "permissions": permission_result,
+        "network": network_result,
+        "strings": string_cluster_result,
+        "native_elf": native_elf_result,
+        "certificate": cert_result,
+        "family_clustering": family_cluster_result,
+    }
+    synthesis_result, timeline["step18"] = _run_step(
+        18, sample_id, apk_size, global_start, event_emitter, work_dir,
+        synthesize_threat_profile, synthesis_context
+    )
+
     duration = round(time.time() - global_start, 3)
     timeline["total"] = duration
 
@@ -428,6 +536,15 @@ def run_pipeline(apk_path: str, work_dir: Optional[str] = None,
             "step7_obfuscation": timeline.get("step7", 0),
             "step8_llm": timeline.get("step8", 0),
             "step9_family": timeline.get("step9", 0),
+            "step10_packing": timeline.get("step10", 0),
+            "step11_strings": timeline.get("step11", 0),
+            "step12_reflective": timeline.get("step12", 0),
+            "step13_elf": timeline.get("step13", 0),
+            "step14_network": timeline.get("step14", 0),
+            "step15_permissions": timeline.get("step15", 0),
+            "step16_certificate": timeline.get("step16", 0),
+            "step17_clustering": timeline.get("step17", 0),
+            "step18_synthesis": timeline.get("step18", 0),
         },
         "final_verdict": result.get("llm_assessment", {}).get("severity", "unknown"),
         "risk_score": result.get("llm_assessment", {}).get("risk_score", 0),

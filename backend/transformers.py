@@ -340,5 +340,11 @@ def transform_samples_list(results: List[Dict[str, Any]]) -> List[Dict[str, Any]
             "payloads_count": len(result.get("payloads", [])),
             "c2_count": len(result.get("c2_infrastructure", [])),
             "chains_count": len(result.get("threat_chains", [])),
+            "packing_detected": result.get("binary_packing", {}).get("packing_detected", False),
+            "reflective_calls": result.get("reflective_tracing", {}).get("total_reflective_calls", 0),
+            "c2_endpoints": result.get("network_protocols", {}).get("total_c2", 0),
+            "certificate_found": result.get("certificate_analysis", {}).get("certificate_found", False),
+            "zero_day_risk_score": result.get("threat_synthesis", {}).get("zero_day_risk_score", 0),
+            "zero_day_risk_level": result.get("threat_synthesis", {}).get("risk_level", "none"),
         })
     return samples

@@ -388,7 +388,7 @@ function AppInner() {
         sample_id: selectedSample.sha256,
         sample_name: selectedSample.fileName,
         file_size_bytes: 0,
-        total_steps: 9,
+        total_steps: 18,
         predicted_eta_seconds: estimateEtaSeconds(selectedSample.fileSize || 0),
       },
     })
@@ -436,7 +436,7 @@ function AppInner() {
             sample_id: data.sha256,
             sample_name: file.name,
             file_size_bytes: file.size,
-            total_steps: 9,
+            total_steps: 18,
             predicted_eta_seconds: estimateEtaSeconds(file.size),
           },
         })
