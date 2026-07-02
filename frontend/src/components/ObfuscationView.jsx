@@ -10,7 +10,7 @@ const TECHNIQUE_COLORS = {
   dangerous_permissions: 'slate',
 }
 
-export default function ObfuscationView({ sample, apiUrl }) {
+export default function ObfuscationView({ sample, apiUrl, result }) {
   const [obfuscationData, setObfuscationData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -21,6 +21,9 @@ export default function ObfuscationView({ sample, apiUrl }) {
 
   const sampleId = sample?.sampleId || sample?.sha256 || sample?.uploadId
   const API_URL = apiUrl || 'http://localhost:8000'
+  const packing = result?.binary_packing || {}
+  const reflective = result?.reflective_tracing || {}
+  const strings = result?.string_clustering || {}
 
   useEffect(() => {
     if (!sampleId) return
@@ -168,6 +171,43 @@ export default function ObfuscationView({ sample, apiUrl }) {
             </div>
           )}
         </>
+      )}
+
+      {(packing.packer_detected || reflective.has_reflection) && (
+        <div className="obfuscation-grid">
+          {packing.packer_detected && (
+            <div className="obfuscation-card card">
+              <h3 className="section-title">Binary Packing</h3>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: 0 }}>
+                Packer detected: <strong>{packing.packer_name || 'Unknown'}</strong>
+              </p>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: 0 }}>
+                Entropy: {packing.entropy?.toFixed(2) || '—'}
+              </p>
+            </div>
+          )}
+          {reflective.has_reflection && (
+            <div className="obfuscation-card card">
+              <h3 className="section-title">Reflective Calls</h3>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: 0 }}>
+                Count: <strong>{reflective.call_count ?? 0}</strong>
+              </p>
+              {reflective.permission_mismatch && (
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: 0 }}>
+                  Permission mismatch detected
+                </p>
+              )}
+            </div>
+          )}
+          {strings.total_clusters > 0 && (
+            <div className="obfuscation-card card">
+              <h3 className="section-title">String Clusters</h3>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: 0 }}>
+                Clusters: <strong>{strings.total_clusters}</strong> / Strings: <strong>{strings.total_strings}</strong>
+              </p>
+            </div>
+          )}
+        </div>
       )}
 
       <div className="obfuscation-card card deobf-card">

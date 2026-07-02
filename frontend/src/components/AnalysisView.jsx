@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback, memo } from 'react'
 import './AnalysisView.css'
 import ObfuscationView from './ObfuscationView'
 import ManifestView from './ManifestView'
+import ThreatSynthesisPanel from './ThreatSynthesisPanel'
 
 /**
  * Format seconds into human-readable duration.
@@ -21,6 +22,11 @@ function formatDuration(seconds) {
   if (s > 0) parts.push(`${s}s`)
 
   return parts.join(' ')
+}
+
+export function riskLevelBadgeClass(level) {
+  const map = { critical: 'rose', high: 'rose', medium: 'amber', low: 'emerald', unknown: 'slate' }
+  return `badge-${map[level] || 'slate'}`
 }
 
 /**
@@ -244,6 +250,21 @@ const ResultView = memo(({ analysisState, apiUrl, sample }) => {
             <span className="metric-label">Analysis Time</span>
             <span className="metric-value">{formatDuration(verdict?.totalDuration)}</span>
           </div>
+          {fullResult?.threat_synthesis && (
+            <div className="metric">
+              <span className="metric-label">Zero-Day Risk</span>
+              <span className="metric-value">
+                {fullResult.threat_synthesis.zero_day_risk_score ?? 0}
+                {' '}
+                <span
+                  className={`badge ${riskLevelBadgeClass(fullResult.threat_synthesis.risk_level)}`}
+                  style={{ fontSize: '0.65rem', verticalAlign: 'middle' }}
+                >
+                  {fullResult.threat_synthesis.risk_level?.toUpperCase() || 'NONE'}
+                </span>
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -256,6 +277,7 @@ const ResultView = memo(({ analysisState, apiUrl, sample }) => {
           { id: 'obfuscation', label: 'Obfuscation' },
           { id: 'chains', label: 'Threat Chains' },
           { id: 'manifest', label: 'Manifest' },
+          { id: 'synthesis', label: 'Threat Synthesis' },
         ].map(tab => (
           <button
             key={tab.id}
@@ -279,7 +301,10 @@ const ResultView = memo(({ analysisState, apiUrl, sample }) => {
           <DissectionSummaryTab sampleId={effectiveSampleId} apiUrl={apiUrl} />
         )}
         {activeResultTab === 'obfuscation' && (
-          <ObfuscationView sample={sample} apiUrl={apiUrl} />
+          <ObfuscationView sample={sample} apiUrl={apiUrl} result={fullResult} />
+        )}
+        {activeResultTab === 'synthesis' && (
+          <ThreatSynthesisPanel synthesis={fullResult?.threat_synthesis} />
         )}
         {activeResultTab === 'chains' && (
           <ChainsTab result={fullResult} apiUrl={apiUrl} sampleId={effectiveSampleId} />
