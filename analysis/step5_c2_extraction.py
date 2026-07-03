@@ -414,6 +414,24 @@ BENIGN_DOMAINS = {
     "math.stackexchange.com",
     "jdashg.github.io",
     "dartbug.com",
+    # Indian payment gateways
+    "paytm.in", "securegw.paytm.in", "easypay.paytm.in",
+    "payu.in", "payumoney.com", "ccavenue.com",
+    "mobikwik.com", "zaakpay.com",
+    "npci.org.in",
+    # Indian bank 3D Secure / ACS
+    "onlinesbi.com", "hdfcbank.com", "icicibank.com",
+    "citibank.co.in", "enstage.com", "idbibank.com",
+    "amxvpos.com", "deutschebank.co.in",
+    # Xiaomi / Mi ecosystem
+    "xiaomi.com", "xiaomi.net", "mi.com",
+    "xmpush.global.xiaomi.com", "appmifile.com",
+    # Other legitimate services
+    "cashify.in", "uber.com", "schema.org",
+    "twitter.com", "worldpay.com", "apaylater.com",
+    "indusguard.com", "monstat.com",
+    "paysecure.ru",
+    "paypal.com", "www.paypal.com",
 }
 
 # TLD-like tokens produced by over-matching URL regex on code fragments.
