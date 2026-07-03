@@ -149,7 +149,7 @@ export default function ThreatIntelView({ sample, apiUrl }) {
                     title={`${ip.ip} (${ip.country})`}
                   >
                     <span className="geo-dot"></span>
-                    <span className="geo-tooltip">{ip.ip}<br />{ip.country}</span>
+                    <span className="geo-tooltip">{ip.ip}<br />{ip.country}{ip.isp ? `<br/>${ip.isp}` : ''}</span>
                   </div>
                 ))}
               <div className="geo-bg">
@@ -164,6 +164,7 @@ export default function ThreatIntelView({ sample, apiUrl }) {
                     <th>Type</th>
                     <th>Country</th>
                     <th>Region</th>
+                    <th>ISP / Organization</th>
                     <th>Coordinates</th>
                   </tr>
                 </thead>
@@ -171,6 +172,8 @@ export default function ThreatIntelView({ sample, apiUrl }) {
                   {geoIps.map((ip, idx) => {
                     const ipType = ip.ip_type || 'public'
                     const isPrivate = ipType === 'private' || ipType === 'loopback'
+                    const ispLabel = ip.isp || ip.org || '-'
+                    const asnLabel = ip.as || ''
                     return (
                       <tr key={idx} className={isPrivate ? 'geo-row-warn' : ''}>
                         <td className="text-mono">{ip.ip}</td>
@@ -179,6 +182,10 @@ export default function ThreatIntelView({ sample, apiUrl }) {
                         </td>
                         <td>{ip.country}</td>
                         <td>{ip.region || '-'}</td>
+                        <td>
+                          <span className="isp-name">{ispLabel}</span>
+                          {asnLabel && <span className="asn-name">{asnLabel}</span>}
+                        </td>
                         <td className="text-mono">
                           {ip.latitude !== undefined && ip.latitude !== null && ip.longitude !== undefined && ip.longitude !== null
                             ? `${ip.latitude.toFixed(2)}, ${ip.longitude.toFixed(2)}`
@@ -208,6 +215,7 @@ function C2Row({ c2, geoIps }) {
   const resolvedIps = c2.live_dns?.ips || []
   const geo = geoIps.find(g => g.ip === c2.ip || resolvedIps.includes(g.ip))
   const country = geo?.country
+  const ispLabel = geo?.isp || geo?.org || ''
 
   return (
     <tr>
@@ -217,6 +225,7 @@ function C2Row({ c2, geoIps }) {
         {geo?.ip_type && geo.ip_type !== 'public' && (
           <span className={`ip-type-badge ip-type-${geo.ip_type}`} style={{ marginLeft: '0.4rem' }}>{geo.ip_type}</span>
         )}
+        {ispLabel && <span className="c2-isp">{ispLabel}</span>}
         {resolvedIps.length > 0 && c2.domain && (
           <div className="c2-resolved-ips" style={{ fontSize: '0.72rem', marginTop: '0.2rem', color: '#888' }}>
             Resolved: {resolvedIps.join(', ')}

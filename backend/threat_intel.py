@@ -18,9 +18,11 @@ import io
 import ipaddress
 import json
 import socket
+import time
 from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
+from urllib.request import urlopen, Request
 
 from backend.config import settings
 
@@ -29,6 +31,63 @@ try:
     _GEO_READER = geoip2.database.Reader(str(settings.GEOIP_PATH)) if settings.GEOIP_PATH.exists() else None
 except Exception:
     _GEO_READER = None
+
+_ISP_CACHE_PATH = settings.WORK_DIR / 'isp_cache.json'
+_LAST_ISP_QUERY = 0.0
+
+def _load_isp_cache() -> Dict[str, Any]:
+    if _ISP_CACHE_PATH.exists():
+        try:
+            with open(_ISP_CACHE_PATH, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+def _save_isp_cache(cache: Dict[str, Any]) -> None:
+    try:
+        with open(_ISP_CACHE_PATH, 'w', encoding='utf-8') as f:
+            json.dump(cache, f, indent=2)
+    except Exception:
+        pass
+
+def _enrich_isp(ip: str) -> Dict[str, str]:
+    """Query ip-api.com for ISP/org/AS, with rate limiting and caching."""
+    global _LAST_ISP_QUERY
+    cache = _load_isp_cache()
+    if ip in cache:
+        return cache[ip]
+
+    if _classify_ip(ip) != 'public':
+        result = {'isp': '', 'org': '', 'as': ''}
+        cache[ip] = result
+        _save_isp_cache(cache)
+        return result
+
+    elapsed = time.time() - _LAST_ISP_QUERY
+    if elapsed < 1.4:
+        time.sleep(1.4 - elapsed)
+    _LAST_ISP_QUERY = time.time()
+
+    try:
+        req = Request(f'http://ip-api.com/json/{ip}?fields=status,isp,org,as,country,regionName,city',
+                      headers={'User-Agent': 'DroidForensix/1.0'})
+        with urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode())
+        if data.get('status') == 'success':
+            result = {
+                'isp': data.get('isp', ''),
+                'org': data.get('org', ''),
+                'as': data.get('as', ''),
+            }
+        else:
+            result = {'isp': '', 'org': '', 'as': ''}
+    except Exception:
+        result = {'isp': '', 'org': '', 'as': ''}
+
+    cache[ip] = result
+    _save_isp_cache(cache)
+    return result
 
 
 def _geo_lookup(ip: str) -> Optional[Dict[str, Any]]:
@@ -355,6 +414,7 @@ def build_threat_intel(result: Dict[str, Any], sample_id: str) -> Dict[str, Any]
             seen_ips.add(ip)
             ip_type = _classify_ip(ip)
             geo = geo_cache.get(ip) or _geo_lookup(ip)
+            isp_data = _enrich_isp(ip) if not (geo and geo.get('isp')) else {'isp': geo.get('isp', ''), 'org': '', 'as': ''}
             if geo:
                 ips_geolocated.append({
                     'ip': ip,
@@ -362,7 +422,9 @@ def build_threat_intel(result: Dict[str, Any], sample_id: str) -> Dict[str, Any]
                     'country': geo.get('country', 'Unknown'),
                     'region': geo.get('regionName') or geo.get('region') or '',
                     'city': geo.get('city', ''),
-                    'isp': geo.get('isp', ''),
+                    'isp': isp_data.get('isp', geo.get('isp', '')),
+                    'org': isp_data.get('org', ''),
+                    'as': isp_data.get('as', ''),
                     'latitude': geo.get('lat'),
                     'longitude': geo.get('lon'),
                 })
@@ -375,6 +437,8 @@ def build_threat_intel(result: Dict[str, Any], sample_id: str) -> Dict[str, Any]
                     'region': '',
                     'city': '',
                     'isp': '',
+                    'org': '',
+                    'as': '',
                     'latitude': None,
                     'longitude': None,
                 })
