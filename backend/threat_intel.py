@@ -353,10 +353,12 @@ def build_threat_intel(result: Dict[str, Any], sample_id: str) -> Dict[str, Any]
             if ip in seen_ips:
                 continue
             seen_ips.add(ip)
+            ip_type = _classify_ip(ip)
             geo = geo_cache.get(ip) or _geo_lookup(ip)
             if geo:
                 ips_geolocated.append({
                     'ip': ip,
+                    'ip_type': ip_type,
                     'country': geo.get('country', 'Unknown'),
                     'region': geo.get('regionName') or geo.get('region') or '',
                     'city': geo.get('city', ''),
@@ -365,9 +367,11 @@ def build_threat_intel(result: Dict[str, Any], sample_id: str) -> Dict[str, Any]
                     'longitude': geo.get('lon'),
                 })
             else:
+                country = 'Private Network' if ip_type in ('private', 'loopback') else 'Unknown'
                 ips_geolocated.append({
                     'ip': ip,
-                    'country': 'Unknown',
+                    'ip_type': ip_type,
+                    'country': country,
                     'region': '',
                     'city': '',
                     'isp': '',

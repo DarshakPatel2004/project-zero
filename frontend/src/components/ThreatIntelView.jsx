@@ -137,21 +137,21 @@ export default function ThreatIntelView({ sample, apiUrl }) {
           <p className="empty-state">No geo-located IPs available</p>
         ) : (
           <div className="geo-layout">
-            <div className="geo-map">
-              {geoIps.map((ip, idx) => (
-                <div
-                  key={idx}
-                  className="geo-pin"
-                  style={{
-                    left: `${longToX(ip.longitude)}%`,
-                    top: `${latToY(ip.latitude)}%`
-                  }}
-                  title={`${ip.ip} (${ip.country})`}
-                >
-                  <span className="geo-dot"></span>
-                  <span className="geo-tooltip">{ip.ip}<br />{ip.country}</span>
-                </div>
-              ))}
+              <div className="geo-map">
+                {geoIps.filter(ip => ip.latitude != null && ip.longitude != null).map((ip, idx) => (
+                  <div
+                    key={idx}
+                    className="geo-pin"
+                    style={{
+                      left: `${longToX(ip.longitude)}%`,
+                      top: `${latToY(ip.latitude)}%`
+                    }}
+                    title={`${ip.ip} (${ip.country})`}
+                  >
+                    <span className="geo-dot"></span>
+                    <span className="geo-tooltip">{ip.ip}<br />{ip.country}</span>
+                  </div>
+                ))}
               <div className="geo-bg">
                 <span className="geo-placeholder">🌍 World Map</span>
               </div>
@@ -161,24 +161,32 @@ export default function ThreatIntelView({ sample, apiUrl }) {
                 <thead>
                   <tr>
                     <th>IP Address</th>
+                    <th>Type</th>
                     <th>Country</th>
                     <th>Region</th>
                     <th>Coordinates</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {geoIps.map((ip, idx) => (
-                    <tr key={idx}>
-                      <td className="text-mono">{ip.ip}</td>
-                      <td>{ip.country}</td>
-                      <td>{ip.region || '-'}</td>
-                      <td className="text-mono">
-                        {ip.latitude !== undefined && ip.latitude !== null && ip.longitude !== undefined && ip.longitude !== null
-                          ? `${ip.latitude.toFixed(2)}, ${ip.longitude.toFixed(2)}`
-                          : '—'}
-                      </td>
-                    </tr>
-                  ))}
+                  {geoIps.map((ip, idx) => {
+                    const ipType = ip.ip_type || 'public'
+                    const isPrivate = ipType === 'private' || ipType === 'loopback'
+                    return (
+                      <tr key={idx} className={isPrivate ? 'geo-row-warn' : ''}>
+                        <td className="text-mono">{ip.ip}</td>
+                        <td>
+                          <span className={`ip-type-badge ip-type-${ipType}`}>{ipType}</span>
+                        </td>
+                        <td>{ip.country}</td>
+                        <td>{ip.region || '-'}</td>
+                        <td className="text-mono">
+                          {ip.latitude !== undefined && ip.latitude !== null && ip.longitude !== undefined && ip.longitude !== null
+                            ? `${ip.latitude.toFixed(2)}, ${ip.longitude.toFixed(2)}`
+                            : '—'}
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -198,13 +206,17 @@ function C2Row({ c2, geoIps }) {
   const classification = normalizeClassification(c2.classification)
 
   const resolvedIps = c2.live_dns?.ips || []
-  const country = geoIps.find(g => g.ip === c2.ip || resolvedIps.includes(g.ip))?.country
+  const geo = geoIps.find(g => g.ip === c2.ip || resolvedIps.includes(g.ip))
+  const country = geo?.country
 
   return (
     <tr>
       <td className="c2-indicator">
         <span className="c2-name text-mono" title={indicator}>{indicator}</span>
         {country && <span className="c2-country">{country}</span>}
+        {geo?.ip_type && geo.ip_type !== 'public' && (
+          <span className={`ip-type-badge ip-type-${geo.ip_type}`} style={{ marginLeft: '0.4rem' }}>{geo.ip_type}</span>
+        )}
         {resolvedIps.length > 0 && c2.domain && (
           <div className="c2-resolved-ips" style={{ fontSize: '0.72rem', marginTop: '0.2rem', color: '#888' }}>
             Resolved: {resolvedIps.join(', ')}
