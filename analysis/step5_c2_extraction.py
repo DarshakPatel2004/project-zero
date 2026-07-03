@@ -426,6 +426,10 @@ BENIGN_DOMAINS = {
     # Xiaomi / Mi ecosystem
     "xiaomi.com", "xiaomi.net", "mi.com",
     "xmpush.global.xiaomi.com", "appmifile.com",
+    # Payment 3DS authentication providers
+    "arcot.com",
+    # Xiaomi POCO sub-brand
+    "po.co",
     # Other legitimate services
     "cashify.in", "uber.com", "schema.org",
     "twitter.com", "worldpay.com", "apaylater.com",
