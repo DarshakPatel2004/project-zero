@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import '../styles/ObfuscationView.css'
 
 const TECHNIQUE_COLORS = {
+  encrypted_assets: 'rose',
   dynamic_loading: 'rose',
   native_loading: 'violet',
   reflection: 'amber',
@@ -237,7 +238,17 @@ function TechniqueCard({ technique, color }) {
       <div className="technique-items">
         {visibleItems.map((item, idx) => (
           <div key={idx} className="technique-item">
-            {item.class ? (
+            {item.detail ? (
+              <>
+                <span className={`technique-severity badge-${item.severity === 'high' ? 'rose' : 'amber'}`}>
+                  {item.severity}
+                </span>
+                <span className="technique-detail text-mono">{item.detail}</span>
+                {item.asset_to_dex_ratio && (
+                  <span className="technique-ratio">ratio {item.asset_to_dex_ratio}:1</span>
+                )}
+              </>
+            ) : item.class ? (
               <>
                 <span className="technique-class text-mono" title={item.class}>{item.class}</span>
                 <span className="technique-method text-mono">{item.method}</span>

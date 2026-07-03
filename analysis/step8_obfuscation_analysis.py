@@ -234,6 +234,122 @@ def shannon_entropy(data: bytes) -> float:
     return entropy
 
 
+def analyze_assets(apk_path: Path) -> Dict[str, Any]:
+    """
+    Analyze asset files in the APK for encrypted-asset patterns.
+
+    Detects:
+    - Tiny stub DEX (< 10 KB) + large encrypted assets
+    - High-entropy asset files (> 7.8 entropy)
+    - Assets with specific size patterns (encrypted DEX payloads)
+    - Native library names in lib/ directory (for correlation)
+
+    Returns:
+        dict with asset analysis results.
+    """
+    result = {
+        "asset_files": [],
+        "flags": [],
+        "dex_files": [],
+        "native_libs": [],
+    }
+    try:
+        with zipfile.ZipFile(apk_path, 'r') as z:
+            for name in z.namelist():
+                # Skip directories
+                if name.endswith('/'):
+                    continue
+
+                try:
+                    data = z.read(name)
+                except RuntimeError:
+                    # Skip encrypted entries (password-protected ZIP)
+                    continue
+                file_size = len(data)
+
+                # Track DEX files
+                if name.startswith('classes') and name.endswith('.dex'):
+                    ent = shannon_entropy(data) if data else 0.0
+                    result["dex_files"].append({
+                        "file": name,
+                        "size": file_size,
+                        "entropy": round(ent, 4),
+                    })
+
+                # Track asset files
+                elif name.startswith('assets/') and not name.endswith('/'):
+                    ent = shannon_entropy(data) if data else 0.0
+                    entry = {
+                        "file": name,
+                        "size": file_size,
+                        "entropy": round(ent, 4),
+                        "likely_encrypted": ent > 7.8,
+                    }
+                    result["asset_files"].append(entry)
+
+                # Track native libraries
+                elif name.endswith('.so'):
+                    result["native_libs"].append({
+                        "file": name,
+                        "size": file_size,
+                    })
+
+    except Exception as e:
+        logger.debug("Asset analysis failed: %s", e)
+        return result
+
+    # Detection: tiny DEX + large assets + native libs
+    tiny_dexes = [d for d in result["dex_files"] if d["size"] < 10000]
+    large_assets = [a for a in result["asset_files"] if a["size"] > 50000]
+    has_native_libs = len(result["native_libs"]) > 0
+    has_encrypted_assets = [a for a in result["asset_files"] if a.get("likely_encrypted")]
+
+    if tiny_dexes and large_assets and has_native_libs:
+        # Compute a confidence score for the encrypted-assets pattern
+        total_asset_size = sum(a["size"] for a in large_assets)
+        total_dex_size = sum(d["size"] for d in tiny_dexes)
+        asset_to_dex_ratio = total_asset_size / total_dex_size if total_dex_size > 0 else 0
+
+        flag_detail = (
+            f"Tiny DEX ({len(tiny_dexes)} files, {total_dex_size}B total) + "
+            f"large assets ({len(large_assets)} files, {total_asset_size}B total) + "
+            f"native libs ({len(result['native_libs'])})"
+        )
+
+        severity = "high" if asset_to_dex_ratio > 100 and has_encrypted_assets else "medium"
+
+        result["flags"].append({
+            "type": "encrypted_assets_stub_dex",
+            "severity": severity,
+            "detail": flag_detail,
+            "asset_to_dex_ratio": round(asset_to_dex_ratio, 1),
+            "detected_encrypted_assets": len(has_encrypted_assets),
+        })
+
+    # Detection: stand-alone encrypted asset files (even without tiny DEX)
+    for asset in has_encrypted_assets:
+        # Very high entropy (> 7.95) in a large file = almost certainly encrypted
+        if asset["entropy"] > 7.95 and asset["size"] > 100000:
+            result["flags"].append({
+                "type": "encrypted_asset",
+                "severity": "high",
+                "detail": f"{asset['file']}: {asset['size']}B, entropy={asset['entropy']}",
+            })
+
+    # Detection: asset files that are suspiciously large for their type
+    # (e.g., .png files that are several MB with max entropy)
+    for asset in result["asset_files"]:
+        ext = Path(asset["file"]).suffix.lower()
+        if ext in ('.png', '.jpg', '.jpeg', '.gif', '.mp3', '.mp4') and asset["size"] > 500000 and asset["entropy"] > 7.9:
+            result["flags"].append({
+                "type": "suspicious_media_asset",
+                "severity": "medium",
+                "detail": f"{asset['file']}: {asset['size']}B, entropy={asset['entropy']} (media type with max entropy)",
+            })
+
+    return result
+
+
 def dex_entropy_from_apk(apk_path: Path) -> List[Dict[str, Any]]:
     """Compute entropy of each classes.dex entry in the APK."""
     results = []
@@ -502,7 +618,7 @@ def _match_behavior_groups(app_permissions: List[str]) -> List[Dict[str, Any]]:
     return matches
 
 
-def calculate_obfuscation_score(indicators: Dict[str, Any], dex_entropy: List[Dict[str, Any]]) -> float:
+def calculate_obfuscation_score(indicators: Dict[str, Any], dex_entropy: List[Dict[str, Any]], asset_analysis: Optional[Dict[str, Any]] = None) -> float:
     """Calculate a 0-100 obfuscation score with permission behavior grouping."""
     score = 0.0
     score += min(20, len(indicators.get("reflection", [])) * 2)
@@ -515,6 +631,16 @@ def calculate_obfuscation_score(indicators: Dict[str, Any], dex_entropy: List[Di
 
     if any(d.get("likely_packed") for d in dex_entropy):
         score += 15
+    if asset_analysis:
+        for flag in asset_analysis.get("flags", []):
+            if flag["type"] == "encrypted_assets_stub_dex" and flag["severity"] == "high":
+                score += 25
+            elif flag["type"] == "encrypted_assets_stub_dex" and flag["severity"] == "medium":
+                score += 15
+            elif flag["type"] == "encrypted_asset" and flag["severity"] == "high":
+                score += 20
+            elif flag["type"] == "suspicious_media_asset":
+                score += 10
 
     # Permission behavior group boosts.
     # Only boost when the app has ZERO code-level signals (reflection, dynamic loading,
@@ -570,6 +696,9 @@ def analyze_obfuscation(apk_path: str, work_dir: Optional[str] = None, sample_id
     # DEX entropy / packing detection
     result["dex_entropy"] = dex_entropy_from_apk(apk_path)
 
+    # Asset analysis: detect encrypted assets, stub DEX files
+    result["asset_analysis"] = analyze_assets(apk_path)
+
     # Native library strings
     result["native_library_artifacts"] = extract_native_strings(apk_path)
 
@@ -599,7 +728,7 @@ def analyze_obfuscation(apk_path: str, work_dir: Optional[str] = None, sample_id
 
     # Score
     result["obfuscation_score"] = calculate_obfuscation_score(
-        result["indicators"], result["dex_entropy"]
+        result["indicators"], result["dex_entropy"], result.get("asset_analysis")
     )
 
     if result["obfuscation_score"] >= 70:
@@ -608,6 +737,11 @@ def analyze_obfuscation(apk_path: str, work_dir: Optional[str] = None, sample_id
         result["obfuscation_level"] = "medium"
     else:
         result["obfuscation_level"] = "low"
+
+    # Add encrypted-asset flags to notes for visibility
+    if result.get("asset_analysis"):
+        for flag in result["asset_analysis"].get("flags", []):
+            result["notes"].append(f"[{flag['severity']}] {flag['type']}: {flag['detail']}")
 
     # Save intermediate result
     result_path = out_dir / "step8_obfuscation.json"

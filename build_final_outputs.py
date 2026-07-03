@@ -8,7 +8,17 @@ from datetime import datetime
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+import geoip2.database
+import requests
+from dotenv import load_dotenv
+
 WORK_DIR = Path('analysis/work')
+MMDB_PATH = Path('data/GeoLite2-City.mmdb')
+GEO_READER = geoip2.database.Reader(str(MMDB_PATH)) if MMDB_PATH.exists() else None
+
+load_dotenv()
+SHODAN_KEY = os.getenv('SHODAN_KEY')
+ABUSEIPDB_KEY = os.getenv('ABUSEIPDB_API_KEY')
 
 # --- Whitelist of known benign SDK/ad domains ---
 BENIGN_SDK_DOMAINS = {
@@ -149,17 +159,119 @@ def classify_c2(c2):
         return 'benign', 'clean indicator'
 
 def geo_lookup(ip):
-    """Lookup IP location via ip-api.com free API."""
-    if not ip: return None
+    """Lookup IP location via offline MaxMind GeoLite2."""
+    if not ip or GEO_READER is None:
+        return None
     try:
-        import urllib.request
-        url = f'http://ip-api.com/json/{ip}?fields=status,country,regionName,city,isp,org,as,query,lat,lon'
-        resp = urllib.request.urlopen(url, timeout=5)
-        data = json.loads(resp.read())
-        if data.get('status') == 'success':
-            return data
-    except: pass
-    return None
+        response = GEO_READER.city(ip)
+        return {
+            'country': response.country.name,
+            'country_code': response.country.iso_code,
+            'regionName': response.subdivisions.most_specific.name if response.subdivisions else None,
+            'city': response.city.name,
+            'lat': response.location.latitude,
+            'lon': response.location.longitude,
+            'isp': None,
+            'org': getattr(response.traits, 'autonomous_system_organization', None),
+            'as': f"AS{response.traits.autonomous_system_number}" if getattr(response.traits, 'autonomous_system_number', None) else None,
+        }
+    except Exception:
+        return None
+
+def shodan_lookup(ip):
+    """Enrich IP with Shodan: org, ASN, ISP, services."""
+    if not ip or not SHODAN_KEY:
+        return None
+    try:
+        resp = requests.get(
+            f'https://api.shodan.io/shodan/host/{ip}',
+            params={'key': SHODAN_KEY},
+            timeout=10,
+        )
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+        services = []
+        for port_data in data.get('data', []):
+            product = port_data.get('product')
+            if product:
+                services.append(product)
+        return {
+            'org': data.get('org'),
+            'isp': data.get('isp'),
+            'asn': data.get('asn'),
+            'ports': data.get('ports', []),
+            'services': list(set(services)),
+            'os': data.get('os'),
+            'hostnames': data.get('hostnames', []),
+        }
+    except Exception:
+        return None
+
+def abuse_lookup(ip):
+    """Query AbuseIPDB: abuse score + report count."""
+    if not ip or not ABUSEIPDB_KEY:
+        return None
+    try:
+        resp = requests.get(
+            'https://api.abuseipdb.com/api/v2/check',
+            params={'ipAddress': ip, 'maxAgeInDays': '365', 'verbose': ''},
+            headers={'Key': ABUSEIPDB_KEY, 'Accept': 'application/json'},
+            timeout=10,
+        )
+        if resp.status_code != 200:
+            return None
+        data = resp.json().get('data', {})
+        return {
+            'abuse_score': data.get('abuseConfidenceScore', 0),
+            'abuse_reports': data.get('totalReports', 0),
+            'abuse_last_reported': data.get('lastReportedAt'),
+            'abuse_usage_type': data.get('usageType'),
+        }
+    except Exception:
+        return None
+
+def generate_infrastructure_summary(geo_cache):
+    """Group IPs by provider and compute infrastructure profile."""
+    providers = defaultdict(list)
+    countries = defaultdict(int)
+    for ip, data in geo_cache.items():
+        if not data:
+            continue
+        org = data.get('org') or data.get('isp') or 'Unknown'
+        providers[org].append(ip)
+        countries[data.get('country') or 'Unknown'] += 1
+
+    total = len(geo_cache) or 1
+    bulletproof_keywords = ['ovh', 'hetzner', 'leaseweb', 'contabo', 'digitalocean',
+                            'linode', 'vultr', 'scaleway', 'online.net', 'soyoustart']
+    cloud_keywords = ['aws', 'amazon', 'azure', 'microsoft', 'gcp', 'google cloud',
+                      'oracle cloud', 'ibm cloud', 'alibaba']
+    residential_keywords = ['comcast', 'verizon', 'at&t', 'deutsche telekom', 'orange',
+                            'vodafone', 'bt', 'telefonica', 'kpn', 'telenet']
+
+    bp_count = sum(1 for p in providers if any(kw in p.lower() for kw in bulletproof_keywords))
+    cloud_count = sum(1 for p in providers if any(kw in p.lower() for kw in cloud_keywords))
+    res_count = sum(1 for p in providers if any(kw in p.lower() for kw in residential_keywords))
+    other_count = len(providers) - bp_count - cloud_count - res_count
+
+    abuse_scores = [v.get('abuse_score', 0) for v in geo_cache.values() if v and v.get('abuse_score') is not None]
+    high_abuse = sum(1 for s in abuse_scores if s > 75)
+    medium_abuse = sum(1 for s in abuse_scores if 25 < s <= 75)
+
+    return {
+        'total_ips': len(geo_cache),
+        'by_provider': {k: len(v) for k, v in sorted(providers.items(), key=lambda x: -len(x[1]))},
+        'by_country': dict(sorted(countries.items(), key=lambda x: -x[1])),
+        'bulletproof_pct': round((bp_count / total) * 100, 1),
+        'cloud_pct': round((cloud_count / total) * 100, 1),
+        'residential_pct': round((res_count / total) * 100, 1),
+        'other_pct': round((other_count / total) * 100, 1),
+        'abuse_high': high_abuse,
+        'abuse_medium': medium_abuse,
+        'abuse_queried': len(abuse_scores),
+        'abuse_avg_score': round(sum(abuse_scores) / len(abuse_scores), 1) if abuse_scores else 0,
+    }
 
 # ====== MAIN ======
 print("Loading enriched C2 data...")
@@ -194,24 +306,59 @@ for c2 in active_c2s:
 all_geo_ips = unique_ips | live_ips
 print(f"\n>>> Geo-locating {len(all_geo_ips)} unique IPs...")
 geo_cache = {}
-with ThreadPoolExecutor(max_workers=5) as pool:
+with ThreadPoolExecutor(max_workers=10) as pool:
     futmap = {pool.submit(geo_lookup, ip): ip for ip in all_geo_ips if ip}
     for f in as_completed(futmap):
         ip = futmap[f]
         result = f.result()
-        geo_cache[ip] = result
+        geo_cache[ip] = result or {}
         if result:
-            print(f"  {ip:15s} -> {result.get('country','?')}, {result.get('regionName','?')} ({result.get('isp','?')})", flush=True)
+            print(f"  {ip:15s} -> {result.get('country','?')}, {result.get('regionName','?')}", flush=True)
         else:
             print(f"  {ip:15s} -> lookup failed", flush=True)
+
+located = sum(1 for v in geo_cache.values() if v.get('country'))
+print(f"\n>>> Geo-located {located}/{len(all_geo_ips)} IPs via MaxMind")
+
+# Enrich with Shodan (sequential due to rate limit)
+if SHODAN_KEY:
+    print(f"\n>>> Enriching with Shodan (org/ASN/ISP)...")
+    enriched_count = 0
+    for ip in sorted(geo_cache.keys()):
+        if geo_cache[ip].get('org') and geo_cache[ip].get('isp'):
+            continue  # Skip if already has provider data from MaxMind
+        shodan_data = shodan_lookup(ip)
+        if shodan_data:
+            geo_cache[ip] = {**geo_cache[ip], **shodan_data}
+            enriched_count += 1
+            org = shodan_data.get('org') or '?'
+            asn = shodan_data.get('asn') or '?'
+            print(f"  {ip:15s} -> {org} ({asn})", flush=True)
+        time.sleep(1.5)  # Shodan free tier rate limit
+    print(f"  Shodan enriched: {enriched_count} IPs")
+
+# Enrich with AbuseIPDB (sequential, 0.5s delay)
+if ABUSEIPDB_KEY:
+    print(f"\n>>> Enriching with AbuseIPDB (reputation)...")
+    abuse_count = 0
+    for ip in sorted(geo_cache.keys()):
+        abuse_data = abuse_lookup(ip)
+        if abuse_data and abuse_data.get('abuse_score', 0) > 0:
+            geo_cache[ip] = {**geo_cache[ip], **abuse_data}
+            abuse_count += 1
+            score = abuse_data.get('abuse_score', 0)
+            reports = abuse_data.get('abuse_reports', 0)
+            print(f"  {ip:15s} -> score={score} reports={reports}", flush=True)
+    high = sum(1 for v in geo_cache.values() if v.get('abuse_score', 0) > 75)
+    print(f"  AbuseIPDB enriched: {abuse_count} IPs with reports, {high} with score > 75")
 
 print(f"\n>>> Exporting blocklists...")
 # CSV blocklist
 with open(WORK_DIR / 'c2_blocklist.csv', 'w', newline='') as f:
     w = csv.writer(f)
     w.writerow(['classification', 'status', 'domain', 'ip', 'port', 'protocol', 'path', 'package_name', 'reason', 'resolved_ips'])
-    for c2 in sorted(active_c2s, key=lambda x: x.get('domain','')):
-        ips = ', '.join(c2.get('live_dns', {}).get('ips', []))
+    for c2 in sorted(active_c2s, key=lambda x: x.get('domain') or ''):
+        ips = ', '.join(c2.get('live_dns', {}).get('ips', []) or [])
         w.writerow([
             c2.get('classification',''),
             c2.get('status',''),
@@ -265,7 +412,17 @@ for sid, enriched in c2_by_sid.items():
 # Save geo data
 with open(WORK_DIR / 'c2_geo.json', 'w') as f:
     json.dump(geo_cache, f, indent=2)
-print(f"  Geo data: analysis/work/c2_geo.json ({sum(1 for v in geo_cache.values() if v)} located)")
+print(f"  Geo data: analysis/work/c2_geo.json ({sum(1 for v in geo_cache.values() if v.get('country'))} located)")
+
+# Infrastructure summary
+infra = generate_infrastructure_summary(geo_cache)
+print(f"\n>>> Infrastructure profile:")
+print(f"  Providers: {len(infra['by_provider'])}")
+print(f"  Countries: {len(infra['by_country'])}")
+print(f"  Bulletproof hosting: {infra['bulletproof_pct']}%")
+print(f"  Cloud providers: {infra['cloud_pct']}%")
+print(f"  Residential ISPs: {infra['residential_pct']}%")
+print(f"  AbuseIPDB: {infra['abuse_high']} high-risk (>75), {infra['abuse_medium']} medium (25-75), avg score {infra['abuse_avg_score']}")
 
 # ====== HTML Dashboard ======
 print(f"\n>>> Building HTML dashboard...")
@@ -389,8 +546,45 @@ html += '''
 <table>
 <tr><th>IP</th><th>Country</th><th>Region</th><th>ISP</th></tr>
 '''
-for g in sorted(geo_data, key=lambda x: x.get('country','')):
+for g in sorted(geo_data, key=lambda x: x.get('country') or ''):
     html += f'<tr><td>{g["ip"]}</td><td>{g.get("country","?")}</td><td>{g.get("regionName","?")}</td><td>{g.get("isp","?")}</td></tr>\n'
+
+html += '''
+</table>
+
+<h2>Infrastructure Profile</h2>
+<div class="cards">
+  <div class="card"><div class="value">''' + str(len(infra['by_country'])) + '''</div><div class="label">Countries</div></div>
+  <div class="card"><div class="value">''' + str(len(infra['by_provider'])) + '''</div><div class="label">Providers</div></div>
+  <div class="card"><div class="value red">''' + str(infra['bulletproof_pct']) + '''%</div><div class="label">Bulletproof</div></div>
+  <div class="card"><div class="value blue">''' + str(infra['cloud_pct']) + '''%</div><div class="label">Cloud</div></div>
+  <div class="card"><div class="value yellow">''' + str(infra['residential_pct']) + '''%</div><div class="label">Residential</div></div>
+</div>
+
+<h3>Reputation (AbuseIPDB)</h3>
+<div class="cards">
+  <div class="card"><div class="value red">''' + str(infra['abuse_high']) + '''</div><div class="label">High Risk (>75)</div></div>
+  <div class="card"><div class="value yellow">''' + str(infra['abuse_medium']) + '''</div><div class="label">Medium (25-75)</div></div>
+  <div class="card"><div class="value blue">''' + str(infra['abuse_queried']) + '''</div><div class="label">Queried</div></div>
+  <div class="card"><div class="value">''' + str(infra['abuse_avg_score']) + '''</div><div class="label">Avg Score</div></div>
+</div>
+
+<h3>By Country</h3>
+<table>
+<tr><th>Country</th><th>IPs</th></tr>
+'''
+for ctry, count in list(infra['by_country'].items())[:15]:
+    html += f'<tr><td>{ctry}</td><td>{count}</td></tr>\n'
+
+html += '''
+</table>
+
+<h3>By Provider</h3>
+<table>
+<tr><th>Provider</th><th>IPs</th></tr>
+'''
+for prov, count in list(infra['by_provider'].items())[:20]:
+    html += f'<tr><td>{prov[:40]}</td><td>{count}</td></tr>\n'
 
 html += '''
 </table>
@@ -420,8 +614,9 @@ final = {
     'total_c2s': len(all_c2s),
     'classification': dict(class_counts),
     'status': {s: sum(1 for c2 in all_c2s if c2.get('status') == s) for s in ['active','likely_active','historical','dead']},
-    'geo_located': sum(1 for v in geo_cache.values() if v),
+    'geo_located': sum(1 for v in geo_cache.values() if v.get('country')),
     'active_suspicious_malicious': len(active_c2s),
+    'infrastructure': infra,
     'blocklist_csv': 'analysis/work/c2_blocklist.csv',
     'blocklist_stix': 'analysis/work/c2_blocklist_stix.json',
     'geo_file': 'analysis/work/c2_geo.json',
@@ -436,6 +631,7 @@ print(f"{'='*60}")
 print(f"Benign (SDK/clean):   {class_counts.get('benign',0)}")
 print(f"Suspicious:           {class_counts.get('suspicious',0)}")
 print(f"Malicious C2:         {class_counts.get('malicious',0)}")
-print(f"Geo-located IPs:      {sum(1 for v in geo_cache.values() if v)}")
+print(f"Geo-located IPs:      {sum(1 for v in geo_cache.values() if v.get('country'))}")
+print(f"Infrastructure:        {len(infra['by_provider'])} providers, {len(infra['by_country'])} countries")
 print(f"Blocklist entries:    {len(active_c2s)}")
 print(f"Report:               analysis/work/c2_report.html")

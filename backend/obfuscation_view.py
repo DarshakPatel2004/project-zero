@@ -24,10 +24,12 @@ _TECHNIQUE_NAMES = {
     "crypto_apis": "Encryption / Crypto APIs",
     "suspicious_apis": "Sensitive API Abuse",
     "dangerous_permissions": "Dangerous Permissions",
+    "encrypted_assets": "Encrypted / Stub-DEX Assets",
 }
 
 # Order in which techniques are displayed (most concerning first).
 _TECHNIQUE_ORDER = [
+    "encrypted_assets",
     "dynamic_loading",
     "native_loading",
     "reflection",
@@ -87,6 +89,7 @@ def build_obfuscation_view(sample_id: str, result: Optional[Dict[str, Any]] = No
     dex_entropy = obf.get("dex_entropy", []) or []
     native_artifacts = obf.get("native_library_artifacts", []) or []
     notes = obf.get("notes", []) or []
+    asset_analysis = obf.get("asset_analysis", {}) or {}
 
     # Build per-technique breakdown with parsed locations.
     techniques = []
@@ -107,6 +110,24 @@ def build_obfuscation_view(sample_id: str, result: Optional[Dict[str, Any]] = No
             "name": _TECHNIQUE_NAMES.get(key, key),
             "count": len(parsed_items),
             "items": parsed_items,
+        })
+
+    # Encrypted / stub-DEX asset detection.
+    asset_flags = asset_analysis.get("flags", [])
+    if asset_flags:
+        techniques.append({
+            "key": "encrypted_assets",
+            "name": _TECHNIQUE_NAMES["encrypted_assets"],
+            "count": len(asset_flags),
+            "items": [
+                {
+                    "severity": f.get("severity", "low"),
+                    "type": f.get("type", ""),
+                    "detail": f.get("detail", ""),
+                    "asset_to_dex_ratio": f.get("asset_to_dex_ratio"),
+                }
+                for f in asset_flags
+            ],
         })
 
     # DEX packing summary.
@@ -132,6 +153,19 @@ def build_obfuscation_view(sample_id: str, result: Optional[Dict[str, Any]] = No
         "native_library_artifacts": native_summary,
         "total_classes": indicators.get("total_classes", 0),
         "total_methods": indicators.get("total_methods", 0),
+        "asset_analysis": {
+            "dex_files": asset_analysis.get("dex_files", []),
+            "asset_files": [
+                {
+                    "file": a["file"],
+                    "size": a["size"],
+                    "entropy": a["entropy"],
+                }
+                for a in asset_analysis.get("asset_files", [])
+            ],
+            "native_libs": asset_analysis.get("native_libs", []),
+            "flags": asset_flags,
+        },
         "notes": notes,
     }
 

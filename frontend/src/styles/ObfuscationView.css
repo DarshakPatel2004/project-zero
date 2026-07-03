@@ -157,6 +157,30 @@
   font-weight: 500;
 }
 
+.technique-severity {
+  display: inline-block;
+  padding: 0.15rem 0.45rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  width: fit-content;
+}
+
+.technique-detail {
+  font-size: 0.75rem;
+  color: var(--text-primary);
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.technique-ratio {
+  font-size: 0.7rem;
+  color: var(--accent-amber);
+  font-weight: 600;
+}
+
 .technique-expand {
   align-self: flex-start;
   padding: 0.35rem 0.7rem;

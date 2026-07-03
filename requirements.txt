@@ -36,5 +36,8 @@ weasyprint
 # Utilities
 python-dotenv
 
+# GeoIP (offline MaxMind GeoLite2)
+geoip2
+
 # Encrypted / AES-ZIP extraction (MalwareBazaar passworded samples)
 pyzipper
