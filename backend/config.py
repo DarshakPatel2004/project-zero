@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     JADX_PATH: str = r"D:\DroidForensix\tools\jadx\bin\jadx.bat"
     APKTOOL_PATH: str = r"D:\DroidForensix\tools\apktool\apktool.bat"
     DIE_PATH: str = r"D:\DroidForensix\tools\die\die\diec.exe"
+    GEOIP_PATH: Path = Path(r"D:\DroidForensix\data\GeoLite2-City.mmdb")
     YARA_RULES_PATH: str = r"D:\DroidForensix\analysis\yara_rules.yar"
     SEVEN_ZIP_PATH: str = r"C:\Program Files\7-Zip\7z.exe"
 

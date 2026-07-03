@@ -24,6 +24,30 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from backend.config import settings
 
+try:
+    import geoip2.database
+    _GEO_READER = geoip2.database.Reader(str(settings.GEOIP_PATH)) if settings.GEOIP_PATH.exists() else None
+except Exception:
+    _GEO_READER = None
+
+
+def _geo_lookup(ip: str) -> Optional[Dict[str, Any]]:
+    """On-the-fly GeoIP lookup via MaxMind when the cache misses."""
+    if not ip or _GEO_READER is None:
+        return None
+    try:
+        response = _GEO_READER.city(ip)
+        return {
+            'country': response.country.name or 'Unknown',
+            'region': response.subdivisions.most_specific.name if response.subdivisions else '',
+            'city': response.city.name or '',
+            'lat': response.location.latitude,
+            'lon': response.location.longitude,
+            'isp': response.traits.isp or '',
+        }
+    except Exception:
+        return None
+
 
 # --- Whitelist of known benign SDK / ad domains (mirrors build_final_outputs.py) ---
 BENIGN_SDK_DOMAINS = {
@@ -329,11 +353,11 @@ def build_threat_intel(result: Dict[str, Any], sample_id: str) -> Dict[str, Any]
             if ip in seen_ips:
                 continue
             seen_ips.add(ip)
-            geo = geo_cache.get(ip)
+            geo = geo_cache.get(ip) or _geo_lookup(ip)
             if geo:
                 ips_geolocated.append({
                     'ip': ip,
-                    'country': geo.get('country', ''),
+                    'country': geo.get('country', 'Unknown'),
                     'region': geo.get('regionName') or geo.get('region') or '',
                     'city': geo.get('city', ''),
                     'isp': geo.get('isp', ''),
@@ -341,7 +365,6 @@ def build_threat_intel(result: Dict[str, Any], sample_id: str) -> Dict[str, Any]
                     'longitude': geo.get('lon'),
                 })
             else:
-                # Fallback for newly resolved IPs not in local cache
                 ips_geolocated.append({
                     'ip': ip,
                     'country': 'Unknown',
