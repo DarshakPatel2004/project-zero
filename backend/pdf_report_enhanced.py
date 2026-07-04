@@ -170,8 +170,11 @@ class DroidForensixPDFGenerator:
         self._build_title_section(story, sample_result, sample_id)
         timer.mark_phase("title")
 
+        self._build_executive_summary(story, sample_result, obfuscation, threat_data, annotated_methods)
+        timer.mark_phase("executive_summary")
+
         if sections.get("metadata"):
-            self._build_metadata_section(story, sample_result)
+            self._build_metadata_section(story, sample_result, obfuscation)
             timer.mark_phase("metadata")
 
         if sections.get("threat_intelligence") and self.enable_ti and threat_data:
@@ -181,6 +184,9 @@ class DroidForensixPDFGenerator:
         if sections.get("llm_assessment"):
             self._build_llm_section(story, sample_result)
             timer.mark_phase("llm_assessment")
+
+        self._build_risk_methodology_section(story, sample_result, obfuscation, threat_data)
+        timer.mark_phase("risk_methodology")
 
         if sections.get("obfuscation"):
             self._build_obfuscation_section(story, obfuscation)
@@ -195,6 +201,9 @@ class DroidForensixPDFGenerator:
                 story, annotated_methods, limit=10
             )
             timer.mark_phase("suspicious_methods")
+
+        self._build_limitations_section(story)
+        timer.mark_phase("limitations")
 
         timer.mark_phase("layout_start")
         doc.build(story)
@@ -229,7 +238,10 @@ class DroidForensixPDFGenerator:
         self._build_title_section(story, sample_result, sample_id)
         timer.mark_phase("title")
 
-        self._build_metadata_section(story, sample_result)
+        self._build_executive_summary(story, sample_result, obfuscation, threat_data, annotated_methods)
+        timer.mark_phase("executive_summary")
+
+        self._build_metadata_section(story, sample_result, obfuscation)
         timer.mark_phase("metadata")
 
         if self.enable_ti and threat_data:
@@ -238,6 +250,9 @@ class DroidForensixPDFGenerator:
 
         self._build_llm_section(story, sample_result)
         timer.mark_phase("llm_assessment")
+
+        self._build_risk_methodology_section(story, sample_result, obfuscation, threat_data)
+        timer.mark_phase("risk_methodology")
 
         self._build_obfuscation_section(story, obfuscation)
         timer.mark_phase("obfuscation")
@@ -250,6 +265,9 @@ class DroidForensixPDFGenerator:
 
         self._build_benign_methods_section(story, annotated_methods)
         timer.mark_phase("benign_methods")
+
+        self._build_limitations_section(story)
+        timer.mark_phase("limitations")
 
         self._build_stix_section(story, threat_data, sample_id)
         timer.mark_phase("stix_export")
@@ -330,11 +348,93 @@ class DroidForensixPDFGenerator:
         ]))
         self._hr(story, sb=8)
 
-    def _build_metadata_section(self, story, result):
+    def _build_executive_summary(self, story, result, obfuscation, threat_data, annotated_methods):
+        story.append(Paragraph("Executive Summary", self.styles["DFH1"]))
+        llm = result.get("llm_assessment", {})
+        severity = llm.get("severity", "unknown")
+        risk_score = llm.get("risk_score", 0)
+        primary_threat = llm.get("primary_threat", "unknown")
+        confidence = llm.get("confidence")
+        narrative = llm.get("narrative", "")
+
+        # Obfuscation summary
+        obf_score = obfuscation.get("obfuscation_score", 0)
+        obf_level = obfuscation.get("obfuscation_level", "unknown")
+        techniques = obfuscation.get("techniques", [])
+        total_techniques = sum(t.get("count", 0) for t in techniques)
+
+        # C2 summary
+        c2s = threat_data.get("c2s", []) if threat_data else []
+        if not c2s:
+            c2s = threat_data.get("c2_infrastructure", []) if threat_data else []
+        c2_count = len(c2s)
+
+        # Method summary
+        high_conf = [m for m in annotated_methods if (m.get("llm", {}).get("confidence") or 0) >= 0.85]
+        flagged = [m for m in annotated_methods if m.get("llm", {}).get("threat_type", "unknown") != "benign"]
+
+        # Risk level badge
+        risk_level = "CRITICAL" if risk_score >= 80 else "HIGH" if risk_score >= 60 else "MEDIUM" if risk_score >= 30 else "LOW"
+        risk_color = SEVERITY_COLORS.get(severity.lower(), C_MUTED)
+
+        summary_rows = [
+            ("Risk Level", risk_level),
+            ("Risk Score", f"{risk_score} / 100"),
+            ("Primary Threat", primary_threat.replace("_", " ").title() if primary_threat else "N/A"),
+            ("Confidence", f"{int(confidence * 100)}%" if confidence is not None else "N/A"),
+            ("Obfuscation", f"{obf_level.upper()} ({obf_score}/100, {total_techniques} indicators)"),
+            ("C2 Indicators", str(c2_count) if c2_count > 0 else "None detected"),
+            ("Suspicious Methods", f"{len(flagged)} flagged, {len(high_conf)} high-confidence"),
+        ]
+        story.append(self._kv_table(summary_rows))
+
+        # Key actions (mix of static template + LLM-generated)
+        story.append(Spacer(1, 6))
+        story.append(Paragraph("<b>Recommended Actions</b>", self.styles["DFLabel"]))
+
+        # Static template actions based on severity
+        static_actions = {
+            "critical": [
+                "ISOLATE device immediately from all networks",
+                "DO NOT reinstall or restore from backup without full sanitization",
+                "Preserve device image for forensic investigation",
+            ],
+            "high": [
+                "Disconnect from network and remove the application",
+                "Monitor financial accounts for unauthorized activity",
+                "Change all passwords stored or entered on this device",
+            ],
+            "medium": [
+                "Review application permissions and remove if unnecessary",
+                "Monitor network traffic for suspicious outbound connections",
+                "Update device and all applications to latest versions",
+            ],
+            "low": [
+                "Continue monitoring for behavioral changes",
+                "Review app permissions periodically",
+            ],
+        }
+        actions = static_actions.get(severity.lower(), static_actions["medium"])
+
+        # Add LLM-generated specific actions if available
+        llm_actions = llm.get("recommended_actions", [])
+        if llm_actions:
+            actions.extend(llm_actions[:3])
+
+        for action in actions:
+            story.append(Paragraph("- " + self._safe(action), self.styles["DFFinding"]))
+
+        self._hr(story)
+
+    def _build_metadata_section(self, story, result, obfuscation=None):
         story.append(Paragraph("1. Sample Metadata", self.styles["DFH1"]))
         meta = result.get("metadata", {})
         manifest = result.get("manifest", {})
         extraction = result.get("extraction", {})
+
+        # Prefer total_classes from obfuscation view (Androguard DEX count) for consistency
+        obf_total_classes = (obfuscation or {}).get("total_classes", 0)
+        decompiled_classes = obf_total_classes or extraction.get("decompiled_classes", "N/A")
 
         rows = [
             ("Package Name", meta.get("package_name") or meta.get("package", "N/A")),
@@ -345,7 +445,8 @@ class DroidForensixPDFGenerator:
             ("Version", f"{manifest.get('version_name', 'N/A')} (code {manifest.get('version_code', 'N/A')})"),
             ("Min SDK", str(manifest.get("min_sdk_version", "N/A"))),
             ("Target SDK", str(manifest.get("target_sdk_version", "N/A"))),
-            ("Decompiled Classes", str(extraction.get("decompiled_classes", "N/A"))),
+            ("Decompiled Classes", str(decompiled_classes)),
+            ("Sample Source", meta.get("source", "Unknown")),
         ]
         story.append(self._kv_table(rows))
 
@@ -467,6 +568,84 @@ class DroidForensixPDFGenerator:
                 story.append(Paragraph("- " + self._safe(action), self.styles["DFFinding"]))
         self._hr(story)
 
+    def _build_risk_methodology_section(self, story, result, obfuscation, threat_data):
+        story.append(Paragraph("Risk Score Methodology", self.styles["DFH1"]))
+        story.append(Paragraph(
+            "The risk score (0-100) is computed through a three-layer process:",
+            self.styles["DFBody"]
+        ))
+
+        # Layer 1: LLM Assessment
+        story.append(Spacer(1, 4))
+        story.append(Paragraph("<b>Layer 1: LLM Threat Assessment</b>", self.styles["DFLabel"]))
+        story.append(Paragraph(
+            "An LLM analyzes threat chains, C2 indicators, obfuscation data, and permission patterns "
+            "to assign an initial risk score and severity level. The model uses these alignment guidelines:",
+            self.styles["DFBody"]
+        ))
+        layer1_data = [
+            ("Severity", "Risk Score Range", "Criteria"),
+            ("Critical", "80-100", "Active C2 + payload delivery + evasion techniques"),
+            ("High", "60-79", "C2 present or significant obfuscation + dangerous permissions"),
+            ("Medium", "30-59", "Suspicious patterns without confirmed C2"),
+            ("Low", "0-29", "Minimal risk indicators"),
+        ]
+        story.append(self._kv_table(layer1_data))
+
+        # Layer 2: Sanity Check
+        story.append(Spacer(1, 6))
+        story.append(Paragraph("<b>Layer 2: Cross-Validation Sanity Check</b>", self.styles["DFLabel"]))
+        story.append(Paragraph(
+            "Automated rules correct LLM misclassifications by cross-referencing detected indicators:",
+            self.styles["DFBody"]
+        ))
+        sanity_rules = [
+            "C2 present but severity low -> elevate to medium (risk >= 35)",
+            "No C2 but severity critical -> lower to medium (risk <= 55)",
+            "No chains, no C2, but obfuscation >= 50 -> elevate to medium (risk >= 50)",
+            "Obfuscation >= 70 with medium severity -> elevate to high (risk >= 65)",
+            "Narrative claims C2 but none extracted -> add correction note",
+        ]
+        for rule in sanity_rules:
+            story.append(Paragraph("- " + rule, self.styles["DFFinding"]))
+
+        # Layer 3: Post-Processing
+        story.append(Spacer(1, 6))
+        story.append(Paragraph("<b>Layer 3: Pattern-Based Corrections</b>", self.styles["DFLabel"]))
+        story.append(Paragraph(
+            "Known malware patterns and benign false-positive corrections are applied:",
+            self.styles["DFBody"]
+        ))
+        post_rules = [
+            "Metasploit stager: small APK (< 100KB) + reflection >= 3 + dynamic_loading >= 1 -> force high (risk >= 85)",
+            "Known benign package (e.g., calculator apps) -> force low (risk <= 25)",
+        ]
+        for rule in post_rules:
+            story.append(Paragraph("- " + rule, self.styles["DFFinding"]))
+
+        # Obfuscation Score Breakdown
+        obf_score = obfuscation.get("obfuscation_score", 0)
+        techniques = obfuscation.get("techniques", [])
+        tech_counts = {}
+        for t in techniques:
+            tech_counts[t.get("key", "")] = t.get("count", 0)
+
+        story.append(Spacer(1, 6))
+        story.append(Paragraph("<b>Obfuscation Score Factors</b>", self.styles["DFLabel"]))
+        obf_factors = [
+            ("Factor", "Weight", "Cap", "This Sample"),
+            ("Reflection usages", "x2 each", "20 pts", str(tech_counts.get("reflection", 0))),
+            ("Dynamic loading", "x5 each", "20 pts", str(tech_counts.get("dynamic_loading", 0))),
+            ("Native loading", "x3 each", "10 pts", str(tech_counts.get("native_loading", 0))),
+            ("Crypto APIs", "x1.5 each", "15 pts", str(tech_counts.get("crypto_apis", 0))),
+            ("Suspicious APIs", "x1.5 each", "15 pts", str(tech_counts.get("suspicious_apis", 0))),
+            ("Dangerous permissions", "x2 each", "10 pts", str(tech_counts.get("dangerous_permissions", 0))),
+            ("DEX packing bonus", "+15", "15 pts", "Yes" if any(d.get("likely_packed") for d in obfuscation.get("dex_entropy", [])) else "No"),
+        ]
+        story.append(self._kv_table(obf_factors))
+
+        self._hr(story)
+
     def _build_obfuscation_section(self, story, obfuscation):
         story.append(Paragraph("Obfuscation Analysis", self.styles["DFH1"]))
         if not obfuscation:
@@ -477,15 +656,20 @@ class DroidForensixPDFGenerator:
         score = obfuscation.get("obfuscation_score", 0)
         level = obfuscation.get("obfuscation_level", "unknown")
         techniques = obfuscation.get("techniques", [])
-        indicators = obfuscation.get("indicators", {})
+
+        # Derive header counts from techniques list (consistent with view output)
+        tech_counts = {}
+        for t in techniques:
+            key = t.get("key", "")
+            tech_counts[key] = t.get("count", 0)
 
         story.append(self._kv_table([
             ("Obfuscation Score", f"{score} ({level.upper()})"),
-            ("Reflection Usages", str(len(indicators.get("reflection", [])))),
-            ("Dynamic Loading", str(len(indicators.get("dynamic_loading", [])))),
-            ("Crypto API Usages", str(len(indicators.get("crypto_apis", [])))),
-            ("Suspicious APIs", str(len(indicators.get("suspicious_apis", [])))),
-            ("Dangerous Perms", str(len(indicators.get("dangerous_permissions", [])))),
+            ("Reflection Usages", str(tech_counts.get("reflection", 0))),
+            ("Dynamic Loading", str(tech_counts.get("dynamic_loading", 0))),
+            ("Crypto API Usages", str(tech_counts.get("crypto_apis", 0))),
+            ("Suspicious APIs", str(tech_counts.get("suspicious_apis", 0))),
+            ("Dangerous Perms", str(tech_counts.get("dangerous_permissions", 0))),
         ]))
 
         if techniques:
@@ -559,22 +743,65 @@ class DroidForensixPDFGenerator:
             self._hr(story)
             return
 
-        high_value = [m for m in annotated_methods
-                      if m.get("llm", {}).get("threat_type", "unknown") not in ("benign",)]
+        # Confidence band legend
+        story.append(Paragraph("<b>Confidence Bands:</b>", self.styles["DFLabel"]))
+        band_data = [
+            ("Band", "Range", "Description"),
+            ("High", ">= 85%", "Strong indicators of malicious behavior"),
+            ("Medium", "70-84%", "Suspicious patterns, may need further analysis"),
+            ("Low", "< 70%", "Weak indicators, possibly benign context"),
+        ]
+        story.append(self._kv_table(band_data))
+        story.append(Spacer(1, 4))
+
+        high_conf = [m for m in annotated_methods
+                     if m.get("llm", {}).get("threat_type", "unknown") != "benign"
+                     and (m.get("llm", {}).get("confidence") or 0) >= 0.85]
+        medium_conf = [m for m in annotated_methods
+                       if m.get("llm", {}).get("threat_type", "unknown") != "benign"
+                       and 0.70 <= (m.get("llm", {}).get("confidence") or 0) < 0.85]
+        low_conf = [m for m in annotated_methods
+                    if m.get("llm", {}).get("threat_type", "unknown") != "benign"
+                    and (m.get("llm", {}).get("confidence") or 0) < 0.70]
         benign = [m for m in annotated_methods
                   if m.get("llm", {}).get("threat_type", "unknown") == "benign"]
 
+        total_flagged = len(high_conf) + len(medium_conf) + len(low_conf)
+
+        # Apply limit to high-confidence methods first, then medium
         if limit:
-            high_value = high_value[:limit]
+            high_conf = high_conf[:limit]
+            remaining = limit - len(high_conf)
+            if remaining > 0:
+                medium_conf = medium_conf[:remaining]
 
         story.append(Paragraph(
-            f"{len(high_value)} flagged as suspicious, {len(benign)} assessed as benign.",
+            f"{total_flagged} flagged as suspicious ({len(high_conf)} high, "
+            f"{len(medium_conf)} medium, {len(low_conf)} low confidence), "
+            f"{len(benign)} assessed as benign.",
             self.styles["DFBody"]
         ))
 
-        if high_value:
+        if high_conf:
             story.append(Spacer(1, 4))
-            self._render_method_list(story, high_value)
+            story.append(Paragraph("<b>High Confidence (>= 85%)</b>", self.styles["DFLabel"]))
+            self._render_method_list(story, high_conf)
+
+        if medium_conf:
+            story.append(Spacer(1, 4))
+            story.append(Paragraph("<b>Medium Confidence (70-84%)</b>", self.styles["DFLabel"]))
+            self._render_method_list(story, medium_conf)
+
+        if low_conf and not limit:
+            story.append(Spacer(1, 4))
+            story.append(Paragraph("<b>Low Confidence (< 70%) - Collapsed</b>", self.styles["DFLabel"]))
+            story.append(Paragraph(
+                f"{len(low_conf)} method(s) with weak indicators. "
+                "These may be benign in context and are shown for completeness.",
+                self.styles["DFMuted"]
+            ))
+            self._render_method_list(story, low_conf)
+
         self._hr(story)
 
     def _build_benign_methods_section(self, story, annotated_methods):
@@ -585,6 +812,31 @@ class DroidForensixPDFGenerator:
             f"Verified {len(benign)} methods as benign.",
             self.styles["DFBody"]
         ))
+
+    def _build_limitations_section(self, story):
+        story.append(Paragraph("Limitations", self.styles["DFH1"]))
+        story.append(Paragraph(
+            "This analysis has the following limitations that should be considered when interpreting results:",
+            self.styles["DFBody"]
+        ))
+        limitations = [
+            "Obfuscation may prevent full extraction of network indicators (domains, IPs). "
+            "Encrypted or packed payloads can hide C2 infrastructure from static analysis.",
+            "Known SDK code (Facebook, Google, Firebase, analytics) is filtered but may not be "
+            "completely excluded. Some legitimate SDK methods may still appear as flagged.",
+            "No dynamic analysis (sandboxing) was performed. Behavioral indicators "
+            "(runtime network calls, file system access) are not captured.",
+            "LLM threat assessment is advisory, not definitive. Risk scores reflect "
+            "statistical patterns, not confirmed malware classification.",
+            "Static analysis only. Code execution paths, conditional logic, and "
+            "runtime-generated payloads may be missed.",
+            "Sample provenance and distribution context are not verified. "
+            "The sample may be a test file, benign app with suspicious patterns, "
+            "or known malware family variant.",
+        ]
+        for lim in limitations:
+            story.append(Paragraph("- " + self._safe(lim), self.styles["DFFinding"]))
+        self._hr(story)
 
     def _build_stix_section(self, story, threat_data, sample_id):
         story.append(Paragraph("STIX 2.0 Export", self.styles["DFH1"]))

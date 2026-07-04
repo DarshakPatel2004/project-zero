@@ -436,6 +436,17 @@ BENIGN_DOMAINS = {
     "indusguard.com", "monstat.com",
     "paysecure.ru",
     "paypal.com", "www.paypal.com",
+    # Known SDK / analytics / crash-reporting domains
+    "facebook.com", "www.facebook.com", "graph.facebook.com",
+    "graph.facebook.net", "fbcdn.net", "cdninstagram.com",
+    "appsFlyer.com", "appsflyer.com",
+    "sentry.io", "sentry-cdn.com",
+    "adjust.com", "app.adjust.com",
+    "onesignal.com", "api.onesignal.com",
+    "amplitude.com", "api.amplitude.com",
+    "firebase.io", "firebaseio.com",
+    "googleapis.com", "firebasestorage.googleapis.com",
+    "crashlytics.com", "crashlytics.com",
 }
 
 # TLD-like tokens produced by over-matching URL regex on code fragments.

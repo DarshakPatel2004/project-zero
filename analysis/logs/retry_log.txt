@@ -253,3 +253,447 @@
 2026-06-29 11:40:41,418 [DEBUG] droidforenix.retry: Attempt 3/3: Running JADX (timeout=10s)
 2026-06-29 11:40:41,418 [WARNING] droidforenix.retry: Attempt 3/3: JADX timeout after 10s
 2026-06-29 11:40:41,418 [ERROR] droidforenix.retry: All 3 attempts failed: JADX decompilation timed out after 10s. Large APKs may need more time.
+2026-06-29 15:52:49,106 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\androzoo\00000a7eacfd7e392ea3aaee14bec0224e62bf72823a8101f6717d704dce3a79.apk -> D:\DroidForensix\analysis\work\00000a7eacfd7e392ea3aaee14bec0224e62bf72823a8101f6717d704dce3a79\jadx
+2026-06-29 15:52:49,108 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-06-29 15:53:03,930 [INFO] droidforenix.retry: Success on attempt 1: 3367 classes extracted
+2026-06-29 15:59:00,015 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmpceqddhzq\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmpceqddhzq\output
+2026-06-29 15:59:00,015 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-06-29 15:59:00,148 [INFO] droidforenix.retry: Success on attempt 1: 1 classes extracted
+2026-06-29 15:59:00,154 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmpwtghznz9\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmpwtghznz9\output
+2026-06-29 15:59:00,155 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-06-29 15:59:00,155 [WARNING] droidforenix.retry: Attempt 1/3: JADX timeout after 10s
+2026-06-29 15:59:00,155 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-06-29 15:59:02,155 [DEBUG] droidforenix.retry: Attempt 2/3: Running JADX (timeout=10s)
+2026-06-29 15:59:02,202 [WARNING] droidforenix.retry: Attempt 2/3: JADX timeout after 10s
+2026-06-29 15:59:02,202 [INFO] droidforenix.retry: Waiting 4s before retry...
+2026-06-29 15:59:06,203 [DEBUG] droidforenix.retry: Attempt 3/3: Running JADX (timeout=10s)
+2026-06-29 15:59:06,205 [INFO] droidforenix.retry: Success on attempt 3: 1 classes extracted
+2026-06-29 15:59:06,211 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmpex77l_zl\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmpex77l_zl\output
+2026-06-29 15:59:06,211 [DEBUG] droidforenix.retry: Attempt 1/2: Running JADX (timeout=10s)
+2026-06-29 15:59:06,211 [WARNING] droidforenix.retry: Attempt 1/2: JADX timeout after 10s
+2026-06-29 15:59:06,211 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-06-29 15:59:08,212 [DEBUG] droidforenix.retry: Attempt 2/2: Running JADX (timeout=10s)
+2026-06-29 15:59:08,212 [WARNING] droidforenix.retry: Attempt 2/2: JADX timeout after 10s
+2026-06-29 15:59:08,247 [ERROR] droidforenix.retry: All 2 attempts failed: JADX decompilation timed out after 10s. Large APKs may need more time.
+2026-06-29 15:59:08,254 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmpij90j6ro\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmpij90j6ro\output
+2026-06-29 15:59:08,255 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-06-29 15:59:08,255 [ERROR] droidforenix.retry: Attempt 1: malformed - APK file is corrupted or not a valid ZIP archive
+2026-06-29 15:59:08,260 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmpyomyel_x\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmpyomyel_x\output
+2026-06-29 15:59:08,260 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-06-29 15:59:08,260 [ERROR] droidforenix.retry: Attempt 1: disk_space - Not enough disk space to extract APK
+2026-06-29 15:59:08,266 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmpjstoidbi\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmpjstoidbi\output
+2026-06-29 15:59:08,266 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-06-29 15:59:08,266 [WARNING] droidforenix.retry: Attempt 1/3: JADX timeout after 10s
+2026-06-29 15:59:08,266 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-06-29 15:59:08,267 [DEBUG] droidforenix.retry: Attempt 2/3: Running JADX (timeout=10s)
+2026-06-29 15:59:08,267 [WARNING] droidforenix.retry: Attempt 2/3: JADX timeout after 10s
+2026-06-29 15:59:08,267 [INFO] droidforenix.retry: Waiting 4s before retry...
+2026-06-29 15:59:08,267 [DEBUG] droidforenix.retry: Attempt 3/3: Running JADX (timeout=10s)
+2026-06-29 15:59:08,267 [WARNING] droidforenix.retry: Attempt 3/3: JADX timeout after 10s
+2026-06-29 15:59:08,267 [ERROR] droidforenix.retry: All 3 attempts failed: JADX decompilation timed out after 10s. Large APKs may need more time.
+2026-07-01 19:05:31,038 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmpwwaykjhw\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmpwwaykjhw\output
+2026-07-01 19:05:31,038 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-07-01 19:05:31,040 [INFO] droidforenix.retry: Success on attempt 1: 1 classes extracted
+2026-07-01 19:05:31,045 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmpx2_1nhvt\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmpx2_1nhvt\output
+2026-07-01 19:05:31,045 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-07-01 19:05:31,045 [WARNING] droidforenix.retry: Attempt 1/3: JADX timeout after 10s
+2026-07-01 19:05:31,045 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-07-01 19:05:33,046 [DEBUG] droidforenix.retry: Attempt 2/3: Running JADX (timeout=10s)
+2026-07-01 19:05:33,046 [WARNING] droidforenix.retry: Attempt 2/3: JADX timeout after 10s
+2026-07-01 19:05:33,046 [INFO] droidforenix.retry: Waiting 4s before retry...
+2026-07-01 19:05:37,047 [DEBUG] droidforenix.retry: Attempt 3/3: Running JADX (timeout=10s)
+2026-07-01 19:05:37,050 [INFO] droidforenix.retry: Success on attempt 3: 1 classes extracted
+2026-07-01 19:05:37,056 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmper61uy5e\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmper61uy5e\output
+2026-07-01 19:05:37,056 [DEBUG] droidforenix.retry: Attempt 1/2: Running JADX (timeout=10s)
+2026-07-01 19:05:37,056 [WARNING] droidforenix.retry: Attempt 1/2: JADX timeout after 10s
+2026-07-01 19:05:37,056 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-07-01 19:05:39,057 [DEBUG] droidforenix.retry: Attempt 2/2: Running JADX (timeout=10s)
+2026-07-01 19:05:39,057 [WARNING] droidforenix.retry: Attempt 2/2: JADX timeout after 10s
+2026-07-01 19:05:39,057 [ERROR] droidforenix.retry: All 2 attempts failed: JADX decompilation timed out after 10s. Large APKs may need more time.
+2026-07-01 19:05:39,066 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmpgshjs7sf\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmpgshjs7sf\output
+2026-07-01 19:05:39,067 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-07-01 19:05:39,067 [ERROR] droidforenix.retry: Attempt 1: malformed - APK file is corrupted or not a valid ZIP archive
+2026-07-01 19:05:39,075 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmpenplornv\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmpenplornv\output
+2026-07-01 19:05:39,075 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-07-01 19:05:39,076 [ERROR] droidforenix.retry: Attempt 1: disk_space - Not enough disk space to extract APK
+2026-07-01 19:05:39,084 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmpjuq_z_9v\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmpjuq_z_9v\output
+2026-07-01 19:05:39,085 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-07-01 19:05:39,085 [WARNING] droidforenix.retry: Attempt 1/3: JADX timeout after 10s
+2026-07-01 19:05:39,085 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-07-01 19:05:39,086 [DEBUG] droidforenix.retry: Attempt 2/3: Running JADX (timeout=10s)
+2026-07-01 19:05:39,086 [WARNING] droidforenix.retry: Attempt 2/3: JADX timeout after 10s
+2026-07-01 19:05:39,086 [INFO] droidforenix.retry: Waiting 4s before retry...
+2026-07-01 19:05:39,086 [DEBUG] droidforenix.retry: Attempt 3/3: Running JADX (timeout=10s)
+2026-07-01 19:05:39,087 [WARNING] droidforenix.retry: Attempt 3/3: JADX timeout after 10s
+2026-07-01 19:05:39,087 [ERROR] droidforenix.retry: All 3 attempts failed: JADX decompilation timed out after 10s. Large APKs may need more time.
+2026-07-01 19:12:06,485 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmpp24oe_1v\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmpp24oe_1v\output
+2026-07-01 19:12:06,485 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-07-01 19:12:06,487 [INFO] droidforenix.retry: Success on attempt 1: 1 classes extracted
+2026-07-01 19:12:06,494 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmpaa3fgdty\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmpaa3fgdty\output
+2026-07-01 19:12:06,494 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-07-01 19:12:06,494 [WARNING] droidforenix.retry: Attempt 1/3: JADX timeout after 10s
+2026-07-01 19:12:06,494 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-07-01 19:12:08,495 [DEBUG] droidforenix.retry: Attempt 2/3: Running JADX (timeout=10s)
+2026-07-01 19:12:08,495 [WARNING] droidforenix.retry: Attempt 2/3: JADX timeout after 10s
+2026-07-01 19:12:08,495 [INFO] droidforenix.retry: Waiting 4s before retry...
+2026-07-01 19:12:12,496 [DEBUG] droidforenix.retry: Attempt 3/3: Running JADX (timeout=10s)
+2026-07-01 19:12:12,499 [INFO] droidforenix.retry: Success on attempt 3: 1 classes extracted
+2026-07-01 19:12:12,504 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmp5snqdyi0\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmp5snqdyi0\output
+2026-07-01 19:12:12,504 [DEBUG] droidforenix.retry: Attempt 1/2: Running JADX (timeout=10s)
+2026-07-01 19:12:12,504 [WARNING] droidforenix.retry: Attempt 1/2: JADX timeout after 10s
+2026-07-01 19:12:12,504 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-07-01 19:12:14,504 [DEBUG] droidforenix.retry: Attempt 2/2: Running JADX (timeout=10s)
+2026-07-01 19:12:14,505 [WARNING] droidforenix.retry: Attempt 2/2: JADX timeout after 10s
+2026-07-01 19:12:14,505 [ERROR] droidforenix.retry: All 2 attempts failed: JADX decompilation timed out after 10s. Large APKs may need more time.
+2026-07-01 19:12:14,510 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmp533jh80m\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmp533jh80m\output
+2026-07-01 19:12:14,510 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-07-01 19:12:14,510 [ERROR] droidforenix.retry: Attempt 1: malformed - APK file is corrupted or not a valid ZIP archive
+2026-07-01 19:12:14,516 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmpmzjowdic\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmpmzjowdic\output
+2026-07-01 19:12:14,516 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-07-01 19:12:14,516 [ERROR] droidforenix.retry: Attempt 1: disk_space - Not enough disk space to extract APK
+2026-07-01 19:12:14,522 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmpmgvjs41y\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmpmgvjs41y\output
+2026-07-01 19:12:14,522 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-07-01 19:12:14,522 [WARNING] droidforenix.retry: Attempt 1/3: JADX timeout after 10s
+2026-07-01 19:12:14,522 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-07-01 19:12:14,523 [DEBUG] droidforenix.retry: Attempt 2/3: Running JADX (timeout=10s)
+2026-07-01 19:12:14,523 [WARNING] droidforenix.retry: Attempt 2/3: JADX timeout after 10s
+2026-07-01 19:12:14,523 [INFO] droidforenix.retry: Waiting 4s before retry...
+2026-07-01 19:12:14,523 [DEBUG] droidforenix.retry: Attempt 3/3: Running JADX (timeout=10s)
+2026-07-01 19:12:14,523 [WARNING] droidforenix.retry: Attempt 3/3: JADX timeout after 10s
+2026-07-01 19:12:14,523 [ERROR] droidforenix.retry: All 3 attempts failed: JADX decompilation timed out after 10s. Large APKs may need more time.
+2026-07-01 19:14:37,574 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmpuugbxme2\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmpuugbxme2\output
+2026-07-01 19:14:37,574 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-07-01 19:14:37,576 [INFO] droidforenix.retry: Success on attempt 1: 1 classes extracted
+2026-07-01 19:14:37,581 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmpb08_utdj\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmpb08_utdj\output
+2026-07-01 19:14:37,582 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-07-01 19:14:37,582 [WARNING] droidforenix.retry: Attempt 1/3: JADX timeout after 10s
+2026-07-01 19:14:37,582 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-07-01 19:14:39,582 [DEBUG] droidforenix.retry: Attempt 2/3: Running JADX (timeout=10s)
+2026-07-01 19:14:39,583 [WARNING] droidforenix.retry: Attempt 2/3: JADX timeout after 10s
+2026-07-01 19:14:39,583 [INFO] droidforenix.retry: Waiting 4s before retry...
+2026-07-01 19:14:43,583 [DEBUG] droidforenix.retry: Attempt 3/3: Running JADX (timeout=10s)
+2026-07-01 19:14:43,585 [INFO] droidforenix.retry: Success on attempt 3: 1 classes extracted
+2026-07-01 19:14:43,590 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmpue8bm8jb\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmpue8bm8jb\output
+2026-07-01 19:14:43,590 [DEBUG] droidforenix.retry: Attempt 1/2: Running JADX (timeout=10s)
+2026-07-01 19:14:43,590 [WARNING] droidforenix.retry: Attempt 1/2: JADX timeout after 10s
+2026-07-01 19:14:43,590 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-07-01 19:14:45,591 [DEBUG] droidforenix.retry: Attempt 2/2: Running JADX (timeout=10s)
+2026-07-01 19:14:45,591 [WARNING] droidforenix.retry: Attempt 2/2: JADX timeout after 10s
+2026-07-01 19:14:45,591 [ERROR] droidforenix.retry: All 2 attempts failed: JADX decompilation timed out after 10s. Large APKs may need more time.
+2026-07-01 19:14:45,596 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmprxw1w7f4\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmprxw1w7f4\output
+2026-07-01 19:14:45,597 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-07-01 19:14:45,597 [ERROR] droidforenix.retry: Attempt 1: malformed - APK file is corrupted or not a valid ZIP archive
+2026-07-01 19:14:45,601 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmphnjjbawq\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmphnjjbawq\output
+2026-07-01 19:14:45,601 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-07-01 19:14:45,601 [ERROR] droidforenix.retry: Attempt 1: disk_space - Not enough disk space to extract APK
+2026-07-01 19:14:45,606 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmp3i68l96u\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmp3i68l96u\output
+2026-07-01 19:14:45,606 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-07-01 19:14:45,606 [WARNING] droidforenix.retry: Attempt 1/3: JADX timeout after 10s
+2026-07-01 19:14:45,606 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-07-01 19:14:45,607 [DEBUG] droidforenix.retry: Attempt 2/3: Running JADX (timeout=10s)
+2026-07-01 19:14:45,607 [WARNING] droidforenix.retry: Attempt 2/3: JADX timeout after 10s
+2026-07-01 19:14:45,607 [INFO] droidforenix.retry: Waiting 4s before retry...
+2026-07-01 19:14:45,607 [DEBUG] droidforenix.retry: Attempt 3/3: Running JADX (timeout=10s)
+2026-07-01 19:14:45,607 [WARNING] droidforenix.retry: Attempt 3/3: JADX timeout after 10s
+2026-07-01 19:14:45,607 [ERROR] droidforenix.retry: All 3 attempts failed: JADX decompilation timed out after 10s. Large APKs may need more time.
+2026-07-01 21:39:53,010 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmp9n4dhkgh\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmp9n4dhkgh\output
+2026-07-01 21:39:53,011 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-07-01 21:39:53,014 [INFO] droidforenix.retry: Success on attempt 1: 1 classes extracted
+2026-07-01 21:39:53,019 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmpywtc9y_t\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmpywtc9y_t\output
+2026-07-01 21:39:53,019 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-07-01 21:39:53,019 [WARNING] droidforenix.retry: Attempt 1/3: JADX timeout after 10s
+2026-07-01 21:39:53,019 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-07-01 21:39:55,020 [DEBUG] droidforenix.retry: Attempt 2/3: Running JADX (timeout=10s)
+2026-07-01 21:39:55,020 [WARNING] droidforenix.retry: Attempt 2/3: JADX timeout after 10s
+2026-07-01 21:39:55,020 [INFO] droidforenix.retry: Waiting 4s before retry...
+2026-07-01 21:39:59,021 [DEBUG] droidforenix.retry: Attempt 3/3: Running JADX (timeout=10s)
+2026-07-01 21:39:59,023 [INFO] droidforenix.retry: Success on attempt 3: 1 classes extracted
+2026-07-01 21:39:59,029 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmp6gccdkti\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmp6gccdkti\output
+2026-07-01 21:39:59,029 [DEBUG] droidforenix.retry: Attempt 1/2: Running JADX (timeout=10s)
+2026-07-01 21:39:59,029 [WARNING] droidforenix.retry: Attempt 1/2: JADX timeout after 10s
+2026-07-01 21:39:59,030 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-07-01 21:40:01,030 [DEBUG] droidforenix.retry: Attempt 2/2: Running JADX (timeout=10s)
+2026-07-01 21:40:01,031 [WARNING] droidforenix.retry: Attempt 2/2: JADX timeout after 10s
+2026-07-01 21:40:01,031 [ERROR] droidforenix.retry: All 2 attempts failed: JADX decompilation timed out after 10s. Large APKs may need more time.
+2026-07-01 21:40:01,037 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmpkx7e21f7\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmpkx7e21f7\output
+2026-07-01 21:40:01,037 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-07-01 21:40:01,037 [ERROR] droidforenix.retry: Attempt 1: malformed - APK file is corrupted or not a valid ZIP archive
+2026-07-01 21:40:01,042 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmphn7boc7q\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmphn7boc7q\output
+2026-07-01 21:40:01,042 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-07-01 21:40:01,042 [ERROR] droidforenix.retry: Attempt 1: disk_space - Not enough disk space to extract APK
+2026-07-01 21:40:01,047 [INFO] droidforenix.retry: Starting decompilation: C:\Users\darsh\AppData\Local\Temp\tmpf9h115q8\test.apk -> C:\Users\darsh\AppData\Local\Temp\tmpf9h115q8\output
+2026-07-01 21:40:01,047 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=10s)
+2026-07-01 21:40:01,047 [WARNING] droidforenix.retry: Attempt 1/3: JADX timeout after 10s
+2026-07-01 21:40:01,047 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-07-01 21:40:01,048 [DEBUG] droidforenix.retry: Attempt 2/3: Running JADX (timeout=10s)
+2026-07-01 21:40:01,048 [WARNING] droidforenix.retry: Attempt 2/3: JADX timeout after 10s
+2026-07-01 21:40:01,048 [INFO] droidforenix.retry: Waiting 4s before retry...
+2026-07-01 21:40:01,048 [DEBUG] droidforenix.retry: Attempt 3/3: Running JADX (timeout=10s)
+2026-07-01 21:40:01,048 [WARNING] droidforenix.retry: Attempt 3/3: JADX timeout after 10s
+2026-07-01 21:40:01,048 [ERROR] droidforenix.retry: All 3 attempts failed: JADX decompilation timed out after 10s. Large APKs may need more time.
+2026-07-04 12:04:34,297 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\208e85cc66f2ee482dce1c6ee5f1ea45592e9fc9980c1b04b5157975d127dcf1.apk -> D:\DroidForensix\analysis\work\208e85cc66f2ee482dce1c6ee5f1ea45592e9fc9980c1b04b5157975d127dcf1\jadx
+2026-07-04 12:04:34,298 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:04:37,618 [INFO] droidforenix.retry: Success on attempt 1: 84 classes extracted
+2026-07-04 12:07:16,675 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\unknown_ec3ac26dc88851ddd209ca93eb156b721ebe4d4dce45188394fe65a8df95c457.apk -> D:\DroidForensix\analysis\work\ec3ac26dc88851ddd209ca93eb156b721ebe4d4dce45188394fe65a8df95c457\jadx
+2026-07-04 12:07:16,676 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:07:24,163 [INFO] droidforenix.retry: Success on attempt 1: 312 classes extracted
+2026-07-04 12:07:44,373 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\unknown_9c97d8ba3cab23750c3837b024bedde7e6bb7e27f5e6ff3bcd3817b9b9eb33d7.apk -> D:\DroidForensix\analysis\work\9c97d8ba3cab23750c3837b024bedde7e6bb7e27f5e6ff3bcd3817b9b9eb33d7\jadx
+2026-07-04 12:07:44,373 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:07:52,689 [INFO] droidforenix.retry: Success on attempt 1: 548 classes extracted
+2026-07-04 12:08:10,657 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\unknown_9904bb103fae65ab3dd712f6b9ff361d3f3cb3a4cc814b69f0af3e2f1a837ecd.apk -> D:\DroidForensix\analysis\work\9904bb103fae65ab3dd712f6b9ff361d3f3cb3a4cc814b69f0af3e2f1a837ecd\jadx
+2026-07-04 12:08:10,657 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:08:11,931 [ERROR] droidforenix.retry: Attempt 1: decompilation_failed - JADX error: 
+2026-07-04 12:08:11,931 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-07-04 12:08:13,932 [DEBUG] droidforenix.retry: Attempt 2/3: Running JADX (timeout=300s)
+2026-07-04 12:08:15,281 [ERROR] droidforenix.retry: Attempt 2: decompilation_failed - JADX error: 
+2026-07-04 12:08:15,281 [INFO] droidforenix.retry: Waiting 4s before retry...
+2026-07-04 12:08:19,282 [DEBUG] droidforenix.retry: Attempt 3/3: Running JADX (timeout=300s)
+2026-07-04 12:08:20,647 [ERROR] droidforenix.retry: Attempt 3: decompilation_failed - JADX error: 
+2026-07-04 12:08:20,648 [ERROR] droidforenix.retry: All 3 attempts failed: JADX error: 
+2026-07-04 12:08:32,820 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\unknown_818e8917650bff20ef5d3440d2c33739f973d4e7f41af7d7767502dac5a0580c.apk -> D:\DroidForensix\analysis\work\818e8917650bff20ef5d3440d2c33739f973d4e7f41af7d7767502dac5a0580c\jadx
+2026-07-04 12:08:32,820 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:08:34,220 [ERROR] droidforenix.retry: Attempt 1: decompilation_failed - JADX error: 
+2026-07-04 12:08:34,220 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-07-04 12:08:36,221 [DEBUG] droidforenix.retry: Attempt 2/3: Running JADX (timeout=300s)
+2026-07-04 12:08:37,624 [ERROR] droidforenix.retry: Attempt 2: decompilation_failed - JADX error: 
+2026-07-04 12:08:37,624 [INFO] droidforenix.retry: Waiting 4s before retry...
+2026-07-04 12:08:41,624 [DEBUG] droidforenix.retry: Attempt 3/3: Running JADX (timeout=300s)
+2026-07-04 12:08:42,909 [ERROR] droidforenix.retry: Attempt 3: decompilation_failed - JADX error: 
+2026-07-04 12:08:42,909 [ERROR] droidforenix.retry: All 3 attempts failed: JADX error: 
+2026-07-04 12:09:05,723 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\unknown_c5544517f1be9d5a721a951d906b26f9ad11adf4a06c3660a75e89f07dabb8aa.apk -> D:\DroidForensix\analysis\work\c5544517f1be9d5a721a951d906b26f9ad11adf4a06c3660a75e89f07dabb8aa\jadx
+2026-07-04 12:09:05,723 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:09:07,110 [ERROR] droidforenix.retry: Attempt 1: decompilation_failed - JADX error: 
+2026-07-04 12:09:07,111 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-07-04 12:09:09,111 [DEBUG] droidforenix.retry: Attempt 2/3: Running JADX (timeout=300s)
+2026-07-04 12:09:10,470 [ERROR] droidforenix.retry: Attempt 2: decompilation_failed - JADX error: 
+2026-07-04 12:09:10,470 [INFO] droidforenix.retry: Waiting 4s before retry...
+2026-07-04 12:09:14,471 [DEBUG] droidforenix.retry: Attempt 3/3: Running JADX (timeout=300s)
+2026-07-04 12:09:15,793 [ERROR] droidforenix.retry: Attempt 3: decompilation_failed - JADX error: 
+2026-07-04 12:09:15,794 [ERROR] droidforenix.retry: All 3 attempts failed: JADX error: 
+2026-07-04 12:09:27,928 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\unknown_7e8693dfed67a88db885ac0ffd94b73351d1f910cafc6425e8f1b4ab0e24c2a8.apk -> D:\DroidForensix\analysis\work\7e8693dfed67a88db885ac0ffd94b73351d1f910cafc6425e8f1b4ab0e24c2a8\jadx
+2026-07-04 12:09:27,928 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:09:29,347 [ERROR] droidforenix.retry: Attempt 1: decompilation_failed - JADX error: 
+2026-07-04 12:09:29,347 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-07-04 12:09:31,348 [DEBUG] droidforenix.retry: Attempt 2/3: Running JADX (timeout=300s)
+2026-07-04 12:09:32,838 [ERROR] droidforenix.retry: Attempt 2: decompilation_failed - JADX error: 
+2026-07-04 12:09:32,838 [INFO] droidforenix.retry: Waiting 4s before retry...
+2026-07-04 12:09:36,839 [DEBUG] droidforenix.retry: Attempt 3/3: Running JADX (timeout=300s)
+2026-07-04 12:09:38,295 [ERROR] droidforenix.retry: Attempt 3: decompilation_failed - JADX error: 
+2026-07-04 12:09:38,295 [ERROR] droidforenix.retry: All 3 attempts failed: JADX error: 
+2026-07-04 12:10:00,092 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\unknown_0400c00cbcc6834ade203f8d515f5932972a3861256a9a7ca0a46638eec2a83e.apk -> D:\DroidForensix\analysis\work\0400c00cbcc6834ade203f8d515f5932972a3861256a9a7ca0a46638eec2a83e\jadx
+2026-07-04 12:10:00,092 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:10:01,558 [ERROR] droidforenix.retry: Attempt 1: decompilation_failed - JADX error: 
+2026-07-04 12:10:01,558 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-07-04 12:10:03,559 [DEBUG] droidforenix.retry: Attempt 2/3: Running JADX (timeout=300s)
+2026-07-04 12:10:04,958 [ERROR] droidforenix.retry: Attempt 2: decompilation_failed - JADX error: 
+2026-07-04 12:10:04,958 [INFO] droidforenix.retry: Waiting 4s before retry...
+2026-07-04 12:10:08,959 [DEBUG] droidforenix.retry: Attempt 3/3: Running JADX (timeout=300s)
+2026-07-04 12:10:10,324 [ERROR] droidforenix.retry: Attempt 3: decompilation_failed - JADX error: 
+2026-07-04 12:10:10,324 [ERROR] droidforenix.retry: All 3 attempts failed: JADX error: 
+2026-07-04 12:10:26,342 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\unknown_050d91cde706f7c981f90878dbd50d92038caeedd38852a10e018e57f188e79b.apk -> D:\DroidForensix\analysis\work\050d91cde706f7c981f90878dbd50d92038caeedd38852a10e018e57f188e79b\jadx
+2026-07-04 12:10:26,342 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:10:27,705 [ERROR] droidforenix.retry: Attempt 1: decompilation_failed - JADX error: 
+2026-07-04 12:10:27,705 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-07-04 12:10:29,706 [DEBUG] droidforenix.retry: Attempt 2/3: Running JADX (timeout=300s)
+2026-07-04 12:10:31,078 [ERROR] droidforenix.retry: Attempt 2: decompilation_failed - JADX error: 
+2026-07-04 12:10:31,078 [INFO] droidforenix.retry: Waiting 4s before retry...
+2026-07-04 12:10:35,078 [DEBUG] droidforenix.retry: Attempt 3/3: Running JADX (timeout=300s)
+2026-07-04 12:10:36,496 [ERROR] droidforenix.retry: Attempt 3: decompilation_failed - JADX error: 
+2026-07-04 12:10:36,496 [ERROR] droidforenix.retry: All 3 attempts failed: JADX error: 
+2026-07-04 12:11:36,764 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\unknown_345bbac79d218919228838242d35fc475a7aab28d303d1d51ac6078cd59197d6.apk -> D:\DroidForensix\analysis\work\345bbac79d218919228838242d35fc475a7aab28d303d1d51ac6078cd59197d6\jadx
+2026-07-04 12:11:36,764 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:11:59,752 [INFO] droidforenix.retry: Success on attempt 1: 3725 classes extracted
+2026-07-04 12:12:39,730 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\unknown_3c81526bcb801d7dcfaea7f379528471d745a36e3c1bdc41877b4bed34b5dce6.apk -> D:\DroidForensix\analysis\work\3c81526bcb801d7dcfaea7f379528471d745a36e3c1bdc41877b4bed34b5dce6\jadx
+2026-07-04 12:12:39,730 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:12:49,678 [INFO] droidforenix.retry: Success on attempt 1: 1437 classes extracted
+2026-07-04 12:24:26,706 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\unknown_cb147e7ce69723523f604da875d78ca4738e5f416d2297910ee179a5067e79fe.apk -> D:\DroidForensix\analysis\work\cb147e7ce69723523f604da875d78ca4738e5f416d2297910ee179a5067e79fe\jadx
+2026-07-04 12:24:26,706 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:24:39,476 [INFO] droidforenix.retry: Success on attempt 1: 1437 classes extracted
+2026-07-04 12:25:09,777 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\unknown_6d29e6e5372cd0690e0df62eb6d98938e91191b0e639fed2476497baa8255405.apk -> D:\DroidForensix\analysis\work\6d29e6e5372cd0690e0df62eb6d98938e91191b0e639fed2476497baa8255405\jadx
+2026-07-04 12:25:09,777 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:25:20,656 [INFO] droidforenix.retry: Success on attempt 1: 1437 classes extracted
+2026-07-04 12:25:38,785 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\unknown_7fb836c08ff527443b06d1c20afb6a4b0f51eb373013f211e0d3200bf26527b7.apk -> D:\DroidForensix\analysis\work\7fb836c08ff527443b06d1c20afb6a4b0f51eb373013f211e0d3200bf26527b7\jadx
+2026-07-04 12:25:38,785 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:25:49,193 [INFO] droidforenix.retry: Success on attempt 1: 1437 classes extracted
+2026-07-04 12:26:07,164 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\unknown_752f3cacdad6753d4c02bb8e40ef3e0990b55466c18a7b80ec6fa7b9706e40ab.apk -> D:\DroidForensix\analysis\work\752f3cacdad6753d4c02bb8e40ef3e0990b55466c18a7b80ec6fa7b9706e40ab\jadx
+2026-07-04 12:26:07,164 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:26:17,134 [INFO] droidforenix.retry: Success on attempt 1: 1437 classes extracted
+2026-07-04 12:26:35,155 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\unknown_ce462b41ab7480dce4f290a9921fca51ba40e502d480a348d50770607e3d02b9.apk -> D:\DroidForensix\analysis\work\ce462b41ab7480dce4f290a9921fca51ba40e502d480a348d50770607e3d02b9\jadx
+2026-07-04 12:26:35,155 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:26:45,079 [INFO] droidforenix.retry: Success on attempt 1: 1437 classes extracted
+2026-07-04 12:27:02,627 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\unknown_9628acabe739b5419f08c5a5c3cd776268bf4a3c25c978341e403bde442e0ece.apk -> D:\DroidForensix\analysis\work\9628acabe739b5419f08c5a5c3cd776268bf4a3c25c978341e403bde442e0ece\jadx
+2026-07-04 12:27:02,627 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:27:12,563 [INFO] droidforenix.retry: Success on attempt 1: 1437 classes extracted
+2026-07-04 12:27:31,024 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\unknown_21c91c4cb01c7fd286dc8fa6122f6c43a5227677ffbe3566aa37204cd9e494fe.apk -> D:\DroidForensix\analysis\work\21c91c4cb01c7fd286dc8fa6122f6c43a5227677ffbe3566aa37204cd9e494fe\jadx
+2026-07-04 12:27:31,024 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:27:41,036 [INFO] droidforenix.retry: Success on attempt 1: 1437 classes extracted
+2026-07-04 12:27:59,097 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\unknown_d29295f1504676003fd3ccbd3e41a53aabbe80d2025bfb3a6ef9a9fcff97b6cd.apk -> D:\DroidForensix\analysis\work\d29295f1504676003fd3ccbd3e41a53aabbe80d2025bfb3a6ef9a9fcff97b6cd\jadx
+2026-07-04 12:27:59,097 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:28:09,082 [INFO] droidforenix.retry: Success on attempt 1: 1437 classes extracted
+2026-07-04 12:28:27,263 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\unknown_091870b3f90c9a98000e0d14a67be2db5891ce98a0b1e24b721e3d96241620a5.apk -> D:\DroidForensix\analysis\work\091870b3f90c9a98000e0d14a67be2db5891ce98a0b1e24b721e3d96241620a5\jadx
+2026-07-04 12:28:27,263 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:28:37,333 [INFO] droidforenix.retry: Success on attempt 1: 1437 classes extracted
+2026-07-04 12:28:55,538 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\unknown_090a30252991830596c75a945885ca3100d7a40edf4a16d78abd5bbfd90ba268.apk -> D:\DroidForensix\analysis\work\090a30252991830596c75a945885ca3100d7a40edf4a16d78abd5bbfd90ba268\jadx
+2026-07-04 12:28:55,538 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:29:05,523 [INFO] droidforenix.retry: Success on attempt 1: 1437 classes extracted
+2026-07-04 12:29:22,781 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\unknown_c7944bdac5ce3255a56e77c6f2a83917f4b8a909646396669d408f207e751772.apk -> D:\DroidForensix\analysis\work\c7944bdac5ce3255a56e77c6f2a83917f4b8a909646396669d408f207e751772\jadx
+2026-07-04 12:29:22,781 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:29:24,135 [ERROR] droidforenix.retry: Attempt 1: decompilation_failed - JADX error: 
+2026-07-04 12:29:24,135 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-07-04 12:29:26,136 [DEBUG] droidforenix.retry: Attempt 2/3: Running JADX (timeout=300s)
+2026-07-04 12:29:27,518 [ERROR] droidforenix.retry: Attempt 2: decompilation_failed - JADX error: 
+2026-07-04 12:29:27,518 [INFO] droidforenix.retry: Waiting 4s before retry...
+2026-07-04 12:29:31,519 [DEBUG] droidforenix.retry: Attempt 3/3: Running JADX (timeout=300s)
+2026-07-04 12:29:32,830 [ERROR] droidforenix.retry: Attempt 3: decompilation_failed - JADX error: 
+2026-07-04 12:29:32,830 [ERROR] droidforenix.retry: All 3 attempts failed: JADX error: 
+2026-07-04 12:29:52,826 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\unknown_1370ba86f4c12ff1a8a0dd987b2be79a6ed13f7765e05b9711c544a7a2f288ea.apk -> D:\DroidForensix\analysis\work\1370ba86f4c12ff1a8a0dd987b2be79a6ed13f7765e05b9711c544a7a2f288ea\jadx
+2026-07-04 12:29:52,827 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:29:54,176 [ERROR] droidforenix.retry: Attempt 1: decompilation_failed - JADX error: 
+2026-07-04 12:29:54,176 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-07-04 12:29:56,176 [DEBUG] droidforenix.retry: Attempt 2/3: Running JADX (timeout=300s)
+2026-07-04 12:29:57,459 [ERROR] droidforenix.retry: Attempt 2: decompilation_failed - JADX error: 
+2026-07-04 12:29:57,459 [INFO] droidforenix.retry: Waiting 4s before retry...
+2026-07-04 12:30:01,460 [DEBUG] droidforenix.retry: Attempt 3/3: Running JADX (timeout=300s)
+2026-07-04 12:30:04,124 [ERROR] droidforenix.retry: Attempt 3: decompilation_failed - JADX error: 
+2026-07-04 12:30:04,124 [ERROR] droidforenix.retry: All 3 attempts failed: JADX error: 
+2026-07-04 12:31:57,765 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\unknown_f03514da7d38e1a378429296a8d4405368aaad131dc069f513164eff569f7fca.apk -> D:\DroidForensix\analysis\work\f03514da7d38e1a378429296a8d4405368aaad131dc069f513164eff569f7fca\jadx
+2026-07-04 12:31:57,765 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:32:19,010 [INFO] droidforenix.retry: Success on attempt 1: 4857 classes extracted
+2026-07-04 12:33:58,900 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\unknown_b2225250a1fcff06750f32d3abb999ffe26fbd21abc7b87ff0e91f8e0449652c.apk -> D:\DroidForensix\analysis\work\b2225250a1fcff06750f32d3abb999ffe26fbd21abc7b87ff0e91f8e0449652c\jadx
+2026-07-04 12:33:58,900 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:34:29,496 [INFO] droidforenix.retry: Success on attempt 1: 4868 classes extracted
+2026-07-04 12:36:27,012 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\unknown_7365190230042fa2f8aba13d39cfecaa52b029750331760bcd114bafb01cb6db.apk -> D:\DroidForensix\analysis\work\7365190230042fa2f8aba13d39cfecaa52b029750331760bcd114bafb01cb6db\jadx
+2026-07-04 12:36:27,013 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:36:28,404 [ERROR] droidforenix.retry: Attempt 1: decompilation_failed - JADX error: 
+2026-07-04 12:36:28,404 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-07-04 12:36:30,405 [DEBUG] droidforenix.retry: Attempt 2/3: Running JADX (timeout=300s)
+2026-07-04 12:36:31,880 [ERROR] droidforenix.retry: Attempt 2: decompilation_failed - JADX error: 
+2026-07-04 12:36:31,880 [INFO] droidforenix.retry: Waiting 4s before retry...
+2026-07-04 12:36:35,880 [DEBUG] droidforenix.retry: Attempt 3/3: Running JADX (timeout=300s)
+2026-07-04 12:36:37,245 [ERROR] droidforenix.retry: Attempt 3: decompilation_failed - JADX error: 
+2026-07-04 12:36:37,245 [ERROR] droidforenix.retry: All 3 attempts failed: JADX error: 
+2026-07-04 12:37:41,546 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\unknown_018f8548c055a31d98201874ebf21591e6d85cb9eee66e8c35716a9289d01f48.apk -> D:\DroidForensix\analysis\work\018f8548c055a31d98201874ebf21591e6d85cb9eee66e8c35716a9289d01f48\jadx
+2026-07-04 12:37:41,546 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:37:42,833 [ERROR] droidforenix.retry: Attempt 1: decompilation_failed - JADX error: 
+2026-07-04 12:37:42,834 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-07-04 12:37:44,834 [DEBUG] droidforenix.retry: Attempt 2/3: Running JADX (timeout=300s)
+2026-07-04 12:37:46,236 [ERROR] droidforenix.retry: Attempt 2: decompilation_failed - JADX error: 
+2026-07-04 12:37:46,236 [INFO] droidforenix.retry: Waiting 4s before retry...
+2026-07-04 12:37:50,237 [DEBUG] droidforenix.retry: Attempt 3/3: Running JADX (timeout=300s)
+2026-07-04 12:37:51,790 [ERROR] droidforenix.retry: Attempt 3: decompilation_failed - JADX error: 
+2026-07-04 12:37:51,790 [ERROR] droidforenix.retry: All 3 attempts failed: JADX error: 
+2026-07-04 12:38:05,396 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\unknown_bca248d31bf87b605e8cca7587a9753d58a9ad9a8f7e6f7f882d03150d72869f.apk -> D:\DroidForensix\analysis\work\bca248d31bf87b605e8cca7587a9753d58a9ad9a8f7e6f7f882d03150d72869f\jadx
+2026-07-04 12:38:05,397 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:38:06,704 [ERROR] droidforenix.retry: Attempt 1: decompilation_failed - JADX error: 
+2026-07-04 12:38:06,705 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-07-04 12:38:08,706 [DEBUG] droidforenix.retry: Attempt 2/3: Running JADX (timeout=300s)
+2026-07-04 12:38:10,253 [ERROR] droidforenix.retry: Attempt 2: decompilation_failed - JADX error: 
+2026-07-04 12:38:10,254 [INFO] droidforenix.retry: Waiting 4s before retry...
+2026-07-04 12:38:14,255 [DEBUG] droidforenix.retry: Attempt 3/3: Running JADX (timeout=300s)
+2026-07-04 12:38:15,585 [ERROR] droidforenix.retry: Attempt 3: decompilation_failed - JADX error: 
+2026-07-04 12:38:15,586 [ERROR] droidforenix.retry: All 3 attempts failed: JADX error: 
+2026-07-04 12:39:11,519 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\unknown_918eb87af81e92709d872621ea8ed0c086e38fbdf48a5e5ebdcab190f41bd07b.apk -> D:\DroidForensix\analysis\work\918eb87af81e92709d872621ea8ed0c086e38fbdf48a5e5ebdcab190f41bd07b\jadx
+2026-07-04 12:39:11,519 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:39:39,464 [INFO] droidforenix.retry: Success on attempt 1: 8645 classes extracted
+2026-07-04 12:41:05,761 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\PixRevolution_557c02b5e9ca8103e6ad5413df1b447fae5c9ce086a0b5330bf9c79a578585df.apk -> D:\DroidForensix\analysis\work\557c02b5e9ca8103e6ad5413df1b447fae5c9ce086a0b5330bf9c79a578585df\jadx
+2026-07-04 12:41:05,761 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:41:31,657 [INFO] droidforenix.retry: Success on attempt 1: 7263 classes extracted
+2026-07-04 12:42:39,446 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\PixRevolution_8e39fb18e8acb2e4fc4bcd7db2efc320f5ec84100e8ba870fd24dd13a6584277.apk -> D:\DroidForensix\analysis\work\8e39fb18e8acb2e4fc4bcd7db2efc320f5ec84100e8ba870fd24dd13a6584277\jadx
+2026-07-04 12:42:39,447 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:43:04,689 [INFO] droidforenix.retry: Success on attempt 1: 7059 classes extracted
+2026-07-04 12:44:39,280 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\PixRevolution_9fefd2c820fb28d50bc55c3320964635f27f1a74ac89dfc5aed8b6d5a09980f5.apk -> D:\DroidForensix\analysis\work\9fefd2c820fb28d50bc55c3320964635f27f1a74ac89dfc5aed8b6d5a09980f5\jadx
+2026-07-04 12:44:39,280 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:45:11,241 [INFO] droidforenix.retry: Success on attempt 1: 7909 classes extracted
+2026-07-04 12:46:28,381 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\unknown_abf62033c4b913bf8368de607fdc4dd2677f9441541db3c2a9375dd9130ff9bb.apk -> D:\DroidForensix\analysis\work\abf62033c4b913bf8368de607fdc4dd2677f9441541db3c2a9375dd9130ff9bb\jadx
+2026-07-04 12:46:28,382 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:46:29,717 [ERROR] droidforenix.retry: Attempt 1: decompilation_failed - JADX error: 
+2026-07-04 12:46:29,717 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-07-04 12:46:31,718 [DEBUG] droidforenix.retry: Attempt 2/3: Running JADX (timeout=300s)
+2026-07-04 12:46:33,066 [ERROR] droidforenix.retry: Attempt 2: decompilation_failed - JADX error: 
+2026-07-04 12:46:33,067 [INFO] droidforenix.retry: Waiting 4s before retry...
+2026-07-04 12:46:37,067 [DEBUG] droidforenix.retry: Attempt 3/3: Running JADX (timeout=300s)
+2026-07-04 12:46:38,394 [ERROR] droidforenix.retry: Attempt 3: decompilation_failed - JADX error: 
+2026-07-04 12:46:38,394 [ERROR] droidforenix.retry: All 3 attempts failed: JADX error: 
+2026-07-04 12:47:44,859 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\unknown_2ab29825e9454a4b87d661dfc55842943e30b86600d2848796d96241e92307c2.apk -> D:\DroidForensix\analysis\work\2ab29825e9454a4b87d661dfc55842943e30b86600d2848796d96241e92307c2\jadx
+2026-07-04 12:47:44,859 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:47:46,172 [ERROR] droidforenix.retry: Attempt 1: decompilation_failed - JADX error: 
+2026-07-04 12:47:46,172 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-07-04 12:47:48,172 [DEBUG] droidforenix.retry: Attempt 2/3: Running JADX (timeout=300s)
+2026-07-04 12:47:49,462 [ERROR] droidforenix.retry: Attempt 2: decompilation_failed - JADX error: 
+2026-07-04 12:47:49,462 [INFO] droidforenix.retry: Waiting 4s before retry...
+2026-07-04 12:47:53,463 [DEBUG] droidforenix.retry: Attempt 3/3: Running JADX (timeout=300s)
+2026-07-04 12:47:54,794 [ERROR] droidforenix.retry: Attempt 3: decompilation_failed - JADX error: 
+2026-07-04 12:47:54,794 [ERROR] droidforenix.retry: All 3 attempts failed: JADX error: 
+2026-07-04 12:49:03,448 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\unknown_ad9f39e6166a47ae16359777b607055198cda23f004d9d7b066e22c0d0cf1e6d.apk -> D:\DroidForensix\analysis\work\ad9f39e6166a47ae16359777b607055198cda23f004d9d7b066e22c0d0cf1e6d\jadx
+2026-07-04 12:49:03,448 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:49:04,710 [ERROR] droidforenix.retry: Attempt 1: decompilation_failed - JADX error: 
+2026-07-04 12:49:04,711 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-07-04 12:49:06,711 [DEBUG] droidforenix.retry: Attempt 2/3: Running JADX (timeout=300s)
+2026-07-04 12:49:08,026 [ERROR] droidforenix.retry: Attempt 2: decompilation_failed - JADX error: 
+2026-07-04 12:49:08,026 [INFO] droidforenix.retry: Waiting 4s before retry...
+2026-07-04 12:49:12,027 [DEBUG] droidforenix.retry: Attempt 3/3: Running JADX (timeout=300s)
+2026-07-04 12:49:13,378 [ERROR] droidforenix.retry: Attempt 3: decompilation_failed - JADX error: 
+2026-07-04 12:49:13,378 [ERROR] droidforenix.retry: All 3 attempts failed: JADX error: 
+2026-07-04 12:50:30,264 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\unknown_3cb4b373a24afb10b8003762e763e6b44008bdf9a58d0a9a2b80a5de68308ecd.apk -> D:\DroidForensix\analysis\work\3cb4b373a24afb10b8003762e763e6b44008bdf9a58d0a9a2b80a5de68308ecd\jadx
+2026-07-04 12:50:30,264 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:50:42,516 [INFO] droidforenix.retry: Success on attempt 1: 1953 classes extracted
+2026-07-04 12:51:02,059 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\unknown_269a98c5a2e16675eacd3490f382ac08d894737e629b92c1a69070cc471eed36.apk -> D:\DroidForensix\analysis\work\269a98c5a2e16675eacd3490f382ac08d894737e629b92c1a69070cc471eed36\jadx
+2026-07-04 12:51:02,060 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:51:03,383 [ERROR] droidforenix.retry: Attempt 1: decompilation_failed - JADX error: 
+2026-07-04 12:51:03,384 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-07-04 12:51:05,384 [DEBUG] droidforenix.retry: Attempt 2/3: Running JADX (timeout=300s)
+2026-07-04 12:51:06,682 [ERROR] droidforenix.retry: Attempt 2: decompilation_failed - JADX error: 
+2026-07-04 12:51:06,682 [INFO] droidforenix.retry: Waiting 4s before retry...
+2026-07-04 12:51:10,682 [DEBUG] droidforenix.retry: Attempt 3/3: Running JADX (timeout=300s)
+2026-07-04 12:51:12,035 [ERROR] droidforenix.retry: Attempt 3: decompilation_failed - JADX error: 
+2026-07-04 12:51:12,035 [ERROR] droidforenix.retry: All 3 attempts failed: JADX error: 
+2026-07-04 12:51:35,690 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\unknown_64a9263148d49bbabaf13b68fc461c93275d5d7f852288ccf00d1b25e39069d3.apk -> D:\DroidForensix\analysis\work\64a9263148d49bbabaf13b68fc461c93275d5d7f852288ccf00d1b25e39069d3\jadx
+2026-07-04 12:51:35,690 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:51:48,664 [INFO] droidforenix.retry: Success on attempt 1: 3419 classes extracted
+2026-07-04 12:52:18,416 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\Konfety_3502fa570ada49eaeeaa4785bb1897ed91dfadaa76c5e8626c5b8e944d8f5f01.apk -> D:\DroidForensix\analysis\work\3502fa570ada49eaeeaa4785bb1897ed91dfadaa76c5e8626c5b8e944d8f5f01\jadx
+2026-07-04 12:52:18,417 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:52:23,490 [INFO] droidforenix.retry: Success on attempt 1: 256 classes extracted
+2026-07-04 12:52:42,916 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\Konfety_6376bcd8faa57aac7437116b184967a588025e2bf96318272cdcf51ff2f8dfdd.apk -> D:\DroidForensix\analysis\work\6376bcd8faa57aac7437116b184967a588025e2bf96318272cdcf51ff2f8dfdd\jadx
+2026-07-04 12:52:42,916 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:52:48,107 [INFO] droidforenix.retry: Success on attempt 1: 255 classes extracted
+2026-07-04 12:53:06,866 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\unknown_7bebc4b248402dbf988b92eb7d9c86797bb302b983e63ce0d2dba96f0f8a345a.apk -> D:\DroidForensix\analysis\work\7bebc4b248402dbf988b92eb7d9c86797bb302b983e63ce0d2dba96f0f8a345a\jadx
+2026-07-04 12:53:06,866 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:53:10,787 [INFO] droidforenix.retry: Success on attempt 1: 28 classes extracted
+2026-07-04 12:53:22,480 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\ermac_9b5905a253141d4f64394de73775541a7bb16714cff8d18684e24ae887c97fc2.apk -> D:\DroidForensix\analysis\work\9b5905a253141d4f64394de73775541a7bb16714cff8d18684e24ae887c97fc2\jadx
+2026-07-04 12:53:22,480 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:53:23,778 [ERROR] droidforenix.retry: Attempt 1: decompilation_failed - JADX error: 
+2026-07-04 12:53:23,779 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-07-04 12:53:25,779 [DEBUG] droidforenix.retry: Attempt 2/3: Running JADX (timeout=300s)
+2026-07-04 12:53:27,084 [ERROR] droidforenix.retry: Attempt 2: decompilation_failed - JADX error: 
+2026-07-04 12:53:27,084 [INFO] droidforenix.retry: Waiting 4s before retry...
+2026-07-04 12:53:31,084 [DEBUG] droidforenix.retry: Attempt 3/3: Running JADX (timeout=300s)
+2026-07-04 12:53:32,336 [ERROR] droidforenix.retry: Attempt 3: decompilation_failed - JADX error: 
+2026-07-04 12:53:32,336 [ERROR] droidforenix.retry: All 3 attempts failed: JADX error: 
+2026-07-04 12:53:46,271 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\hydra_ceb48e4b9d82b2ab7b486393048cdc78c6dfaf88799521e63677b06975f707cd.apk -> D:\DroidForensix\analysis\work\ceb48e4b9d82b2ab7b486393048cdc78c6dfaf88799521e63677b06975f707cd\jadx
+2026-07-04 12:53:46,271 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:53:49,880 [INFO] droidforenix.retry: Success on attempt 1: 18 classes extracted
+2026-07-04 12:54:01,412 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\hydra_ce480d22d9936bc469d46abbcd51bdb74dc201216c29a97ba21c40e0299335bc.apk -> D:\DroidForensix\analysis\work\ce480d22d9936bc469d46abbcd51bdb74dc201216c29a97ba21c40e0299335bc\jadx
+2026-07-04 12:54:01,412 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:54:02,761 [ERROR] droidforenix.retry: Attempt 1: decompilation_failed - JADX error: 
+2026-07-04 12:54:02,761 [INFO] droidforenix.retry: Waiting 2s before retry...
+2026-07-04 12:54:04,762 [DEBUG] droidforenix.retry: Attempt 2/3: Running JADX (timeout=300s)
+2026-07-04 12:54:06,057 [ERROR] droidforenix.retry: Attempt 2: decompilation_failed - JADX error: 
+2026-07-04 12:54:06,058 [INFO] droidforenix.retry: Waiting 4s before retry...
+2026-07-04 12:54:10,058 [DEBUG] droidforenix.retry: Attempt 3/3: Running JADX (timeout=300s)
+2026-07-04 12:54:11,399 [ERROR] droidforenix.retry: Attempt 3: decompilation_failed - JADX error: 
+2026-07-04 12:54:11,399 [ERROR] droidforenix.retry: All 3 attempts failed: JADX error: 
+2026-07-04 12:54:58,948 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\hydra_7e7ee5b11fe1ca56f0f8416638964bec68b9ef90b25426f06d1330222b1dcf3d.apk -> D:\DroidForensix\analysis\work\7e7ee5b11fe1ca56f0f8416638964bec68b9ef90b25426f06d1330222b1dcf3d\jadx
+2026-07-04 12:54:58,948 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:55:12,041 [INFO] droidforenix.retry: Success on attempt 1: 3391 classes extracted
+2026-07-04 12:55:48,724 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\teabot_c3c7df127552aa2594ad335d7cc955cb1274cc322455a89b1856a2adf9f83ded.apk -> D:\DroidForensix\analysis\work\c3c7df127552aa2594ad335d7cc955cb1274cc322455a89b1856a2adf9f83ded\jadx
+2026-07-04 12:55:48,724 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:55:55,093 [INFO] droidforenix.retry: Success on attempt 1: 517 classes extracted
+2026-07-04 12:56:25,671 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\teabot_47bb7f855cdf116c62499240089fa1b7a69585e8b7f639e192b9d038da4094cd.apk -> D:\DroidForensix\analysis\work\47bb7f855cdf116c62499240089fa1b7a69585e8b7f639e192b9d038da4094cd\jadx
+2026-07-04 12:56:25,672 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:56:38,078 [INFO] droidforenix.retry: Success on attempt 1: 3263 classes extracted
+2026-07-04 12:57:20,929 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\teabot_b88e7421bc61f4ce20c0694418fc97c1e77cfd3f2053857f87cc47512a55c3d3.apk -> D:\DroidForensix\analysis\work\b88e7421bc61f4ce20c0694418fc97c1e77cfd3f2053857f87cc47512a55c3d3\jadx
+2026-07-04 12:57:20,929 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:57:32,080 [INFO] droidforenix.retry: Success on attempt 1: 2418 classes extracted
+2026-07-04 12:58:08,230 [INFO] droidforenix.retry: Starting decompilation: D:\DroidForensix\samples\malware\abusech\teabot_9f2d916b1e0ee486f5a49e3e9887eae59dbdca0a554139ae9a4dc8edc2f12de0.apk -> D:\DroidForensix\analysis\work\9f2d916b1e0ee486f5a49e3e9887eae59dbdca0a554139ae9a4dc8edc2f12de0\jadx
+2026-07-04 12:58:08,230 [DEBUG] droidforenix.retry: Attempt 1/3: Running JADX (timeout=300s)
+2026-07-04 12:58:17,663 [INFO] droidforenix.retry: Success on attempt 1: 2721 classes extracted

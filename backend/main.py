@@ -802,6 +802,9 @@ async def api_generate_pdf_report(sample_id: str, request: dict) -> Response:
             UNWANTED_PATTERNS = [
                 'android.support.', 'androidx.', 'com.android.internal.',
                 'kotlin.', 'com.google.android.',
+                'com.facebook.', 'com.appsflyer.', 'io.sentry.',
+                'com.adjust.', 'com.onesignal.', 'com.amplitude.',
+                'com.firebase.', 'com.google.firebase.',
             ]
 
             def suspicion_score(cls_data):

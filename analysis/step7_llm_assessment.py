@@ -21,6 +21,9 @@ import time
 import urllib.parse
 from pathlib import Path
 from typing import Dict, Any, Optional
+from collections import Counter
+
+import requests
 
 from backend.config import settings
 
@@ -207,6 +210,13 @@ def sanity_check(assessment: dict, chains_result: dict, c2_result: dict, obfusca
             assessment["risk_score"] = max(risk_score, 65)
             assessment["narrative"] += f" [SANITY CHECK: elevated to high due to heavy obfuscation (score {obf_score}).]"
 
+    # Cross-validate narrative C2 claims against actual extraction results
+    if c2_count == 0:
+        narrative_lower = assessment.get("narrative", "").lower()
+        c2_claim_keywords = ["c2", "command and control", "command & control", "c&c", "c2 server", "c2 infrastructure", "c2 communication"]
+        if any(kw in narrative_lower for kw in c2_claim_keywords):
+            assessment["narrative"] += " [SANITY CHECK: narrative references C2 infrastructure, but no C2 indicators were extracted. Claims may be speculative.]"
+
     return assessment
 
 
@@ -254,8 +264,8 @@ def _match_behavior_groups(app_permissions: list) -> list:
     return matches
 
 
-def fallback_assessment(chains_result: dict, c2_result: dict, obfuscation_result: Optional[dict] = None) -> dict:
-    """Rule-based fallback assessment when LLM fails, anchored by obfuscation/permissions when chains are empty."""
+def heuristic_fallback(chains_result: dict, c2_result: dict, obfuscation_result: Optional[dict] = None) -> dict:
+    """Rule-based fallback when LLM is unavailable. Considers chain volume, C2, obfuscation."""
     c2_count = c2_result.get("total_c2s", 0)
     chain_count = chains_result.get("total_chains", 0)
     obf_score = (obfuscation_result or {}).get("obfuscation_score", 0)
@@ -267,63 +277,113 @@ def fallback_assessment(chains_result: dict, c2_result: dict, obfuscation_result
     dynamic_loading = indicators.get("dynamic_loading", [])
     permission_behaviors = indicators.get("permission_behaviors", []) or _match_behavior_groups(dangerous_perms)
     crypto_apis = indicators.get("crypto_apis", [])
- 
+
+    unknown_enc_count = 0
+    known_enc_count = 0
+    for chain in chains_result.get("threat_chains", []):
+        dc = chain.get("decoding_chain", [])
+        if not dc or all(t == "unknown" for t in dc):
+            unknown_enc_count += 1
+        else:
+            known_enc_count += 1
+
     if c2_count > 0:
-        severity = "high"
-        risk_score = 75
-        narrative = f"Detected {c2_count} C2 indicator(s) across {chain_count} threat chain(s). Active infrastructure present."
-        primary_threat = "c2_exfiltration"
-        actions = ["Block identified C2 domains/IPs", "Analyze network traffic for exfiltration"]
-    elif chain_count > 0:
-        severity = "medium"
-        risk_score = 45
+        return {
+            "severity": "high",
+            "risk_score": 80,
+            "narrative": f"Detected {c2_count} C2 indicator(s) across {chain_count} threat chain(s). Active infrastructure present.",
+            "primary_threat": "c2_exfiltration",
+            "recommended_actions": ["Block identified C2 domains/IPs", "Analyze network traffic for exfiltration"],
+            "confidence": 0.7,
+            "method": "heuristic_c2",
+        }
+
+    if chain_count >= 1000 or (unknown_enc_count >= 500 and known_enc_count == 0):
+        return {
+            "severity": "high",
+            "risk_score": 75,
+            "narrative": f"Extreme obfuscation detected: {chain_count} threat chains ({unknown_enc_count} with unknown encoding). Massively encoded payloads with no identifiable C2 — strong evasion signal.",
+            "primary_threat": "dropper",
+            "recommended_actions": [
+                "Heavy obfuscation detected — likely packed/encrypted payload",
+                "Use dynamic analysis (Frida) to capture runtime decryption",
+                "Check for ZIP-password-protected DEX in APK",
+            ],
+            "confidence": 0.65,
+            "method": "heuristic_extreme_payload",
+        }
+
+    if chain_count >= 300 and obf_score >= 15:
+        return {
+            "severity": "high",
+            "risk_score": 68,
+            "narrative": f"Large-scale obfuscation: {chain_count} threat chains with obfuscation score {obf_score}. Heavy encoding without clear C2 suggests evasion-focused malware.",
+            "primary_threat": "dropper",
+            "recommended_actions": [
+                "Review decoded payloads for embedded URLs",
+                "Analyze native libraries for additional C2",
+                "Run APK in sandbox for behavioral analysis",
+            ],
+            "confidence": 0.6,
+            "method": "heuristic_complex",
+        }
+
+    if chain_count > 0:
+        base_risk = 45
         if permission_behaviors:
             code_signals = len(reflection) + len(dynamic_loading) + len(suspicious_apis)
             if code_signals == 0:
-                risk_score = 55
-                severity = "medium"
-        narrative = f"Detected {chain_count} threat chain(s) but no confirmed active C2. Obfuscation/encoding present."
-        primary_threat = "other"
-        actions = ["Review decoded artifacts", "Investigate encoding functions"]
-    elif obf_score >= 50 or len(dangerous_perms) >= 3 or permission_behaviors:
-        # Obfuscation/permissions anchor when decompilation fails or chains are empty.
-        # Base floor is 50 for any permission-dense sample.
-        # Raise to 55 only when permission behavior groups are present WITHOUT
-        # corresponding code-level API calls (reflection, dynamic loading, suspicious
-        # APIs). This pattern — requesting coordinated dangerous permissions but never
-        # calling the relevant APIs — is a strong malware signal that distinguishes
-        # malicious apps from legitimate apps that genuinely need those permissions.
-        severity = "high" if obf_score >= 70 else "medium"
+                base_risk = 55
+        return {
+            "severity": "medium",
+            "risk_score": base_risk,
+            "narrative": f"Detected {chain_count} threat chain(s) but no confirmed active C2. Obfuscation/encoding present.",
+            "primary_threat": "other",
+            "recommended_actions": ["Review decoded artifacts", "Investigate encoding functions"],
+            "confidence": 0.6,
+            "method": "heuristic_moderate",
+        }
+
+    if obf_score >= 70:
+        return {
+            "severity": "high",
+            "risk_score": 70,
+            "narrative": f"No decoded threat chains, but obfuscation score {obf_score} ({obf_level}) with {len(dangerous_perms)} dangerous permissions.",
+            "primary_threat": "other",
+            "recommended_actions": ["Analyze native libraries for hidden payloads", "Check for ZIP entry password protection"],
+            "confidence": 0.55,
+            "method": "heuristic_obfuscated",
+        }
+
+    if obf_score >= 50 or len(dangerous_perms) >= 3 or permission_behaviors:
         floor = 50
         if permission_behaviors:
             code_signals = len(reflection) + len(dynamic_loading) + len(suspicious_apis)
             if code_signals == 0:
                 floor = 55
         risk_score = min(100, max(floor, int(obf_score)))
-        narrative = (
-            f"No decoded threat chains, but static analysis shows {obf_level} obfuscation "
-            f"(score {obf_score}) with {len(dangerous_perms)} dangerous permissions, "
-            f"{len(suspicious_apis)} suspicious APIs, {len(reflection)} reflection usages, "
-            f"and {len(dynamic_loading)} dynamic loading usages."
-        )
-        primary_threat = "other"
-        actions = ["Perform manual reverse engineering", "Inspect smali/bytecode for hidden behavior"]
-    else:
-        severity = "low"
-        risk_score = 15
-        narrative = "No significant malicious indicators detected."
-        primary_threat = "other"
-        actions = ["Perform manual review", "Collect additional samples"]
+        return {
+            "severity": "medium",
+            "risk_score": risk_score,
+            "narrative": f"No decoded threat chains, but static analysis shows {obf_level} obfuscation (score {obf_score}) with {len(dangerous_perms)} dangerous permissions, {len(suspicious_apis)} suspicious APIs, {len(reflection)} reflection usages, {len(dynamic_loading)} dynamic loading instances, and {len(crypto_apis)} crypto API usages.",
+            "primary_threat": "other",
+            "recommended_actions": ["Analyze native libraries for hidden payloads", "Check for ZIP entry password protection"],
+            "confidence": 0.5,
+            "method": "heuristic_permissions",
+        }
 
     return {
-        "severity": severity,
-        "risk_score": risk_score,
-        "narrative": narrative,
-        "primary_threat": primary_threat,
-        "recommended_actions": actions,
-        "confidence": 0.6,
-        "raw_llm_output": "",
+        "severity": "low",
+        "risk_score": 25,
+        "narrative": "No significant threat chains, obfuscation, or permission abuse detected.",
+        "primary_threat": "other",
+        "recommended_actions": ["No action required"],
+        "confidence": 0.5,
+        "method": "heuristic_benign",
     }
+
+
+fallback_assessment = heuristic_fallback
 
 
 def _call_nvidia_nim(context: str, model: str, base_url: str, api_key: str, max_retries: int = 3) -> Optional[str]:
@@ -380,51 +440,79 @@ def _normalize_ollama_host(host: str) -> str:
     return f"{scheme}://{hostname}:{port}"
 
 
-def _ollama_available(host: str, timeout: float = 2.0) -> bool:
-    """Quick check if Ollama is reachable before attempting a full request."""
-    host = _normalize_ollama_host(host)
-    parsed = urllib.parse.urlparse(host)
-    netloc = parsed.hostname or "127.0.0.1"
-    port = parsed.port or 11434
-    try:
-        import socket
-        s = socket.create_connection((netloc, port), timeout=timeout)
-        s.close()
-        return True
-    except (OSError, socket.error):
-        return False
+class OllamaClient:
+    """Reusable Ollama client with connection pooling and exponential backoff."""
+
+    def __init__(self, base_url: str = "http://127.0.0.1:11434",
+                 model: str = "mistral:7b-instruct-q4_K_M",
+                 max_retries: int = 3, timeout: int = 60):
+        self.base_url = _normalize_ollama_host(base_url)
+        self.model = model
+        self.max_retries = max_retries
+        self.timeout = timeout
+        self.session = self._create_session()
+
+    def _create_session(self):
+        from requests.adapters import HTTPAdapter
+        session = requests.Session()
+        adapter = HTTPAdapter(pool_connections=5, pool_maxsize=5)
+        session.mount("http://", adapter)
+        return session
+
+    def generate(self, context: str) -> Optional[str]:
+        prompt = f"{SYSTEM_PROMPT}\n\nTHREAT CHAINS:\n{context}\n\nASSESSMENT:"
+        url = f"{self.base_url.rstrip('/')}/api/generate"
+        last_error = ""
+
+        for attempt in range(self.max_retries):
+            try:
+                resp = self.session.post(
+                    url,
+                    json={
+                        "model": self.model, "prompt": prompt,
+                        "stream": False, "format": "json",
+                        "options": {"num_ctx": 4096, "temperature": 0.1},
+                    },
+                    timeout=self.timeout,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                return data.get("response", "")
+            except requests.exceptions.Timeout:
+                last_error = "timeout"
+                if attempt < self.max_retries - 1:
+                    wait = 2 ** attempt
+                    print(f"  [Ollama] Timeout, retrying in {wait}s (attempt {attempt + 2}/{self.max_retries})...")
+                    time.sleep(wait)
+            except requests.exceptions.ConnectionError as e:
+                last_error = f"connection_error: {e}"
+                if attempt < self.max_retries - 1:
+                    wait = 2 ** attempt
+                    print(f"  [Ollama] Connection error, retrying in {wait}s (attempt {attempt + 2}/{self.max_retries})...")
+                    time.sleep(wait)
+            except requests.exceptions.HTTPError as e:
+                status = e.response.status_code if e.response is not None else 0
+                if attempt < self.max_retries - 1 and status in (429, 500, 502, 503, 504):
+                    wait = (2 ** attempt) * 2
+                    print(f"  [Ollama] HTTP {status}, retrying in {wait}s...")
+                    time.sleep(wait)
+                else:
+                    print(f"  [Ollama] HTTP {status} — not retryable")
+                    return None
+            except Exception as e:
+                last_error = str(e)
+                print(f"  [Ollama] Unexpected error: {e}")
+                if attempt < self.max_retries - 1:
+                    time.sleep(2 ** attempt)
+
+        print(f"  [Ollama] All {self.max_retries} retries exhausted ({last_error})")
+        return None
 
 
 def _call_ollama(context: str, host: str, model: str, max_retries: int = 3) -> Optional[str]:
-    """Call local Ollama generate endpoint and return raw response text."""
-    host = _normalize_ollama_host(host)
-    if not _ollama_available(host):
-        return "Ollama not running"
-
-    try:
-        import ollama
-    except ImportError as e:
-        raise LLMAssessmentError(f"ollama package not installed: {e}")
-
-    prompt = f"{SYSTEM_PROMPT}\n\nTHREAT CHAINS:\n{context}\n\nASSESSMENT:"
-    client = ollama.Client(host=host, timeout=30)
-
-    for attempt in range(max_retries):
-        try:
-            response = client.generate(
-                model=model,
-                prompt=prompt,
-                format="json",
-                options={"num_ctx": 4096, "temperature": 0.1},
-            )
-            return response.get("response", "")
-        except Exception as e:
-            if attempt < max_retries - 1:
-                time.sleep(2)
-            else:
-                return str(e)
-
-    return ""
+    """Legacy wrapper — delegates to OllamaClient."""
+    client = OllamaClient(base_url=host, model=model, max_retries=max_retries)
+    return client.generate(context)
 
 
 def assess_with_llm(chains_result: dict, c2_result: dict, obfuscation_result: Optional[dict] = None) -> dict:
@@ -462,17 +550,17 @@ def assess_with_llm(chains_result: dict, c2_result: dict, obfuscation_result: Op
             print(f"  [*] Using NVIDIA NIM model: {nim_model}")
 
             for attempt in range(max_retries):
-                raw_output = _call_nvidia_nim(context, nim_model, nim_base_url, nim_api_key, max_retries=1)
+                raw_output = _call_nvidia_nim(context, nim_model, nim_base_url, nim_api_key, max_retries=3)
                 parsed = parse_llm_json(raw_output) if raw_output else None
                 if parsed and validate_assessment(parsed):
                     assessment = sanity_check(parsed, chains_result, c2_result, obfuscation_result)
                     break
                 else:
-                    # Add stricter instruction and retry
-                    context = format_threat_context(chains_result, c2_result, obfuscation_result)
+                    wait = (attempt + 1) * 2
+                    print(f"  [!] Invalid LLM response, retrying in {wait}s (attempt {attempt + 1}/{max_retries})...")
                     messages_note = "Your previous response was invalid. Output ONLY valid JSON.\n\n"
-                    context = messages_note + context
-                    time.sleep(1)
+                    context = messages_note + format_threat_context(chains_result, c2_result, obfuscation_result)
+                    time.sleep(wait)
         else:
             # Local Ollama path
             ollama_host = _normalize_ollama_host(os.environ.get("OLLAMA_HOST", settings.OLLAMA_HOST))
@@ -480,21 +568,25 @@ def assess_with_llm(chains_result: dict, c2_result: dict, obfuscation_result: Op
             print(f"  [*] Using Ollama model: {ollama_model} at {ollama_host}")
 
             for attempt in range(max_retries):
-                raw_output = _call_ollama(context, ollama_host, ollama_model, max_retries=1)
+                raw_output = _call_ollama(context, ollama_host, ollama_model, max_retries=3)
                 parsed = parse_llm_json(raw_output) if raw_output else None
                 if parsed and validate_assessment(parsed):
                     assessment = sanity_check(parsed, chains_result, c2_result, obfuscation_result)
                     break
                 else:
-                    context = format_threat_context(chains_result, c2_result, obfuscation_result)
+                    wait = (attempt + 1) * 2
+                    print(f"  [!] Invalid LLM response, retrying in {wait}s (attempt {attempt + 1}/{max_retries})...")
                     messages_note = "Your previous response was invalid. Output ONLY valid JSON.\n\n"
-                    context = messages_note + context
-                    time.sleep(1)
+                    context = messages_note + format_threat_context(chains_result, c2_result, obfuscation_result)
+                    time.sleep(wait)
 
         if assessment is None:
             assessment = fallback_assessment(chains_result, c2_result, obfuscation_result)
 
         assessment["raw_llm_output"] = (raw_output or "")[:2000]
+
+        # Cooldown: prevent hammering Ollama during batch runs
+        time.sleep(2.0)
 
         # Save intermediate result
         try:
@@ -518,16 +610,18 @@ You are an Android malware analyst reviewing decompiled Java bytecode for a fore
 Given a method's name, its class context, any suspicious flags already detected, and its full body,
 write a detailed analyst note covering:
 - What the method does technically (specific API calls, data flows, control logic)
-- Why it is suspicious or benign, with reference to specific lines or patterns in the code
-- What an attacker could use this method for, or why it is safe if benign
+- Why it is suspicious IN THIS CONTEXT (not just what the method does objectively, but why its presence here is concerning)
+- What combination with other methods or patterns elevates the risk
+- A benign alternative explanation: what would legitimate use of this method look like?
 - Any Android-specific security implications (permission abuse, dynamic code loading, data exfiltration paths)
 
 Be specific. Reference actual method names, class names, or variable patterns you observe in the code.
 Do not write generic descriptions — ground every claim in the actual code provided.
+Do not simply describe what the method does (e.g., "startActivityForResult starts an activity"). Instead, explain WHY this call is suspicious in this specific context.
 
 Output must be valid JSON only. No markdown, no preamble, no code blocks. Schema:
 {
-  "summary": "3-5 sentence detailed analyst note grounded in the actual code",
+  "summary": "3-5 sentence detailed analyst note grounded in the actual code, explaining why suspicious in context",
   "threat_type": "reflection|dynamic_loading|crypto|network|command_exec|persistence|permissions|benign|unknown",
   "confidence": 0.0-1.0
 }
