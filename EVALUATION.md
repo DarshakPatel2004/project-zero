@@ -167,6 +167,14 @@ will report metrics for whatever subset has results.
 
 As of July 2026, the balanced evaluation on 40 Drebin malware + 100 AndroZoo benign samples:
 
+### Threshold Selection
+
+Threshold=50 was chosen as the lowest cutoff where:
+- Initial Drebin validation (pre-balanced) produced zero false negatives
+- Three samples with risk=50 (detected at this threshold) would be missed at threshold > 50
+- Lower thresholds (e.g., 45) increase false positives without meaningful recall gains
+- The heuristic `benign_verdict_heuristic` base risk=45 ensures no-C2 apps stay below threshold unless additional signals (permissions, APIs, reflection) escalate
+
 ### Metrics (threshold=50)
 
 | Metric | Value |
