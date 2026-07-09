@@ -19,6 +19,7 @@ import os
 import re
 import time
 import urllib.parse
+import socket
 from pathlib import Path
 from typing import Dict, Any, Optional
 from collections import Counter
@@ -45,32 +46,34 @@ DEFAULT_FALLBACK = {
 
 SYSTEM_PROMPT = """/no_think
 
-You are an expert Android malware threat analyst writing a forensic investigation report. Assess the severity of the Android malware sample based on the provided threat chains and static obfuscation/permission indicators.
+You are an expert Android security analyst writing a forensic investigation report. Your task is to assess a mobile application sample based on the provided threat chains, C2 extraction results, and static analysis indicators.
 
-Output must be valid JSON only, with no markdown, no explanation, and no code blocks. Use this exact schema:
+CRITICAL — You are NOT required to find malware. If the evidence does not support a malware classification, say so. False positives are harmful.
 
-{
-  "severity": "critical|high|medium|low",
-  "risk_score": 0-100 integer,
-  "narrative": "4-6 sentence detailed forensic narrative covering: (1) what the sample appears to do, (2) key technical indicators that support this assessment, (3) what data or capabilities are at risk, (4) confidence level and any caveats",
-  "primary_threat": "c2_exfiltration|ransomware|spyware|banking_trojan|adware|dropper|other",
-  "threat_indicators": ["specific indicator 1", "specific indicator 2", "specific indicator 3"],
-  "recommended_actions": ["action1", "action2", "action3", "action4"],
-  "confidence": 0.0-1.0
-}
+Output valid JSON only, no markdown, no explanation, no code blocks:
 
-Rules:
-- Severity critical: active public C2 with exfiltration, banking trojan behavior, or ransomware indicators.
-- Severity high: multiple encodings leading to C2, spyware behavior, suspicious network infrastructure, OR heavy obfuscation with dangerous permissions.
-- Severity medium: encoding/obfuscation present but no clear active C2.
-- Severity low: few or no malicious indicators.
-- Risk score must align with severity: critical 80-100, high 60-79, medium 30-59, low 0-29.
-- If decompilation failed (few or no strings/chains) but obfuscation score is medium/high with dangerous permissions, raise severity to at least medium/high accordingly.
-- narrative must be specific — name the encoding types, permission categories, and obfuscation techniques observed. Do not write generic descriptions.
-- threat_indicators must list concrete technical artifacts (e.g. "Base64-encoded payload in strings", "DexClassLoader present", "READ_SMS permission declared").
-- recommended_actions must be actionable and specific to the findings, not generic security advice.
-- Do not include actual malicious URLs or payloads in the narrative; describe them indirectly.
-"""
+{"severity": "critical|high|medium|low", "risk_score": 0-100, "narrative": "3-5 sentence forensic narrative", "primary_threat": "c2_exfiltration|ransomware|spyware|banking_trojan|adware|dropper|other", "threat_indicators": ["indicator1", "indicator2"], "recommended_actions": ["action1", "action2"], "confidence": 0.0-1.0}
+
+SEVERITY SCALE
+- critical (80-100): Active public C2 with confirmed exfiltration, ransomware, or banking trojan behavior
+- high (60-79): Confirmed C2 with data exfiltration capability — NOT justified by permissions or crypto API usage alone
+- medium (30-59): Suspicious indicators present but NO confirmed C2. Default for apps with encodings/permissions/obfuscation but no C2
+- low (0-29): Few or no malicious indicators. Default for apps with standard library usage
+
+CRITICAL — FALSE POSITIVE PREVENTION
+- No C2 indicators extracted → severity MUST be medium or low, risk_score MUST be ≤ 50
+- Dangerous permissions (CAMERA, LOCATION, PHONE_STATE, etc.) alone do NOT make malware — most legitimate apps declare them
+- Crypto/SSL/hashing APIs alone do NOT make malware — standard Android libraries use these
+- If the narrative mentions C2 but no C2 was extracted, you are hallucinating. STOP. Only describe what was actually observed.
+- A high obfuscation score with zero C2 and zero threat chains does NOT justify high severity. It means the app uses obfuscation.
+
+CONCRETE EVIDENCE REQUIREMENTS
+- threat_indicators: List specific technical artifacts actually found (e.g. "XOR-encoded strings in resources", "Reflection API usage"), NOT generic labels
+- recommended_actions: Specific to findings, not generic advice like "update antivirus"
+- narrative: Name specific encoding types, permission categories, and techniques observed. Do NOT write generic malware descriptions
+- Do NOT include actual malicious URLs or payloads in the narrative — describe indirectly
+
+{antml:thinking_mode}auto{/antml:thinking_mode}"""
 
 
 def format_threat_context(chains_result: dict, c2_result: dict, obfuscation_result: Optional[dict] = None) -> str:
@@ -193,31 +196,197 @@ def sanity_check(assessment: dict, chains_result: dict, c2_result: dict, obfusca
         assessment["risk_score"] = max(risk_score, 35)
         assessment["narrative"] += " [SANITY CHECK: elevated due to detected C2 infrastructure.]"
 
-    # If no C2 and severity is critical, lower it
-    if c2_count == 0 and severity == "critical":
-        assessment["severity"] = "medium"
-        assessment["risk_score"] = min(risk_score, 55)
-        assessment["narrative"] += " [SANITY CHECK: lowered due to absence of confirmed C2.]"
-
-    # Obfuscation/permissions anchor: if decompilation failed (empty chains) but obfuscation is significant, raise severity
-    if chain_count == 0 and c2_count == 0 and obf_score >= 50:
-        if severity == "low":
-            assessment["severity"] = "medium"
-            assessment["risk_score"] = max(risk_score, 50)
-            assessment["narrative"] += f" [SANITY CHECK: elevated due to {obf_score} obfuscation score with {len(dangerous_perms)} dangerous permissions.]"
-        elif severity == "medium" and obf_score >= 70:
-            assessment["severity"] = "high"
-            assessment["risk_score"] = max(risk_score, 65)
-            assessment["narrative"] += f" [SANITY CHECK: elevated to high due to heavy obfuscation (score {obf_score}).]"
-
-    # Cross-validate narrative C2 claims against actual extraction results
+    # If no C2 was extracted, cap severity and risk_score
     if c2_count == 0:
+        sev_map = {"critical": 4, "high": 3, "medium": 2, "low": 1}
+        rev_sev = {4: "critical", 3: "high", 2: "medium", 1: "low"}
+        current = sev_map.get(assessment.get("severity", "low"), 1)
+        max_sev = sev_map.get("medium", 2)
+        if current > max_sev or assessment.get("risk_score", 0) > 50:
+            assessment["severity"] = rev_sev[max_sev]
+            assessment["risk_score"] = min(assessment.get("risk_score", 0), 50)
+            assessment["narrative"] += " [SANITY CHECK: score capped — no C2 indicators extracted.]"
         narrative_lower = assessment.get("narrative", "").lower()
         c2_claim_keywords = ["c2", "command and control", "command & control", "c&c", "c2 server", "c2 infrastructure", "c2 communication"]
         if any(kw in narrative_lower for kw in c2_claim_keywords):
-            assessment["narrative"] += " [SANITY CHECK: narrative references C2 infrastructure, but no C2 indicators were extracted. Claims may be speculative.]"
+            assessment["severity"] = "low"
+            assessment["risk_score"] = min(assessment.get("risk_score", 0), 25)
+            assessment["narrative"] += " [SANITY CHECK: narrative references C2 infrastructure, but no C2 indicators were extracted. Score reduced — C2 claims appear speculative.]"
 
     return assessment
+
+
+# ============================================================================
+# Option 2: Conditional LLM Skip for Benign Apps
+# ============================================================================
+
+def _extract_high_confidence_c2(c2_result: dict, min_confidence: float = 0.8) -> list:
+    """Extract C2 infrastructure entries with confidence >= min_confidence."""
+    c2_infrastructure = c2_result.get("c2_infrastructure", [])
+    high_conf = [
+        c for c in c2_infrastructure
+        if c.get("confidence", 0) >= min_confidence
+    ]
+    return high_conf
+
+
+def _count_significant_chains(chains_result: dict) -> tuple[int, int]:
+    """
+    Count threat chains, separating "known" (decoded) vs "unknown" (all unknowns).
+    
+    Returns: (known_decoded_count, all_unknown_count)
+    
+    Rationale: A chain with no decoding (pure unknown encoding) is less
+    actionable than one with known decoding steps. We use this to filter
+    noise — many benign apps have hundreds of "unknown" encodings in their
+    strings (standard Android library compression, ProGuard output, etc.).
+    """
+    chains = chains_result.get("threat_chains", [])
+    known_decoded = 0
+    all_unknown = 0
+    
+    for chain in chains:
+        dc = chain.get("decoding_chain", [])
+        # If all steps are "unknown" or dc is empty, count as all_unknown
+        if not dc or all(t == "unknown" for t in dc):
+            all_unknown += 1
+        else:
+            # At least one known decoding step -> significant chain
+            known_decoded += 1
+    
+    return known_decoded, all_unknown
+
+
+def should_skip_llm(
+    chains_result: dict,
+    c2_result: dict,
+    obfuscation_result: Optional[dict] = None,
+    high_conf_threshold: float = 0.8,
+) -> bool:
+    """
+    Decide whether to skip LLM assessment and use rule-based fallback.
+    
+    Returns True (skip LLM) if NO high-confidence C2 infrastructure exists.
+    
+    The key insight: C2 infrastructure is the strongest single indicator of
+    malicious intent. If no C2 indicator reaches high confidence (> 0.8),
+    the app is unlikely to gain value from an LLM call — Mistral 7B will
+    either hallucinate C2 claims or produce a generic benign narrative.
+    
+    The rule-based fallback (heuristic_fallback) already handles attribution
+    based on obfuscation, chain volume, and permissions — so LLM is only
+    needed when there's actual C2 signal worth reasoning about.
+    
+    Args:
+        chains_result: Threat chain results from step 6
+        c2_result: C2 extraction results from step 5
+        obfuscation_result: Optional obfuscation analysis from step 8
+        high_conf_threshold: Minimum C2 confidence to consider "high-confidence"
+    
+    Returns:
+        True if should skip LLM (use heuristic fallback)
+        False if should call LLM
+    """
+    high_conf_c2 = _extract_high_confidence_c2(c2_result, min_confidence=high_conf_threshold)
+    
+    # If ANY high-confidence C2 exists, call LLM — there's real signal to reason about
+    if len(high_conf_c2) > 0:
+        return False
+    
+    # No high-confidence C2 → skip LLM. Benign signal, no hallucination risk.
+    return True
+
+
+def _cap_risk_on_junk_c2(assessment: dict, c2_result: dict) -> dict:
+    """
+    Final safety net: if LLM was called but no C2 reaches high confidence,
+    cap risk at 30. Prevents LLM hallucination on low-confidence C2 noise.
+    """
+    c2_infrastructure = c2_result.get("c2_infrastructure", [])
+    high_conf = [c for c in c2_infrastructure if c.get("confidence", 0) >= 0.85]
+    if len(high_conf) == 0 and len(c2_infrastructure) > 0:
+        if assessment.get("risk_score", 0) > 30:
+            assessment["risk_score"] = 30
+            assessment["severity"] = "low"
+            assessment["narrative"] += " [SAFETY CAP: risk capped due to low-confidence C2 indicators.]"
+    return assessment
+
+
+def benign_verdict_heuristic(
+    chains_result: dict,
+    c2_result: dict,
+    obfuscation_result: Optional[dict] = None,
+) -> dict:
+    """
+    Rule-based verdict for apps with benign signal (no high-conf C2, low decoded chains).
+    
+    Returns a low/medium severity assessment with clean, deterministic narrative.
+    No LLM hallucination, no false C2 claims.
+    """
+    known_chains, unknown_chains = _count_significant_chains(chains_result)
+    obf_score = (obfuscation_result or {}).get("obfuscation_score", 0)
+    indicators = (obfuscation_result or {}).get("indicators", {})
+    dangerous_perms = indicators.get("dangerous_permissions", [])
+    suspicious_apis = indicators.get("suspicious_apis", [])
+    crypto_apis = indicators.get("crypto_apis", [])
+    reflection = indicators.get("reflection", [])
+    dynamic_loading = indicators.get("dynamic_loading", [])
+    
+    # Build a concise narrative
+    narrative_parts = []
+    
+    if unknown_chains > 0:
+        narrative_parts.append(
+            f"No high-confidence C2 or confirmed malicious behavior detected. "
+            f"App contains {unknown_chains} undecodable string artifacts (likely benign library compression or ProGuard obfuscation)."
+        )
+    else:
+        narrative_parts.append(
+            "No high-confidence C2 infrastructure or decoded threat chains detected."
+        )
+    
+    if dangerous_perms or crypto_apis or reflection:
+        features = []
+        if dangerous_perms:
+            features.append(f"{len(dangerous_perms)} dangerous permissions")
+        if crypto_apis:
+            features.append(f"{len(crypto_apis)} crypto API usages")
+        if reflection:
+            features.append(f"{len(reflection)} reflection patterns")
+        narrative_parts.append(
+            f"Static indicators ({', '.join(features)}) fall within benign app norms "
+            f"and do not establish malicious intent without actionable C2 or exfiltration evidence."
+        )
+    
+    # Determine risk based on obfuscation + feature count
+    risk_score = 45  # Base: benign (no C2 signal). Under threshold 50, but conservative
+    if obf_score >= 50:
+        risk_score = 45
+        narrative_parts.append(
+            f"Obfuscation score ({obf_score}) is moderate; recommend manual code review if context warrants."
+        )
+    # Escalate if multiple signals present simultaneously
+    if dangerous_perms or suspicious_apis:
+        signal_count = len(dangerous_perms) + len(suspicious_apis)
+        if signal_count >= 3:
+            risk_score = min(55, risk_score + 10)
+        elif signal_count >= 1:
+            risk_score = min(50, risk_score + 5)
+    if reflection:
+        risk_score = min(55, risk_score + 5)
+    if dynamic_loading:
+        risk_score = min(55, risk_score + 5)
+    
+    return {
+        "severity": "low",
+        "risk_score": risk_score,
+        "narrative": " ".join(narrative_parts),
+        "primary_threat": "other",
+        "threat_indicators": [],
+        "recommended_actions": ["No action required. App shows no signs of malicious control-flow or exfiltration."],
+        "confidence": 0.9,
+        "method": "heuristic_benign_skip",
+    }
 
 
 PERMISSION_BEHAVIOR_GROUPS = {
@@ -440,6 +609,21 @@ def _normalize_ollama_host(host: str) -> str:
     return f"{scheme}://{hostname}:{port}"
 
 
+def _ollama_available(host: str, timeout: float = 2.0) -> bool:
+    """Fast TCP probe to determine if Ollama is reachable; fail-fast before
+    spending minutes on the first request. Mirrors droidforensix_llm._ollama_available."""
+    host = _normalize_ollama_host(host)
+    parsed = urllib.parse.urlparse(host)
+    netloc = parsed.hostname or "127.0.0.1"
+    port = parsed.port or 11434
+    try:
+        s = socket.create_connection((netloc, port), timeout=timeout)
+        s.close()
+        return True
+    except (OSError, socket.error):
+        return False
+
+
 class OllamaClient:
     """Reusable Ollama client with connection pooling and exponential backoff."""
 
@@ -532,6 +716,22 @@ def assess_with_llm(chains_result: dict, c2_result: dict, obfuscation_result: Op
         import logging
         logging.getLogger(__name__).debug("Could not create work dir %s", work_dir)
 
+    # ========== OPTION 2: Pre-flight benign check ==========
+    if should_skip_llm(chains_result, c2_result, obfuscation_result):
+        print(f"  [Option 2] Benign signal detected -> skipping LLM, using heuristic verdict")
+        assessment = benign_verdict_heuristic(chains_result, c2_result, obfuscation_result)
+        assessment["raw_llm_output"] = "(skipped: heuristic benign verdict)"
+        
+        try:
+            result_path = work_dir / "step7_assessment.json"
+            with open(result_path, "w", encoding="utf-8") as f:
+                json.dump(assessment, f, indent=2)
+        except OSError as e:
+            assessment["raw_llm_output"] += f" [save warning: {e}]"
+        
+        time.sleep(0.5)  # Light cooldown
+        return assessment
+
     try:
         context = format_threat_context(chains_result, c2_result, obfuscation_result)
         assessment = None
@@ -541,7 +741,9 @@ def assess_with_llm(chains_result: dict, c2_result: dict, obfuscation_result: Op
         # Determine provider: explicit setting overrides auto-detection.
         provider = (os.environ.get("LLM_PROVIDER") or settings.LLM_PROVIDER or "auto").lower()
         nim_api_key = os.environ.get("NVIDIA_NIM_API_KEY")
+        or_api_key = os.environ.get("OPENROUTER_API_KEY")
         use_nvidia = provider == "nvidia" or (provider == "auto" and nim_api_key)
+        use_openrouter = provider == "openrouter" or (provider == "auto" and or_api_key and not nim_api_key)
 
         if use_nvidia:
             # NVIDIA NIM path
@@ -554,6 +756,26 @@ def assess_with_llm(chains_result: dict, c2_result: dict, obfuscation_result: Op
                 parsed = parse_llm_json(raw_output) if raw_output else None
                 if parsed and validate_assessment(parsed):
                     assessment = sanity_check(parsed, chains_result, c2_result, obfuscation_result)
+                    assessment["method"] = "llm"
+                    break
+                else:
+                    wait = (attempt + 1) * 2
+                    print(f"  [!] Invalid LLM response, retrying in {wait}s (attempt {attempt + 1}/{max_retries})...")
+                    messages_note = "Your previous response was invalid. Output ONLY valid JSON.\n\n"
+                    context = messages_note + format_threat_context(chains_result, c2_result, obfuscation_result)
+                    time.sleep(wait)
+        elif use_openrouter:
+            # OpenRouter path (OpenAI-compatible API)
+            or_model = os.environ.get("OPENROUTER_MODEL", settings.OPENROUTER_MODEL or "qwen/qwq-32b:free")
+            or_base_url = os.environ.get("OPENROUTER_BASE_URL", settings.OPENROUTER_HOST or "https://openrouter.ai/api/v1")
+            print(f"  [*] Using OpenRouter model: {or_model}")
+
+            for attempt in range(max_retries):
+                raw_output = _call_nvidia_nim(context, or_model, or_base_url, or_api_key, max_retries=3)
+                parsed = parse_llm_json(raw_output) if raw_output else None
+                if parsed and validate_assessment(parsed):
+                    assessment = sanity_check(parsed, chains_result, c2_result, obfuscation_result)
+                    assessment["method"] = "llm"
                     break
                 else:
                     wait = (attempt + 1) * 2
@@ -572,6 +794,7 @@ def assess_with_llm(chains_result: dict, c2_result: dict, obfuscation_result: Op
                 parsed = parse_llm_json(raw_output) if raw_output else None
                 if parsed and validate_assessment(parsed):
                     assessment = sanity_check(parsed, chains_result, c2_result, obfuscation_result)
+                    assessment["method"] = "llm"
                     break
                 else:
                     wait = (attempt + 1) * 2
@@ -584,6 +807,9 @@ def assess_with_llm(chains_result: dict, c2_result: dict, obfuscation_result: Op
             assessment = fallback_assessment(chains_result, c2_result, obfuscation_result)
 
         assessment["raw_llm_output"] = (raw_output or "")[:2000]
+
+        # Safety net: cap risk if no high-confidence C2 present
+        assessment = _cap_risk_on_junk_c2(assessment, c2_result)
 
         # Cooldown: prevent hammering Ollama during batch runs
         time.sleep(2.0)
