@@ -170,6 +170,21 @@ BENIGN_SDK_DOMAINS = {
     'indusguard.com', 'monstat.com',
     'paysecure.ru',
     'paypal.com', 'www.paypal.com', 'api.paypal.com',
+    # Iranian / Middle East ad networks
+    'adivery.com', 'api.adivery.com',
+    'tapsell.ir', 'api.tapsell.ir',
+    'pushe.co',
+    # No-code / cross-platform SDKs
+    'appybuilder.com', 'editor.appybuilder.com',
+    'appcelerator.com', 'api.appcelerator.com',
+    # Iranian app store
+    'cafebazaar.ir',
+    # CDN / icon services
+    'fontawesome.com',
+    # Material Design
+    'material.io', 'mapstyle.withgoogle.com',
+    # Android library author websites
+    'mikepenz.com',
 }
 
 SUSPICIOUS_TLDS = {'.tk', '.ml', '.ga', '.cf', '.gq', '.xyz', '.top', '.club',

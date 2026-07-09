@@ -32,6 +32,8 @@ class C2ExtractionError(Exception):
 
 logger = logging.getLogger(__name__)
 
+C2_FALLBACK_CONFIDENCE_THRESHOLD = 0.3
+
 
 # ---------------------------------------------------------------------------
 # Patterns and constants
@@ -132,6 +134,38 @@ BENIGN_DOMAINS = {
     "googleapis.com",
     "outlook.office.com",
     "office.com",
+    # Social/communication APIs commonly embedded in apps
+    "api.weibo.com",
+    "weibo.com",
+    "www.plurk.com",
+    "plurk.com",
+    "t.qq.com",
+    "open.t.qq.com",
+    "tomeet.net",
+    "t.tomeet.net",
+    "www.rabbitmq.com",
+    "rabbitmq.com",
+    # URL shortener services (legitimate)
+    "bitly.com",
+    "tinyurl.com",
+    "ow.ly",
+    "goo.gl",
+    "is.gd",
+    "t.co",
+    # Barcode/scanning libraries
+    "zxing.appspot.com",
+    "zxing.org",
+    # GPS/map services
+    "www.gpsspg.com",
+    "gpsspg.com",
+    # Facebook/tracking services
+    "www.facebookmobileweb.com",
+    "facebookmobileweb.com",
+    "connect.facebook.net",
+    # SDK/additional services
+    "srowen.com",
+    "bsplus.srowen.com",
+    "plus.me",
     "login.microsoftonline.com",
     "graph.microsoft.com",
     "dashif.org",
@@ -447,6 +481,84 @@ BENIGN_DOMAINS = {
     "firebase.io", "firebaseio.com",
     "googleapis.com", "firebasestorage.googleapis.com",
     "crashlytics.com", "crashlytics.com",
+    # Financial / banking SDKs
+    "raiffeisen.at", "www.raiffeisen.at",
+    # OCR / document scanning SDKs
+    "microblink.com", "www.microblink.com", "baltazar.microblink.com", "ping.microblink.com",
+    # ORM libraries
+    "greenrobot.org",
+    # Microsoft / Xamarin / Azure
+    "app-measurement.com", "googlesyndication.com", "pagead2.googlesyndication.com",
+    "docs.microsoft.com", "mobile.events.data.microsoft.com",
+    "xamarin.com", "raw.githubusercontent.com",
+    # Generic truncated URLs (common in Android SDK samples/debug strings)
+    "www.google", "www.googleapis",
+    # Reserved/testing domains
+    "example.com", "www.example.com",
+    # Development / testing / documentation
+    "curl.haxx.se", "localhost",
+    # Cloud / hosting
+    "huawei.com", "appgallery.cloud.huawei.com",
+    "appspot.com", "ge-map-overlays.appspot.com", "mein-elba-app.appspot.com",
+    "microsoft.com", "azure.com", "appcenter.ms", "in.appcenter.ms",
+    # Open source / standards
+    "mono-project.com", "opengis.net", "gexf.net", "colorcombos.com",
+    "aiim.org", "iec.ch", "color.org", "sRGB.com",
+    "bzip.org", "memtest86.com",
+    # App builder / no-code platforms (common false C2s in benign apps)
+    "kodular.io", "appypie.com", "appsyonamovil.com",
+    # Analytics / advertising / attribution (legitimate SDK integrations)
+    "google-analytics.com", "googletagmanager.com", "appsflyer.com",
+    "adjust.com", "amplitude.com", "onesignal.com",
+    # Payment / commerce SDKs (legitimate, embedded in benign apps)
+    "stripe.com", "paypalobjects.com", "mclient.alipay.com",
+    "gauravpaypal.com", "dream11.com",
+    # Social / communication APIs
+    "whatsapp.com", "fb.gg", "disqus.com", "flickr.com",
+    "t.me", "telegram.me",
+    # Media / content / CDN
+    "grofers.com", "adobe.com", "macromedia.com",
+    "appscreative.info", "go360days.com",
+    # Mobile platforms / OEM services
+    "miui.com", "xiaomi.net", "novastar.tech",
+    "aka.ms", "live.com", "xboxlive.com",
+    # Open source / documentation / libraries
+    "gnu.org", "openssl.org", "sil.org", "instabug.com",
+    "isefeel.com", "cashdorado.de",
+    # App store / publisher links
+    "apple.com",
+    # Utilities / SDKs
+    "exoplayer.dev", "page.link",
+    # Regional / misc
+    "opera.com", "mail.ru", "mobi911.ru", "qq.com", "mit.edu",
+    # Media / streaming
+    "hulu.com", "akamaihd.net", "braze.com",
+    # Mapping / location SDKs
+    "mapbox.com", "www.mapbox.com",
+    # Gaming
+    "minecraft.net", "mojang.com",
+    # Social / professional
+    "linkedin.com", "passport.net",
+    # CDN / cloud infrastructure
+    "akamaiedge.net", "azureedge.net", "cloudfront.net",
+    # Misc legitimate services
+    "osgwiki.com", "s1mobilecard.co.kr",
+    # No-code / cross-platform app builders
+    "appybuilder.com", "appcelerator.com",
+    # Iranian app store
+    "cafebazaar.ir",
+    # Free hosting used by app builder SDKs
+    "byethost3.com", "instantaccess.io",
+    # Geo/IP services used by ad SDKs
+    "p3insight.de",
+    # CDN / icon / font services
+    "fontawesome.com",
+    # Google Material Design references
+    "material.io",
+    # SaaS APIs commonly embedded by app builders
+    "airtable.com", "qrserver.com", "ocr.space",
+    # Android library author websites (embedded in library metadata)
+    "mikepenz.com",
 }
 
 # TLD-like tokens produced by over-matching URL regex on code fragments.
@@ -526,6 +638,10 @@ AD_NETWORK_DOMAINS = {
     "appsflyer.com",
     "adjust.com",
     "kochava.com",
+    # Iranian / Middle East ad networks
+    "adivery.com",
+    "tapsell.ir",
+    "pushe.co",
     # Shorteners / redirectors commonly used by ad SDKs
     "bit.ly",
     "tinyurl.com",
@@ -674,6 +790,162 @@ def infer_communication_type(url: str, source_location: str) -> str:
     return "other"
 
 
+# ---------------------------------------------------------------------------
+# Raw string domain/IP filters (fallback C2 detection)
+# ---------------------------------------------------------------------------
+
+CODE_PACKAGE_PREFIXES = (
+    "java.", "javax.", "android.", "androidx.", "kotlin.", "kotlinx.",
+    "com.android.", "dalvik.", "org.apache.", "org.json.", "org.xml.",
+    "org.w3c.", "org.slf4j.", "org.junit.", "org.mockito.",
+    "com.google.android.", "com.google.common.", "com.squareup.",
+    "okhttp3.", "okio.", "retrofit2.", "rx.", "reactivestreams.",
+    "butterknife.", "dagger.", "hilt.", "junit.", "io.flutter.",
+    "org.jetbrains.", "org.intellij.",
+)
+
+
+PSEUDO_TLDS = frozenset({
+    # Java field/method names commonly parsed as fake TLDs
+    "name", "value", "body", "length", "size", "limit", "pos", "sink", "source",
+    "key", "type", "data", "mode", "path", "file", "line", "text", "hash",
+    "code", "flag", "host", "port", "user", "pass", "auth", "role", "item",
+    "list", "map", "set", "val", "min", "max", "sum", "avg", "idx",
+    "tag", "url", "uri", "ref", "id", "by", "to", "in", "at", "of", "or",
+    "class", "field", "method", "param", "args", "config", "buffer", "schema",
+    "total", "count", "index", "offset", "order", "group", "scope", "level",
+    "stack", "queue", "thread", "task", "job", "event", "state", "status",
+    # Additional method/field names that look like TLDs
+    "call", "add", "get", "set", "put", "del", "find", "next", "prev",
+    "first", "last", "head", "tail", "begin", "end", "start", "stop",
+    "read", "write", "send", "recv", "load", "save", "open", "close",
+    "exec", "run", "do", "make", "new", "free", "bind", "join", "split",
+    "enter", "exit", "init", "done", "wait", "notify", "lock", "unlock",
+    "info", "meta", "args", "opts", "flags", "items", "entry", "rows",
+    "cols", "cell", "node", "edge", "link", "obj", "ctx", "biz", "loop",
+    "domain", "view", "form", "page", "msg", "str", "int", "bool", "arr",
+    # 2-letter codes that are real TLDs but overwhelmingly code refs in APK strings
+    "in", "at", "id", "pl",
+})
+
+# Known real TLDs to avoid over-filtering legitimate 2-part domains
+REAL_TLDS = frozenset({
+    "com", "org", "net", "edu", "gov", "mil", "io", "co", "uk", "de", "jp",
+    "fr", "au", "ca", "cn", "in", "ru", "br", "kr", "it", "es", "mx", "nl",
+    "se", "no", "fi", "dk", "pl", "at", "ch", "be", "ie", "nz", "sg", "hk",
+    "tw", "my", "ph", "th", "vn", "id", "za", "eg", "ng", "ke", "ar", "cl",
+    "co", "us", "xyz", "top", "club", "online", "site", "live", "app", "dev",
+    "info", "biz", "pro", "me", "mobi", "asia", "tel", "int", "eu",
+    "tech", "ai", "cloud", "shop", "store", "blog", "wiki",
+    "media", "news", "video", "tv", "cc", "guru", "rocks", "world",
+})
+
+
+def _is_code_reference(domain: str) -> bool:
+    """Return True if the domain looks like a code package/class reference, not a real domain."""
+    if domain.startswith(CODE_PACKAGE_PREFIXES):
+        return True
+    parts = domain.split(".")
+    if len(parts) < 2:
+        return True
+    # If any part has an uppercase letter → Java class/method naming convention
+    for p in parts:
+        if any(c.isupper() for c in p):
+            return True
+    # Likely a method reference like "foo.bar.Baz.method" (already caught by uppercase)
+    # 2-part names like "builder.name", "response.body" — TLD is a pseudo-TLD
+    if len(parts) == 2 and parts[-1] in PSEUDO_TLDS:
+        return True
+    # 2-part all-lowercase with unknown TLD → probably code, not a real domain
+    if len(parts) == 2 and parts[-1] not in REAL_TLDS:
+        return True
+    # "com.XX" 2-part patterns (e.g., com.ar, com.au, com.br) — Java package abbreviations, not real domains
+    if len(parts) == 2 and parts[0] == "com" and len(parts[-1]) <= 3 and parts[-1].isalpha():
+        return True
+    # 3+ part where last part is a pseudo-TLD (e.g., "msg.function.not.found.in", "msg.reserved.id")
+    if len(parts) >= 3 and parts[-1] in PSEUDO_TLDS:
+        return True
+    # 3+ part all-lowercase: only filter if last part is NOT a known real TLD
+    # Catches patterns like "msg.catchall.xyz" (not in PSEUDO_TLDS but also not in REAL_TLDS)
+    if len(parts) >= 3 and all(p.isalpha() for p in parts) and parts[-1] not in REAL_TLDS:
+        return True
+    # 3+ part with digits/mixed chars: filter if first segment is short + alpha (package-like)
+    if len(parts) >= 3 and parts[-1] not in REAL_TLDS:
+        if parts[0].isalpha() and len(parts[0]) <= 6:
+            return True
+    # 5+ parts with short first segment → deep Java package path (subdomains with 5+ levels are virtually non-existent)
+    if len(parts) >= 5 and parts[0].isalpha() and len(parts[0]) <= 6:
+        return True
+    # Android resource references
+    if domain.startswith("com.yourpackage.") or domain.endswith(".R$") or domain.endswith(".R"):
+        return True
+    return False
+
+
+_COMMON_ENGLISH_WORDS = frozenset({
+    'the', 'a', 'an', 'and', 'or', 'but', 'if', 'is', 'are', 'was', 'were',
+    'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did',
+    'will', 'would', 'could', 'should', 'may', 'might', 'shall', 'can',
+    'this', 'that', 'these', 'those', 'it', 'its', 'they', 'them', 'their',
+    'what', 'which', 'who', 'whom', 'when', 'where', 'why', 'how',
+    'all', 'each', 'every', 'both', 'few', 'some', 'any', 'no', 'none',
+    'not', 'only', 'own', 'same', 'so', 'than', 'too', 'very', 'just',
+    'because', 'as', 'until', 'while', 'of', 'at', 'by', 'for', 'with',
+    'about', 'against', 'between', 'into', 'through', 'during', 'before',
+    'after', 'above', 'below', 'from', 'up', 'down', 'in', 'out', 'on',
+    'off', 'over', 'under', 'again', 'further', 'then', 'once',
+    'here', 'there', 'when', 'where', 'why', 'thing', 'things', 'test',
+    'demo', 'sample', 'example', 'hello', 'world', 'foo', 'bar', 'baz',
+    'name', 'user', 'pass', 'login', 'admin', 'root', 'home', 'page',
+    'site', 'file', 'data', 'info', 'text', 'msg', 'mail',
+})
+
+
+def _is_likely_junk_domain(domain: str) -> bool:
+    if not domain or '%' in domain:
+        return True
+    parts = domain.split('.')
+    tld = parts[-1].lower()
+
+    # File paths masquerading as domains (.so, .apk, .jar, .dex, .png, etc.)
+    if tld in ('so', 'apk', 'jar', 'dex', 'png', 'jpg', 'jpeg', 'gif', 'xml', 'json', 'svg', 'ico', 'css', 'js', 'ts'):
+        return True
+
+    # Single-word www subdomains: "www.Word" or "www.word" — overwhelmingly garbled
+    if len(parts) == 2 and parts[0].lower() == 'www' and len(parts[1]) <= 8 and parts[1].isalpha():
+        return True
+
+    # Common English word as second-level domain with a real TLD:
+    # "the.com", "thing.org", "world.info" — these are never real C2 domains
+    if len(parts) == 2:
+        sld = parts[0].lower()
+        if sld in _COMMON_ENGLISH_WORDS and tld in ('com', 'org', 'net', 'info', 'biz', 'world', 'site', 'live', 'online'):
+            return True
+
+    return False
+
+
+def _is_benign_domain(domain: str) -> bool:
+    """Return True if domain is in the known benign list (including subdomain matching)."""
+    domain_lower = domain.lower().lstrip("www.")
+    if domain_lower in BENIGN_DOMAINS:
+        return True
+    parts = domain_lower.split(".")
+    for i in range(len(parts)):
+        if ".".join(parts[i:]) in BENIGN_DOMAINS:
+            return True
+    return False
+
+
+def _is_private_ip(ip: str) -> bool:
+    """Return True if IP is private, loopback, or reserved."""
+    try:
+        addr = ipaddress.ip_address(ip)
+        return addr.is_private or addr.is_loopback or addr.is_reserved or addr.is_multicast
+    except ValueError:
+        return True
+
+
 def parse_url(url: str) -> Optional[Dict[str, Any]]:
     """Parse URL into components."""
     try:
@@ -734,9 +1006,15 @@ def calculate_c2_confidence(parsed: dict, source_context: str, ip_legitimacy: Op
         elif ip_legitimacy and ip_legitimacy.get("verdict") == "uncertain":
             score += 0.05
     elif parsed["domain"]:
-        # Real domain with TLD
-        if "." in parsed["domain"] and len(parsed["domain"].split(".")[-1]) >= 2:
+        # Only full boost for recognized real TLDs. Garbled/truncated URLs
+        # (e.g. "www.icon", "www.google" without .com) get minimal boost.
+        # Also require at least one dot — bare "in" or "%s" are not real domains.
+        domain_parts = parsed["domain"].split(".")
+        tld = domain_parts[-1].lower() if domain_parts else ""
+        if "." in parsed["domain"] and tld in REAL_TLDS:
             score += 0.2
+        elif "." in parsed["domain"] and len(tld) >= 2:
+            score += 0.05  # partial — has TLD-like segment but not a recognized TLD
 
     # Boost for non-default path (suggests C2 endpoint)
     if parsed["path"] and parsed["path"] != "/":
@@ -747,6 +1025,27 @@ def calculate_c2_confidence(parsed: dict, source_context: str, ip_legitimacy: Op
     # adware / grayware samples and should not be scored like malware C2s.
     if parsed["domain"] and is_ad_network(parsed["domain"]):
         score *= 0.5
+
+    # Penalize template/format-string URLs (e.g. "https://%s/%s/%s").
+    # These contain printf-style placeholders and are not real URLs.
+    if parsed["domain"] and "%" in parsed["domain"]:
+        score *= 0.5
+
+    # Penalize URLs with no recognizable TLD (bare hostname, no dot).
+    # These are often HTML fragments, localhost, or placeholder text.
+    if parsed["domain"] and "." not in parsed["domain"]:
+        score = min(score, 0.6)
+
+    # Penalize malformed domains: empty TLD or trailing dot.
+    # e.g. "www./div" has domain "www." with empty TLD.
+    if parsed["domain"] and parsed["domain"].endswith("."):
+        score = min(score, 0.6)
+
+    # Single-character TLD: not a real domain, cap confidence.
+    # e.g. "www.C//DTD" has tld "c".
+    domain_parts = parsed["domain"].split(".") if parsed["domain"] else []
+    if len(domain_parts) >= 1 and len(domain_parts[-1]) <= 1:
+        score = min(score, 0.5)
 
     return round(min(1.0, max(0.0, score)), 4)
 
@@ -812,6 +1111,8 @@ def extract_c2_infrastructure(payloads_result: dict, strings_result: dict) -> di
     c2_records = []
     c2_id = 0
     seen_urls = set()
+    seen_domains = set()
+    seen_ips = set()
 
     # Extract URLs from decoded payloads
     for payload in payloads_result.get("payloads", []):
@@ -874,6 +1175,8 @@ def extract_c2_infrastructure(payloads_result: dict, strings_result: dict) -> di
                 parsed = parse_url(url)
                 if parsed is None or is_benign_url(url):
                     continue
+                if parsed["domain"] and _is_likely_junk_domain(parsed["domain"]):
+                    continue
 
                 ip_legitimacy = None
                 if parsed["ip"]:
@@ -901,6 +1204,84 @@ def extract_c2_infrastructure(payloads_result: dict, strings_result: dict) -> di
                 }
                 if ip_legitimacy:
                     record["ip_legitimacy"] = ip_legitimacy
+                c2_records.append(record)
+                c2_id += 1
+
+            # Also scan for bare domains and IPs (no http:// prefix)
+            for domain in DOMAIN_RE.findall(value):
+                # Filter out code package/class references (check original case first!)
+                if _is_code_reference(domain):
+                    continue
+                # Filter out likely junk domains (file paths, single-word www, common words)
+                if _is_likely_junk_domain(domain):
+                    continue
+                domain_lower = domain.lower()
+                if domain_lower in seen_domains:
+                    continue
+                seen_domains.add(domain_lower)
+
+                # Filter out known benign domains
+                if _is_benign_domain(domain_lower):
+                    continue
+
+                confidence = round(calculate_c2_confidence(
+                    {"domain": domain_lower, "ip": None, "protocol": "unknown", "port": None, "path": None, "query_params": None},
+                    source_location, None
+                ), 4)
+                if confidence < C2_FALLBACK_CONFIDENCE_THRESHOLD:
+                    continue
+
+                record = {
+                    "c2_id": f"c2_{c2_id:03d}",
+                    "payload_id": None,
+                    "raw_url": domain,
+                    "protocol": "unknown",
+                    "domain": domain_lower,
+                    "ip": None,
+                    "port": None,
+                    "path": None,
+                    "query_params": None,
+                    "ip_classification": "n/a",
+                    "communication_type": infer_communication_type(domain, source_location),
+                    "is_fallback": True,
+                    "source_location": source_location,
+                    "confidence": confidence,
+                    "threat_category": "adware" if is_ad_network(domain_lower) else "malware",
+                }
+                c2_records.append(record)
+                c2_id += 1
+
+            for ip_match in IP_RE.findall(value):
+                if ip_match in seen_ips:
+                    continue
+                if _is_private_ip(ip_match):
+                    continue
+                seen_ips.add(ip_match)
+
+                confidence = round(calculate_c2_confidence(
+                    {"domain": None, "ip": ip_match, "protocol": "unknown", "port": None, "path": None, "query_params": None},
+                    source_location, None
+                ), 4)
+                if confidence < C2_FALLBACK_CONFIDENCE_THRESHOLD:
+                    continue
+
+                record = {
+                    "c2_id": f"c2_{c2_id:03d}",
+                    "payload_id": None,
+                    "raw_url": ip_match,
+                    "protocol": "unknown",
+                    "domain": None,
+                    "ip": ip_match,
+                    "port": None,
+                    "path": None,
+                    "query_params": None,
+                    "ip_classification": classify_ip(ip_match),
+                    "communication_type": infer_communication_type(ip_match, source_location),
+                    "is_fallback": True,
+                    "source_location": source_location,
+                    "confidence": confidence,
+                    "threat_category": "malware",
+                }
                 c2_records.append(record)
                 c2_id += 1
 
