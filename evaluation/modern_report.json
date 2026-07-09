@@ -1,0 +1,19 @@
+{
+  "total_samples": 40,
+  "by_confidence": {
+    "medium": {
+      "total": 40,
+      "detected": 40,
+      "recall": 1.0
+    }
+  },
+  "overall_recall": 1.0,
+  "false_negatives": 0,
+  "failure_categorization": {},
+  "fn_details": [],
+  "comparison_to_drebin": {
+    "drebin_recall": 0.9,
+    "modern_recall": 1.0,
+    "delta": 0.1
+  }
+}

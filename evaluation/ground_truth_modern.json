@@ -1,0 +1,402 @@
+{
+  "357d6a12b37bf72550d9df5035f25157d3ca75e1a69e71783586ee4759ee7b45": {
+    "sha256": "357d6a12b37bf72550d9df5035f25157d3ca75e1a69e71783586ee4759ee7b45",
+    "is_malware": true,
+    "confidence": "medium",
+    "source": "MalwareBazaar",
+    "vt_detections": 0,
+    "family": null,
+    "first_seen": "2026-07-04",
+    "gt_reason": "malware_bazaar_known"
+  },
+  "9f42721255d8d62b4595b9040a9a7d742c8fe2a5ff17745c8e250cd04928c480": {
+    "sha256": "9f42721255d8d62b4595b9040a9a7d742c8fe2a5ff17745c8e250cd04928c480",
+    "is_malware": true,
+    "confidence": "medium",
+    "source": "MalwareBazaar",
+    "vt_detections": 0,
+    "family": null,
+    "first_seen": "2026-07-03",
+    "gt_reason": "malware_bazaar_known"
+  },
+  "536cb0e2ffffa40d1ccd096eaaad43f094813bae15d8f6316dc35fb998d5e4cd": {
+    "sha256": "536cb0e2ffffa40d1ccd096eaaad43f094813bae15d8f6316dc35fb998d5e4cd",
+    "is_malware": true,
+    "confidence": "medium",
+    "source": "MalwareBazaar",
+    "vt_detections": 0,
+    "family": null,
+    "first_seen": "2026-07-03",
+    "gt_reason": "malware_bazaar_known"
+  },
+  "dceebf2ce1186b22f60b7ee064670db88347761767ea8610a35e50e568b348b3": {
+    "sha256": "dceebf2ce1186b22f60b7ee064670db88347761767ea8610a35e50e568b348b3",
+    "is_malware": true,
+    "confidence": "medium",
+    "source": "MalwareBazaar",
+    "vt_detections": 0,
+    "family": null,
+    "first_seen": "2026-07-03",
+    "gt_reason": "malware_bazaar_known"
+  },
+  "c17aff83c3fbddb86fe5a40d7a654af5591b16522fb15c222bbf3d57b0b16748": {
+    "sha256": "c17aff83c3fbddb86fe5a40d7a654af5591b16522fb15c222bbf3d57b0b16748",
+    "is_malware": true,
+    "confidence": "medium",
+    "source": "MalwareBazaar",
+    "vt_detections": 0,
+    "family": null,
+    "first_seen": "2026-07-03",
+    "gt_reason": "malware_bazaar_known"
+  },
+  "addbd8770b53a50e83c711143332c76e9160f920675e2de5591669d3b93f499b": {
+    "sha256": "addbd8770b53a50e83c711143332c76e9160f920675e2de5591669d3b93f499b",
+    "is_malware": true,
+    "confidence": "medium",
+    "source": "MalwareBazaar",
+    "vt_detections": 0,
+    "family": null,
+    "first_seen": "2026-07-03",
+    "gt_reason": "malware_bazaar_known"
+  },
+  "3a03b35a4c614d651954f8298d5bb75abe33223e0791bdc1b9bdb2af69d3009b": {
+    "sha256": "3a03b35a4c614d651954f8298d5bb75abe33223e0791bdc1b9bdb2af69d3009b",
+    "is_malware": true,
+    "confidence": "medium",
+    "source": "MalwareBazaar",
+    "vt_detections": 0,
+    "family": null,
+    "first_seen": "2026-07-03",
+    "gt_reason": "malware_bazaar_known"
+  },
+  "518f5438a21e9aa9a91f0dd589088e443fda111d8ada5ea67d1cf14d6645974c": {
+    "sha256": "518f5438a21e9aa9a91f0dd589088e443fda111d8ada5ea67d1cf14d6645974c",
+    "is_malware": true,
+    "confidence": "medium",
+    "source": "MalwareBazaar",
+    "vt_detections": 0,
+    "family": null,
+    "first_seen": "2026-07-03",
+    "gt_reason": "malware_bazaar_known"
+  },
+  "5f94e59c132a7ed0e35b60146d973a728ab9f390c8291f9547cee26c56427738": {
+    "sha256": "5f94e59c132a7ed0e35b60146d973a728ab9f390c8291f9547cee26c56427738",
+    "is_malware": true,
+    "confidence": "medium",
+    "source": "MalwareBazaar",
+    "vt_detections": 0,
+    "family": "CraxsRAT",
+    "first_seen": "2026-07-03",
+    "gt_reason": "analyst_tagged_CraxsRAT"
+  },
+  "2cc755a2c9dae64ea5914bd32aa6824a3bc1f0e3be1f2d03c116ffc68f7772d0": {
+    "sha256": "2cc755a2c9dae64ea5914bd32aa6824a3bc1f0e3be1f2d03c116ffc68f7772d0",
+    "is_malware": true,
+    "confidence": "medium",
+    "source": "MalwareBazaar",
+    "vt_detections": 0,
+    "family": "GhostBat",
+    "first_seen": "2026-07-03",
+    "gt_reason": "analyst_tagged_GhostBat"
+  },
+  "77eef34639c4d2d244ba407c6e0a1b9b5ec0187e73de1ae3acb0f71f3906f595": {
+    "sha256": "77eef34639c4d2d244ba407c6e0a1b9b5ec0187e73de1ae3acb0f71f3906f595",
+    "is_malware": true,
+    "confidence": "medium",
+    "source": "MalwareBazaar",
+    "vt_detections": 0,
+    "family": null,
+    "first_seen": "2026-07-03",
+    "gt_reason": "malware_bazaar_known"
+  },
+  "399f5bddd1e30bb612522c9c770e073f5e304165df170c4668550de34f34f7c1": {
+    "sha256": "399f5bddd1e30bb612522c9c770e073f5e304165df170c4668550de34f34f7c1",
+    "is_malware": true,
+    "confidence": "medium",
+    "source": "MalwareBazaar",
+    "vt_detections": 0,
+    "family": "GhostBat",
+    "first_seen": "2026-07-03",
+    "gt_reason": "analyst_tagged_GhostBat"
+  },
+  "68b9c7ae6b51f211ecd0cfdd656bc3b14840627adc7073faf9504acdb0e52dae": {
+    "sha256": "68b9c7ae6b51f211ecd0cfdd656bc3b14840627adc7073faf9504acdb0e52dae",
+    "is_malware": true,
+    "confidence": "medium",
+    "source": "MalwareBazaar",
+    "vt_detections": 0,
+    "family": "GhostBat",
+    "first_seen": "2026-07-03",
+    "gt_reason": "analyst_tagged_GhostBat"
+  },
+  "d6d1f2dd6db3177ccbde0fe17170cc4fa81078d1a9a900f1f5dd73ddce5f06e6": {
+    "sha256": "d6d1f2dd6db3177ccbde0fe17170cc4fa81078d1a9a900f1f5dd73ddce5f06e6",
+    "is_malware": true,
+    "confidence": "medium",
+    "source": "MalwareBazaar",
+    "vt_detections": 0,
+    "family": null,
+    "first_seen": "2026-07-03",
+    "gt_reason": "malware_bazaar_known"
+  },
+  "ca9ae76de194548709966263c227709d5c57c8e57f07f50d1532cf52fc5f438d": {
+    "sha256": "ca9ae76de194548709966263c227709d5c57c8e57f07f50d1532cf52fc5f438d",
+    "is_malware": true,
+    "confidence": "medium",
+    "source": "MalwareBazaar",
+    "vt_detections": 0,
+    "family": null,
+    "first_seen": "2026-07-03",
+    "gt_reason": "malware_bazaar_known"
+  },
+  "84ddfdd7862e3c3481ae65b64d9087ab7c5c29355a29e9e7c3a4011a631f7387": {
+    "sha256": "84ddfdd7862e3c3481ae65b64d9087ab7c5c29355a29e9e7c3a4011a631f7387",
+    "is_malware": true,
+    "confidence": "medium",
+    "source": "MalwareBazaar",
+    "vt_detections": 0,
+    "family": null,
+    "first_seen": "2026-07-03",
+    "gt_reason": "malware_bazaar_known"
+  },
+  "cb7744fe6345dd0e4f15f1acdde23ecb6d484b3c8a6ce8792628a6a1453eefa4": {
+    "sha256": "cb7744fe6345dd0e4f15f1acdde23ecb6d484b3c8a6ce8792628a6a1453eefa4",
+    "is_malware": true,
+    "confidence": "medium",
+    "source": "MalwareBazaar",
+    "vt_detections": 0,
+    "family": null,
+    "first_seen": "2026-07-03",
+    "gt_reason": "malware_bazaar_known"
+  },
+  "fca210ed8b28a9544d0db5a8387fe75c26091003041220a9d28cb445e8169aad": {
+    "sha256": "fca210ed8b28a9544d0db5a8387fe75c26091003041220a9d28cb445e8169aad",
+    "is_malware": true,
+    "confidence": "medium",
+    "source": "MalwareBazaar",
+    "vt_detections": 0,
+    "family": "GhostBat",
+    "first_seen": "2026-07-03",
+    "gt_reason": "analyst_tagged_GhostBat"
+  },
+  "a3ade4b9e03e459a5955d68c52f8dbf893ce0c2bfb56c1c8b7415ecfb7ec9246": {
+    "sha256": "a3ade4b9e03e459a5955d68c52f8dbf893ce0c2bfb56c1c8b7415ecfb7ec9246",
+    "is_malware": true,
+    "confidence": "medium",
+    "source": "MalwareBazaar",
+    "vt_detections": 0,
+    "family": "Mirax",
+    "first_seen": "2026-07-02",
+    "gt_reason": "analyst_tagged_Mirax"
+  },
+  "d472e114361dd2c6ebafb60daa72ba2db09752de5b243538f0fee18410ad6a25": {
+    "sha256": "d472e114361dd2c6ebafb60daa72ba2db09752de5b243538f0fee18410ad6a25",
+    "is_malware": true,
+    "confidence": "medium",
+    "source": "MalwareBazaar",
+    "vt_detections": 0,
+    "family": "SpyNote",
+    "first_seen": "2026-07-02",
+    "gt_reason": "analyst_tagged_SpyNote"
+  },
+  "dea110082d57d210d746c7d9fe791d8e297de82ccd5e48c2813c615a45913e8e": {
+    "sha256": "dea110082d57d210d746c7d9fe791d8e297de82ccd5e48c2813c615a45913e8e",
+    "is_malware": true,
+    "confidence": "medium",
+    "source": "MalwareBazaar",
+    "vt_detections": 0,
+    "family": "SpyNote",
+    "first_seen": "2026-07-02",
+    "gt_reason": "analyst_tagged_SpyNote"
+  },
+  "1f30b62c19be5de98456ec6915f1618da92cab68f20bf36cf91473788437f87a": {
+    "sha256": "1f30b62c19be5de98456ec6915f1618da92cab68f20bf36cf91473788437f87a",
+    "is_malware": true,
+    "confidence": "medium",
+    "source": "MalwareBazaar",
+    "vt_detections": 0,
+    "family": null,
+    "first_seen": "2026-07-02",
+    "gt_reason": "malware_bazaar_known"
+  },
+  "05a2da9df1b4aed78e16349c17443ccd83cb48ed9e38e38d0c0b6ce808a9c2a8": {
+    "sha256": "05a2da9df1b4aed78e16349c17443ccd83cb48ed9e38e38d0c0b6ce808a9c2a8",
+    "is_malware": true,
+    "confidence": "medium",
+    "source": "MalwareBazaar",
+    "vt_detections": 0,
+    "family": "SpyNote",
+    "first_seen": "2026-07-02",
+    "gt_reason": "analyst_tagged_SpyNote"
+  },
+  "537f08755139d0199fb1751068eb49a92b68e0d1dcadaf03758837c3832f99c5": {
+    "sha256": "537f08755139d0199fb1751068eb49a92b68e0d1dcadaf03758837c3832f99c5",
+    "is_malware": true,
+    "confidence": "medium",
+    "source": "MalwareBazaar",
+    "vt_detections": 0,
+    "family": "SpyNote",
+    "first_seen": "2026-07-02",
+    "gt_reason": "analyst_tagged_SpyNote"
+  },
+  "72f18d019123393ae610dd73b25e5f30a4945430f6f835700d6bdee19f566a30": {
+    "sha256": "72f18d019123393ae610dd73b25e5f30a4945430f6f835700d6bdee19f566a30",
+    "is_malware": true,
+    "confidence": "medium",
+    "source": "MalwareBazaar",
+    "vt_detections": 0,
+    "family": "SpyNote",
+    "first_seen": "2026-07-02",
+    "gt_reason": "analyst_tagged_SpyNote"
+  },
+  "bf586ec8ce8528d26ec491fa5864dc590cefae88da176246296bb849e226a0c8": {
+    "sha256": "bf586ec8ce8528d26ec491fa5864dc590cefae88da176246296bb849e226a0c8",
+    "is_malware": true,
+    "confidence": "medium",
+    "source": "MalwareBazaar",
+    "vt_detections": 0,
+    "family": "SpyNote",
+    "first_seen": "2026-07-02",
+    "gt_reason": "analyst_tagged_SpyNote"
+  },
+  "0bc98459a42d1d0108a882671f4496f214f8a68400810b9e034cdd7212f5a4fa": {
+    "sha256": "0bc98459a42d1d0108a882671f4496f214f8a68400810b9e034cdd7212f5a4fa",
+    "is_malware": true,
+    "confidence": "medium",
+    "source": "MalwareBazaar",
+    "vt_detections": 0,
+    "family": "SpyNote",
+    "first_seen": "2026-07-02",
+    "gt_reason": "analyst_tagged_SpyNote"
+  },
+  "b634c8c0ec3a4d682630eed6ac1cc8d5e2b0481110121990edcb4e0df9867698": {
+    "sha256": "b634c8c0ec3a4d682630eed6ac1cc8d5e2b0481110121990edcb4e0df9867698",
+    "is_malware": true,
+    "confidence": "medium",
+    "source": "MalwareBazaar",
+    "vt_detections": 0,
+    "family": null,
+    "first_seen": "2026-07-02",
+    "gt_reason": "malware_bazaar_known"
+  },
+  "f5b84a261a19b8066cb609124d97bc52df08f08f564d32358a15aaf511caf5e4": {
+    "sha256": "f5b84a261a19b8066cb609124d97bc52df08f08f564d32358a15aaf511caf5e4",
+    "is_malware": true,
+    "confidence": "medium",
+    "source": "MalwareBazaar",
+    "vt_detections": 0,
+    "family": null,
+    "first_seen": "2026-07-02",
+    "gt_reason": "malware_bazaar_known"
+  },
+  "cbc71b0bd3f94cb163a8ab106242aa7638aced10e7b8c4d6179bc7fc5ba649f2": {
+    "sha256": "cbc71b0bd3f94cb163a8ab106242aa7638aced10e7b8c4d6179bc7fc5ba649f2",
+    "is_malware": true,
+    "confidence": "medium",
+    "source": "MalwareBazaar",
+    "vt_detections": 0,
+    "family": null,
+    "first_seen": "2026-07-02",
+    "gt_reason": "malware_bazaar_known"
+  },
+  "5cad494f67808745489659cd077dce429fce364a673c44c9d238d14dcca81732": {
+    "sha256": "5cad494f67808745489659cd077dce429fce364a673c44c9d238d14dcca81732",
+    "is_malware": true,
+    "confidence": "medium",
+    "source": "MalwareBazaar",
+    "vt_detections": 0,
+    "family": null,
+    "first_seen": "2026-07-02",
+    "gt_reason": "malware_bazaar_known"
+  },
+  "b7f8c6b76b8b1a0f99fbec5eb467983e8fd18f3ef496957bd8fb9c5bfca5e50b": {
+    "sha256": "b7f8c6b76b8b1a0f99fbec5eb467983e8fd18f3ef496957bd8fb9c5bfca5e50b",
+    "is_malware": true,
+    "confidence": "medium",
+    "source": "MalwareBazaar",
+    "vt_detections": 0,
+    "family": "FantasyHub",
+    "first_seen": "2026-07-02",
+    "gt_reason": "analyst_tagged_FantasyHub"
+  },
+  "62545321423f75c0f4774c868a1677087399353adda0fb361cd3884d2680dcc2": {
+    "sha256": "62545321423f75c0f4774c868a1677087399353adda0fb361cd3884d2680dcc2",
+    "is_malware": true,
+    "confidence": "medium",
+    "source": "MalwareBazaar",
+    "vt_detections": 0,
+    "family": "FantasyHub",
+    "first_seen": "2026-07-02",
+    "gt_reason": "analyst_tagged_FantasyHub"
+  },
+  "b7ffef61c60d80eee806f36f30f80ff9cf3f73d522bd05e192fa34dcf2e87224": {
+    "sha256": "b7ffef61c60d80eee806f36f30f80ff9cf3f73d522bd05e192fa34dcf2e87224",
+    "is_malware": true,
+    "confidence": "medium",
+    "source": "MalwareBazaar",
+    "vt_detections": 0,
+    "family": "FantasyHub",
+    "first_seen": "2026-07-02",
+    "gt_reason": "analyst_tagged_FantasyHub"
+  },
+  "9c23c73a7fa3b1b3df8a61866dc36d263aa0754a0bb194e0d164a4773f4537f2": {
+    "sha256": "9c23c73a7fa3b1b3df8a61866dc36d263aa0754a0bb194e0d164a4773f4537f2",
+    "is_malware": true,
+    "confidence": "medium",
+    "source": "MalwareBazaar",
+    "vt_detections": 0,
+    "family": "FantasyHub",
+    "first_seen": "2026-07-02",
+    "gt_reason": "analyst_tagged_FantasyHub"
+  },
+  "bb990fe92faff97b2e3e606ca0eeac34253c471d9e84da98111e1c81cfd0a960": {
+    "sha256": "bb990fe92faff97b2e3e606ca0eeac34253c471d9e84da98111e1c81cfd0a960",
+    "is_malware": true,
+    "confidence": "medium",
+    "source": "MalwareBazaar",
+    "vt_detections": 0,
+    "family": "FantasyHub",
+    "first_seen": "2026-07-02",
+    "gt_reason": "analyst_tagged_FantasyHub"
+  },
+  "9a836ef59a4fb8cae0543fed24ca8c53015bee86d6b0ead0086917681c7576d4": {
+    "sha256": "9a836ef59a4fb8cae0543fed24ca8c53015bee86d6b0ead0086917681c7576d4",
+    "is_malware": true,
+    "confidence": "medium",
+    "source": "MalwareBazaar",
+    "vt_detections": 0,
+    "family": "FantasyHub",
+    "first_seen": "2026-07-02",
+    "gt_reason": "analyst_tagged_FantasyHub"
+  },
+  "388d7fd938e51455ad9ba27eae9ce01fcbadff8ab88d5a7e9e742cb28402f1e8": {
+    "sha256": "388d7fd938e51455ad9ba27eae9ce01fcbadff8ab88d5a7e9e742cb28402f1e8",
+    "is_malware": true,
+    "confidence": "medium",
+    "source": "MalwareBazaar",
+    "vt_detections": 0,
+    "family": null,
+    "first_seen": "2026-07-02",
+    "gt_reason": "malware_bazaar_known"
+  },
+  "cb0a4a758877e3f18a85fe307c6d4a7baf9924aab93bcbcb41f81eb13d9ac0f6": {
+    "sha256": "cb0a4a758877e3f18a85fe307c6d4a7baf9924aab93bcbcb41f81eb13d9ac0f6",
+    "is_malware": true,
+    "confidence": "medium",
+    "source": "MalwareBazaar",
+    "vt_detections": 0,
+    "family": null,
+    "first_seen": "2026-07-02",
+    "gt_reason": "malware_bazaar_known"
+  },
+  "85a44fd5134cf1d317a7637f1fb47dcf570a93e925c365b2e8f103a0fa459290": {
+    "sha256": "85a44fd5134cf1d317a7637f1fb47dcf570a93e925c365b2e8f103a0fa459290",
+    "is_malware": true,
+    "confidence": "medium",
+    "source": "MalwareBazaar",
+    "vt_detections": 0,
+    "family": null,
+    "first_seen": "2026-07-02",
+    "gt_reason": "malware_bazaar_known"
+  }
+}

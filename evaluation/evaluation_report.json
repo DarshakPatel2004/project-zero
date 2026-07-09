@@ -1,0 +1,34 @@
+{
+  "total_samples": 317,
+  "original_count": 262,
+  "pendrive_count": 55,
+  "drebin": {
+    "total": 50,
+    "detected": 45
+  },
+  "fdroid": {
+    "total": 50,
+    "false_positives": 8
+  },
+  "severity_original": {
+    "high": 126,
+    "medium": 85,
+    "low": 51
+  },
+  "severity_pendrive": {
+    "high": 46,
+    "medium": 4,
+    "low": 5
+  },
+  "severity_all": {
+    "high": 172,
+    "medium": 89,
+    "low": 56
+  },
+  "pendrive_families": {
+    "Unknown": 32,
+    "unknown": 19,
+    "Amazon": 3,
+    "Kinemaster": 1
+  }
+}

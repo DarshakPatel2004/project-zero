@@ -1,0 +1,18 @@
+{
+  "threshold": 50,
+  "confusion_matrix": {
+    "tp": 21,
+    "fn": 0,
+    "fp": 11,
+    "tn": 68
+  },
+  "recall": 1.0,
+  "precision": 0.65625,
+  "f1": 0.7924528301886793,
+  "specificity": 0.8607594936708861,
+  "accuracy": 0.89,
+  "malware_evaluated": 21,
+  "malware_skipped": 19,
+  "benign_evaluated": 79,
+  "benign_skipped": 21
+}
