@@ -76,4 +76,17 @@ Thumbs.db
 *.tmp
 *.bak
 
+# Debug / experimental scripts
+debug_*.py
+temp_*.py
+tmp_*.py
+analysis/diagnose_gap.py
+analysis/re_run_step7_openrouter.py
+
+# Scratch output
+evaluation/balanced_results_v2.json
+reprocess_status.json
+validation_metrics_report.json
+validation_sample_summary.json
+
 gstack/

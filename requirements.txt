@@ -1,3 +1,4 @@
+# For pinned reproducible build, use: pip install -r requirements-lock.txt
 # Web Framework & Server
 # fastapi>=0.119 is required for Starlette 1.x compatibility (the mcp /
 # sse-starlette deps pull Starlette >=1.0, which dropped the on_startup kwarg

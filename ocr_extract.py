@@ -3,8 +3,9 @@ from pathlib import Path
 import easyocr
 import json
 
-SS = Path(r"D:\DroidForensix\ss")
-OUT = Path(r"D:\DroidForensix\ss_ocr")
+BASE = Path(__file__).resolve().parent
+SS = BASE / "ss"
+OUT = BASE / "ss_ocr"
 OUT.mkdir(exist_ok=True)
 
 reader = easyocr.Reader(["en"], gpu=False, verbose=False)

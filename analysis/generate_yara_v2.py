@@ -1,8 +1,10 @@
 import json, os, re, collections, base64
+from pathlib import Path
 
-WORK_DIR = r"D:\DroidForensix\analysis\work"
-OUTPUT = r"D:\DroidForensix\analysis\yara_rules.yar"
-META = r"D:\DroidForensix\sample_metadata.csv"
+BASE_DIR = Path(__file__).resolve().parent.parent
+WORK_DIR = str(BASE_DIR / "analysis" / "work")
+OUTPUT = str(BASE_DIR / "analysis" / "yara_rules.yar")
+META = str(BASE_DIR / "sample_metadata.csv")
 
 families = {}
 with open(META, "r", encoding="utf-8") as f:

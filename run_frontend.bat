@@ -1,8 +1,9 @@
 @echo off
-cd /d D:\DroidForensix\frontend
+set "ROOT=%~dp0"
+cd /d "%ROOT%frontend"
 
 REM Use bundled Node/npm
-set "PATH=D:\DroidForensix\tools\node\current;%PATH%"
+set "PATH=%ROOT%tools\node\current;%PATH%"
 
 if not exist package.json (
     echo package.json not found in frontend directory

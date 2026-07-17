@@ -3,29 +3,31 @@ from typing import Optional
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+ROOT_DIR = Path(__file__).resolve().parent.parent
+
 
 class Settings(BaseSettings):
     """Centralized Windows-native DroidForensix configuration."""
 
     model_config = SettingsConfigDict(
-        env_file=Path(__file__).resolve().parent.parent / ".env",
+        env_file=ROOT_DIR / ".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
     )
 
-    # File system paths (Windows absolute)
-    WORK_DIR: Path = Path(r"D:\DroidForensix\analysis\work")
-    REPORTS_DIR: Path = Path(r"D:\DroidForensix\reports")
-    SAMPLES_DIR: Path = Path(r"D:\DroidForensix\samples")
-    UPLOADS_DIR: Path = Path(r"D:\DroidForensix\uploads")
+    # File system paths (computed from project root)
+    WORK_DIR: Path = ROOT_DIR / "analysis" / "work"
+    REPORTS_DIR: Path = ROOT_DIR / "reports"
+    SAMPLES_DIR: Path = ROOT_DIR / "samples"
+    UPLOADS_DIR: Path = ROOT_DIR / "uploads"
 
-    # Analysis tools (Windows installations)
-    JADX_PATH: str = r"D:\DroidForensix\tools\jadx\bin\jadx.bat"
-    APKTOOL_PATH: str = r"D:\DroidForensix\tools\apktool\apktool.bat"
-    DIE_PATH: str = r"D:\DroidForensix\tools\die\die\diec.exe"
-    GEOIP_PATH: Path = Path(r"D:\DroidForensix\data\GeoLite2-City.mmdb")
-    YARA_RULES_PATH: str = r"D:\DroidForensix\analysis\yara_rules.yar"
+    # Analysis tools (relative to project root)
+    JADX_PATH: str = str(ROOT_DIR / "tools" / "jadx" / "bin" / "jadx.bat")
+    APKTOOL_PATH: str = str(ROOT_DIR / "tools" / "apktool" / "apktool.bat")
+    DIE_PATH: str = str(ROOT_DIR / "tools" / "die" / "die" / "diec.exe")
+    GEOIP_PATH: Path = ROOT_DIR / "data" / "GeoLite2-City.mmdb"
+    YARA_RULES_PATH: str = str(ROOT_DIR / "analysis" / "yara_rules.yar")
     SEVEN_ZIP_PATH: str = r"C:\Program Files\7-Zip\7z.exe"
 
     # Ollama / LLM inference (local Windows service)
@@ -40,8 +42,12 @@ class Settings(BaseSettings):
     NIM_MODEL: Optional[str] = None
     NIM_API_KEY: Optional[str] = None
 
-    # LLM provider selection: "auto" (default), "nvidia", or "ollama".
-    # "auto" prefers NVIDIA NIM if NVIDIA_NIM_API_KEY is set, otherwise Ollama.
+    # OpenRouter (optional, OpenAI-compatible, supports many models)
+    OPENROUTER_HOST: str = "https://openrouter.ai/api/v1"
+    OPENROUTER_MODEL: str = "qwen/qwq-32b:free"
+
+    # LLM provider selection: "auto" (default), "nvidia", "openrouter", or "ollama".
+    # "auto" prefers NVIDIA NIM > OpenRouter > Ollama, depending on which API keys are set.
     LLM_PROVIDER: str = "auto"
 
     # Pipeline settings
@@ -49,6 +55,9 @@ class Settings(BaseSettings):
     MAX_UPLOAD_SIZE_MB: int = 100
     ENABLE_LOGGING: bool = True
     LOG_LEVEL: str = "INFO"
+    # Extraction mode: "auto" uses Androguard (fast, ~5s), JADX runs only when
+    # Androguard fails. Set True to always run JADX (decompiled Java for analysis).
+    USE_JADX: bool = False
 
     # Web server
     BACKEND_HOST: str = "0.0.0.0"
