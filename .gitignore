@@ -126,4 +126,31 @@ run_downloads.ps1
 run_full_downloads.ps1
 run_koodous.ps1
 
+# One-off / investigation scripts
+scripts/investigate_*.py
+scripts/reprocess_*.py
+scripts/clear_*.py
+scripts/count_benign.py
+scripts/curate_benign.py
+scripts/fetch_modern_samples.py
+scripts/fresh_analysis.py
+scripts/test_single.py
+scripts/article_screenshots.py
+scripts/run_benign_pipeline.py
+scripts/run_fast_pipeline.py
+scripts/compute_metrics.py
+scripts/download_benign.py
+scripts/trace_*.py
+scripts/androguard_fallback.py
+
+# Generated article assets
+article_assets/
+
+# Uploaded APKs
+uploads/
+
+# Runtime logs
+analysis/logs/
+backend/analysis/logs/
+
 gstack/
