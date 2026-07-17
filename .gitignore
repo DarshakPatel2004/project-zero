@@ -82,11 +82,48 @@ temp_*.py
 tmp_*.py
 analysis/diagnose_gap.py
 analysis/re_run_step7_openrouter.py
+build_final_outputs.py
+check_*.py
+diag_*.py
+download_launcher.py
+enrich_*.py
+main_downloader.py
+report_activity.py
+reprocess_validation.py
+run_fix_verification.py
+run_pendrive_samples.py
+watch_and_reid.py
+test_circl.py
+test_pipeline.py
 
 # Scratch output
 evaluation/balanced_results_v2.json
 reprocess_status.json
 validation_metrics_report.json
 validation_sample_summary.json
+output.txt
+mal.apk
+mal_analysis_result.json
+fdroid_*.json
+VALIDATION_REPORT.md
+
+# Dev artifact directories
+Newfix/
+Repairs/
+changes/
+files (3)/
+files (4)/
+cache/
+ss_ocr/
+work/
+
+# Obsolete batch scripts
+run_analysis.ps1
+run_analysis_fixed.ps1
+run_analysis_fixed2.ps1
+run_androzoo.ps1
+run_downloads.ps1
+run_full_downloads.ps1
+run_koodous.ps1
 
 gstack/

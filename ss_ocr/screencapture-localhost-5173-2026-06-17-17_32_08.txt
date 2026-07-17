@@ -1,9 +1,0 @@
-DroidForensix DF ANDROID MALWARE INTELLIGENCE
-Threat Intelligence
-Backend Online
-Upload & Analyze
-Analysis Results
-Loading Threat Intelligence
-Threat Intelligence
-Fetching C2 geo-location, DNS status, and classification data __.
-Static Analysis Pipeline CONNECTED
