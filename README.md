@@ -1,136 +1,204 @@
 # DroidForensix
 
-Windows-native Android malware static-analysis pipeline.
+**Automated Android malware static-analysis pipeline** — extract C2 infrastructure from bytecode without execution. 63x faster than manual analysis.
 
-DroidForensix decompiles APKs with JADX/APKTool, extracts and decodes strings,
-correlates threat chains, and assesses risk via a local Ollama LLM — all
-running natively on Windows 10+ with Python 3.9+.
+[![Python](https://img.shields.io/badge/Python-3.9%2B-blue?logo=python)](https://python.org)
+[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
-## Required Windows Installations
+**1,711 C2 indicators** extracted from **277 malware samples** across 12 countries. **75% concentrated** in Chinese cloud providers. **63x speedup** over manual analysis (3.2 hours vs. 204 hours).
 
-- **Python 3.9+** – https://www.python.org/downloads/ (check "Add Python to PATH")
-- **Git for Windows** – https://git-scm.com/download/win (provides Git Bash utilities such as `strings.exe`)
-- **Ollama for Windows** – https://ollama.com/download/windows (the local model is configured in `.env`)
+---
 
-The repository now ships with portable copies of the analysis toolchain under
-`tools\` so no separate Java/Node/JADX/APKTool installation is required:
+## Key Results
 
-- `tools\jdk\jdk-21.0.3+9-jre` – bundled OpenJRE for JADX/APKTool
-- `tools\jadx` – JADX decompiler
-- `tools\apktool` – APKTool unpacker
-- `tools\node\current` – Node.js 22 LTS for the frontend
+| Metric | Value |
+|--------|-------|
+| Samples analyzed | 277 (204 timed) |
+| C2 indicators extracted | 1,711 |
+| Unique IPs | 203 (191 geolocated, 94%) |
+| Geographic clusters | 26 across 12 countries |
+| Chinese cloud concentration | 75% (Alibaba, Tencent, CHINANET) |
+| Pipeline speed (LLM path) | ~1.5 min/sample |
+| Pipeline speed (heuristic skip) | ~0.4 min/sample (~40% of samples) |
+| Total runtime (204 samples) | 3.2 hours sequential |
+| Speedup vs. manual | **63x** |
+| Recall (after heuristic fix) | **95%** (recovered from 80%) |
+
+---
+
+## How It Works
+
+```
+APK Input → Decompile → Analyze → Extract → Correlate → Geolocate → Score → Report
+```
+
+**9-step pipeline:**
+1. **Decompose** APK via AndroGuard (manifest, permissions, activities, services)
+2. **Decompile** Dalvik bytecode to Java via JADX
+3. **Analyze** method calls for suspicious APIs (WebSocket, shell exec, reflection)
+4. **Extract** indicators (domains, IPs, hardcoded strings, API endpoints)
+5. **Map** permission-to-capability relationships
+6. **Correlate** across VT, OTX, Shodan, Censys (parallel threat feeds)
+7. **Geolocate** C2 servers, identify cloud provider, cluster by region
+8. **Score** confidence based on method call frequency + contextual evidence
+9. **Report** structured JSON + PDF with per-phase timing
+
+---
 
 ## Quick Start
 
-### 1. Clone the repository
+### Prerequisites
+
+- **Python 3.9+**
+- **Git for Windows**
+- **Ollama for Windows** – https://ollama.com/download/windows
+
+The repo ships with portable copies of JADX, APKTool, JDK, and Node.js under `tools\`.
+
+### Setup
 
 ```powershell
-cd D:\
-git clone https://github.com/your-org/DroidForensix.git DroidForensix
+git clone https://github.com/DarshakPatel2004/DroidForensix.git
 cd DroidForensix
-```
-
-### 2. Create and activate a virtual environment
-
-```powershell
 python -m venv venv
 .\venv\Scripts\Activate.ps1
-```
+pip install -r requirements.txt     # flexible deps
+# OR for pinned reproducible build:
+pip install -r requirements-lock.txt
 
-### 3. Install Python dependencies
-
-```powershell
-pip install -r requirements.txt
-```
-
-### 4. Configure the Ollama model
-
-Copy the example environment file:
-
-```powershell
 copy .env.example .env
 ```
 
-The default model is set to the locally available
-`mistral:7b-instruct-q4_K_M`. If you prefer a different
-model, update `OLLAMA_MODEL` in `.env` and pull it:
+### Run
+
+Open three terminals:
 
 ```powershell
-ollama pull <model-name>
-```
-
-### 5. Start the services
-
-Three convenience batch scripts are provided in the repository root. Open a
-separate terminal for each and run them from `D:\DroidForensix`:
-
-```powershell
+# Terminal 1: Ollama
 .\run_ollama.bat
-```
 
-```powershell
+# Terminal 2: Backend
 .\run_backend.bat
-```
 
-```powershell
+# Terminal 3: Frontend (optional)
 .\run_frontend.bat
 ```
 
-The backend API will be available at `http://localhost:8000` and the frontend
-Vite dev server at `http://localhost:5173`.
-
-`run_backend.bat` automatically:
-
-- Activates the Python venv
-- Adds the bundled JRE, JADX, and APKTool to `PATH`
-- Forces `OLLAMA_HOST=http://localhost:11434` (so it works even if a system
-  environment variable points to `0.0.0.0:11434`)
-- Starts the FastAPI backend with uvicorn
-
-`run_frontend.bat` automatically installs frontend dependencies if `node_modules`
-is missing and then starts the Vite dev server using the bundled Node.js.
-
-## Batch Scripts
-
-| Script | Purpose |
-|--------|---------|
-| `run_ollama.bat` | Starts the local Ollama service on Windows. |
-| `run_backend.bat` | Activates the Python venv, sets up tool PATH/JAVA_HOME/Ollama host, and starts the FastAPI backend. |
-| `run_frontend.bat` | Installs frontend dependencies if needed and starts the Vite dev server. |
-
-## Analyzing an APK
-
-Once the backend is running you can POST an APK path:
+Submit an APK:
 
 ```powershell
 curl -X POST http://localhost:8000/analyze `
   -H "Content-Type: application/json" `
-  -d '{"apk_path": "D:\\DroidForensix\\samples\\malware\\example.apk"}'
+  -d '{"apk_path": "samples\\malware\\example.apk"}'
 ```
 
-Or run the pipeline directly from Python:
+Or run headless:
 
 ```powershell
-.\venv\Scripts\python.exe -m analysis.pipeline D:\DroidForensix\samples\malware\example.apk
+.\venv\Scripts\python.exe -m analysis.pipeline samples\malware\example.apk
 ```
 
-All intermediate files and the final `pipeline_result.json` are written to
-`D:\DroidForensix\analysis\work\<sha256>\`.
+Output written to `analysis/work/<sha256>/pipeline_result.json`.
+
+---
 
 ## API Endpoints
 
-- `GET  /` – Health check
-- `GET  /api/samples` – List analyzed samples
-- `GET  /api/sample/{sample_id}` – Full analysis report
-- `GET  /api/graph/{sample_id}` – 3D graph data
-- `GET  /api/clusters` – Clustering data for all samples
-- `GET  /api/timeline/{sample_id}` – Attack-chain timeline
-- `POST /analyze` – Trigger analysis of an APK
-- `WS   /ws` – Real-time analysis events
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/` | Health check |
+| GET | `/api/samples` | List analyzed samples |
+| GET | `/api/sample/{sample_id}` | Full analysis report |
+| GET | `/api/graph/{sample_id}` | 3D graph data |
+| GET | `/api/clusters` | Clustering data |
+| GET | `/api/timeline/{sample_id}` | Attack-chain timeline |
+| POST | `/analyze` | Trigger APK analysis |
+| WS | `/ws` | Real-time analysis events |
+
+---
+
+## Samples
+
+Evaluated on **306 Android APKs** from 49 malware families across 4 sources:
+
+| Source | Count | Description |
+|--------|-------|-------------|
+| AndroZoo | ~200 | Academic malware corpus |
+| MalwareBazaar | ~50 | Community-submitted malware |
+| Pendrive | ~30 | Manually collected |
+| Modern Eval | ~26 | Modern evaluation set |
+
+**Top families:** Cerberus (16), Hydra (11), TeaBot (11), Ermac (10), SpyNote (8), Anubis (6), Flubot (6)
+
+Full metadata in `sample_metadata.csv`.
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Backend | FastAPI, Ollama (Mistral 7B) |
+| Decompilation | AndroGuard, JADX, APKTool |
+| Threat Intel | VirusTotal, AlienVault OTX, Shodan, Censys, AbuseIPDB |
+| Geolocation | MaxMind GeoLite2 |
+| Frontend | React, Leaflet, WebSocket |
+| Hardware | Lenovo LOQ 15 (Ryzen 7435HS, RTX 4050 6GB, 24GB RAM) |
+
+---
+
+## Testing
+
+```powershell
+.\venv\Scripts\Activate.ps1
+pytest tests\
+```
+
+---
+
+## Project Structure
+
+```
+backend/          — FastAPI server, threat intel, pipeline logic
+frontend/         — React dashboard, Leaflet C2 maps
+analysis/         — Pipeline steps (extraction, decoding, correlation)
+scripts/          — Batch analysis, data collection utilities
+article_assets/   — LinkedIn article screenshots and assets
+samples/          — APK sample storage (malware + legitimate)
+data/             — GeoIP databases, YARA rules
+evaluation/       — Validation metrics, ground truth, FP analysis
+```
+
+---
+
+## Research
+
+This is part of an M.Sc. thesis at **National Forensic Sciences University**, supervised by Ms. Reet Chauhan.
+
+- Methodology documented ✓
+- Threat feeds integrated ✓
+- Code open-source ✓
+- Sample APKs from AndroZoo, MalwareBazaar, Drebin ✓
+- FP rate validation in progress (~10-15% estimated)
+
+### Known Limitations
+
+- Encrypted native libraries flagged for manual inspection
+- Reflection-heavy obfuscation handled by heuristics (not perfect)
+- C2-blind malware (zero static artifacts) — documented limitation
+- False positive rate currently TBD (50-indicator validation underway)
+
+---
+
+## Publication
+
+Read the full article: **"I Built an Automated Android Malware Analysis Pipeline. Here's What 277 Real Samples Taught Me."**
+
+---
 
 ## Environment Variables
 
-Copy `.env.example` to `.env` and adjust values as needed:
+Copy `.env.example` to `.env`:
 
 ```powershell
 copy .env.example .env
@@ -140,30 +208,10 @@ Key variables:
 
 - `OLLAMA_HOST=http://localhost:11434`
 - `OLLAMA_MODEL=mistral:7b-instruct-q4_K_M`
-- `NVIDIA_NIM_API_KEY` (optional; when set, NIM is preferred over Ollama)
+- `NVIDIA_NIM_API_KEY` (optional)
 
-## Testing
+---
 
-Run the test suite with pytest:
+## License
 
-```powershell
-.\venv\Scripts\Activate.ps1
-$env:JAVA_HOME = "D:\DroidForensix\tools\jdk\jdk-21.0.3+9-jre"
-$env:PATH = "$env:JAVA_HOME\bin;D:\DroidForensix\tools\jadx\bin;D:\DroidForensix\tools\apktool;D:\DroidForensix\tools\node\current;$env:PATH"
-$env:OLLAMA_HOST = "http://localhost:11434"
-pytest tests\
-```
-
-To verify the Ollama connection manually:
-
-```powershell
-.\venv\Scripts\python.exe -c "import requests; print(requests.get('http://localhost:11434/api/tags').json())"
-```
-
-## Notes
-
-- All file operations use `pathlib.Path` for cross-platform safety.
-- Do not hard-code Linux paths such as `/home/user/...` or `/tmp/`; use
-  `settings.WORK_DIR` from `backend/config.py` instead.
-- Tool paths in `backend/config.py` point to the bundled `tools\` directory.
-  If you already have JADX/APKTool installed elsewhere, edit those paths.
+MIT
