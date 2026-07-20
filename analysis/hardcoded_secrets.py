@@ -40,7 +40,7 @@ SECRET_PATTERNS: List[Dict[str, Any]] = [
         "description": "AWS Secret Access Key",
         "pattern": re.compile(r"(?<![a-zA-Z0-9/+=])([a-zA-Z0-9/+=]{40})(?![a-zA-Z0-9/+=])"),
         "severity": "high",
-        "validation": None,
+        "validation": lambda m: "/" in m.group(1) or "+" in m.group(1),
     },
     {
         "name": "google_api_key",
@@ -119,7 +119,7 @@ SECRET_PATTERNS: List[Dict[str, Any]] = [
         "description": "GitHub OAuth / Old-Style Token",
         "pattern": re.compile(r"(?<![a-zA-Z0-9])([a-f0-9]{40})(?![a-zA-Z0-9])"),
         "severity": "medium",
-        "validation": None,
+        "validation": lambda m: _has_valid_entropy(m.group(1), 4.0),
     },
     {
         "name": "discord_webhook",
@@ -237,6 +237,15 @@ SECRET_PATTERNS: List[Dict[str, Any]] = [
     },
 ]
 
+# Patterns skipped in ALL string/source scans (high FP rate on generic patterns)
+SKIP_PATTERNS_IN_ALL_SCANS = {
+    "high_entropy_base64",
+    "aws_secret_key",
+    "github_old_token",
+    "twilio_token",
+    "mailchimp_api_key",
+}
+
 # Patterns whose matched string is the key itself (not extracted from a group)
 DIRECT_MATCH_PATTERNS = {
     "aws_access_key", "google_api_key", "jwt_token", "slack_token",
@@ -258,8 +267,13 @@ SECRET_NOTEBOOKS = frozenset({
 def _is_placeholder(value: str) -> bool:
     lowered = value.lower().replace("-", "").replace("_", "").replace(" ", "")
     for p in SECRET_NOTEBOOKS:
-        if p in lowered:
-            return True
+        norm_p = p.lower().replace("-", "").replace("_", "").replace(" ", "")
+        if "." in norm_p:
+            if lowered == norm_p:
+                return True
+        else:
+            if norm_p in lowered:
+                return True
     return False
 
 
@@ -291,14 +305,15 @@ def _is_printable_text(text: str, min_alpha_pct: float = 40.0) -> bool:
     pct_alpha = (alpha / len(text)) * 100
     if pct_printable < 80 or pct_alpha < min_alpha_pct:
         return False
-    # Shannon entropy: decoded secrets have higher entropy (~4.5+) than
-    # structured text (< 3.5). Filters out "this is a test" noise.
+    # Shannon entropy: decoded secrets sit in 4.2–6.5 range.
+    # Below 4.2: structured text (JSON, short English phrases).
+    # Above 6.5: near-random bytes or compressed data — unlikely to be a real secret.
     freq = {}
     for c in text:
         freq[c] = freq.get(c, 0) + 1
     n = len(text)
     entropy = -sum((c / n) * __import__("math").log2(c / n) for c in freq.values())
-    return entropy >= 3.5
+    return 4.2 <= entropy <= 6.5
 
 
 def _try_base64_decode(value: str) -> Optional[str]:
@@ -524,15 +539,7 @@ def scan_strings(
             continue
 
         for pattern_def in SECRET_PATTERNS:
-            if pattern_def.get("name") == "high_entropy_base64":
-                continue
-            if pattern_def.get("name") == "aws_secret_key":
-                continue
-            if pattern_def.get("name") == "github_old_token":
-                continue
-            if pattern_def.get("name") == "twilio_token":
-                continue
-            if pattern_def.get("name") == "mailchimp_api_key":
+            if pattern_def.get("name") in SKIP_PATTERNS_IN_ALL_SCANS:
                 continue
 
             match = pattern_def["pattern"].search(value)
@@ -606,6 +613,8 @@ def scan_source_files(
                 continue
 
             for pattern_def in SECRET_PATTERNS:
+                if pattern_def.get("name") in SKIP_PATTERNS_IN_ALL_SCANS:
+                    continue
                 match = pattern_def["pattern"].search(stripped)
                 if not match:
                     continue
