@@ -283,13 +283,22 @@ HEX_RX = re.compile(r'^[0-9A-Fa-f]+$')
 
 def _is_printable_text(text: str, min_alpha_pct: float = 40.0) -> bool:
     """Return True if text is mostly printable ASCII with sufficient letter content."""
-    if not text:
+    if not text or len(text) < 6:
         return False
     printable = sum(1 for c in text if 32 <= ord(c) <= 126 or c in "\t\n\r")
     alpha = sum(1 for c in text if c.isalpha())
     pct_printable = (printable / len(text)) * 100
     pct_alpha = (alpha / len(text)) * 100
-    return pct_printable >= 80 and pct_alpha >= min_alpha_pct
+    if pct_printable < 80 or pct_alpha < min_alpha_pct:
+        return False
+    # Shannon entropy: decoded secrets have higher entropy (~4.5+) than
+    # structured text (< 3.5). Filters out "this is a test" noise.
+    freq = {}
+    for c in text:
+        freq[c] = freq.get(c, 0) + 1
+    n = len(text)
+    entropy = -sum((c / n) * __import__("math").log2(c / n) for c in freq.values())
+    return entropy >= 3.5
 
 
 def _try_base64_decode(value: str) -> Optional[str]:
@@ -345,17 +354,22 @@ def _decode_jwt(value: str) -> Optional[str]:
 
 
 def _decode_url_credentials(value: str) -> Optional[str]:
-    """Extract and URL-decode user:pass from embedded-credential URLs."""
+    """Extract and URL-decode credentials from URLs (Basic Auth + query params)."""
+    parts = []
+    # Basic auth: https://user:pass@host
     m = re.match(r"https?://([^@]+)@", value)
-    if not m:
-        return None
-    user_pass = m.group(1)
-    if ":" not in user_pass:
-        return None
-    user, password = user_pass.split(":", 1)
-    user_dec = urllib.parse.unquote(user)
-    pass_dec = urllib.parse.unquote(password)
-    return f"user={user_dec} pass={pass_dec}"
+    if m:
+        user_pass = m.group(1)
+        if ":" in user_pass:
+            user, password = user_pass.split(":", 1)
+            parts.append(f"user={urllib.parse.unquote(user)} pass={urllib.parse.unquote(password)}")
+    # Query params: ?key=...&secret=...&token=...&api_key=...&password=...
+    qm = value.find("?")
+    if qm >= 0:
+        for param in urllib.parse.parse_qs(value[qm + 1:]).items():
+            if param[0].lower() in ("key", "secret", "token", "api_key", "api-key", "apikey", "password", "pass", "access_token"):
+                parts.append(f"{param[0]}={param[1][0]}")
+    return " | ".join(parts) if parts else None
 
 
 def _decode_connection_string(value: str) -> Optional[str]:
@@ -407,8 +421,17 @@ def auto_decode_secret(
     if secret_type == "pkcs8_private_key":
         return "(PKCS#8 private key header detected — full key omitted from preview)"
 
-    # Generic: if value looks like base64, try to decode
+    # Detect headerless PEM (long base64 blob, likely key material without header)
     stripped = raw_value.strip()
+    if len(stripped) > 400 and BASE64_RX.match(stripped) and not _is_placeholder(stripped):
+        try:
+            decoded = base64.b64decode(stripped)
+            if len(decoded) > 20 and decoded[0] == 0x30:
+                return f"(potential headerless crypto key — {len(stripped)} chars base64)"
+        except Exception:
+            pass
+
+    # Generic: if value looks like base64, try to decode
     if BASE64_RX.match(stripped) and len(stripped) >= 16:
         result = _try_base64_decode(stripped)
         if result:
@@ -437,17 +460,40 @@ def auto_decode_secret(
     return None
 
 
-def _enrich_with_decoded(findings: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Add 'decoded' field to each finding by running auto_decode."""
-    enriched = []
+def _dedup_and_enrich(findings: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Deduplicate by (type, decoded_value) and auto-decode each finding.
+
+    Same secret found in multiple locations or encodings is merged into
+    one finding with aggregated source locations.
+    """
+    groups = {}
     for f in findings:
         raw = f.get("value", "")
         ctx = f.get("context", "")
         decoded = auto_decode_secret(f["secret_type"], raw, ctx)
         if decoded:
             f["decoded"] = decoded
-        enriched.append(f)
-    return enriched
+
+        # Dedup key: use decoded value when available, fall back to raw
+        dedup_key = (f["secret_type"], decoded if decoded else raw)
+
+        if dedup_key not in groups:
+            f["locations"] = [{"source": f.get("source") or f.get("source_file", "?"),
+                               "line": f.get("line_number")}]
+            groups[dedup_key] = f
+        else:
+            existing = groups[dedup_key]
+            loc = {"source": f.get("source") or f.get("source_file", "?"),
+                   "line": f.get("line_number")}
+            if loc not in existing["locations"]:
+                existing["locations"].append(loc)
+
+    result = list(groups.values())
+    for f in result:
+        if len(f["locations"]) > 1:
+            f["occurrence_count"] = len(f["locations"])
+            f["note"] = f"Found in {len(f['locations'])} locations"
+    return result
 
 
 def scan_strings(
@@ -516,7 +562,7 @@ def scan_strings(
             })
             seen_values.add(matched_value)
 
-    return _enrich_with_decoded(findings)
+    return _dedup_and_enrich(findings)
 
 
 def scan_source_files(
@@ -590,7 +636,7 @@ def scan_source_files(
                 })
                 seen_values.add(matched_value)
 
-    return _enrich_with_decoded(findings)
+    return _dedup_and_enrich(findings)
 
 
 def scan_high_entropy_strings(
