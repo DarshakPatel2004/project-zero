@@ -31,6 +31,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from backend.config import settings
 from droidforensix_llm import LLMVerifier, get_verifier, set_verifier
+from analysis.hardcoded_secrets import analyze_hardcoded_secrets, classify_risk, format_for_report
 
 
 # ---------------------------------------------------------------------------
@@ -606,10 +607,33 @@ def stage_2_jadx_code_review(apk_path: str, work_dir: str, llm: LLMVerifier) -> 
         suspicious_classes = _identify_suspicious_classes(jadx_output)
         _log(2, f"Suspicious classes: {len(suspicious_classes)}")
 
-    # 2.4 — LLM Cross-Verification
+    # 2.4 — Hardcoded Secrets Detection from Strings and Decompiled Source
+    hardcoded_secrets = []
+    secret_risk = {"severity": "none", "total_secrets": 0, "risk_score": 0}
+    try:
+        strings_result = {"sample_id": "", "categories": {"string_literals": []}, "string_literals": []}
+        if jadx_output and Path(jadx_output).exists():
+            secrets_result = analyze_hardcoded_secrets(strings_result, jadx_output_dir=jadx_output)
+            hardcoded_secrets = secrets_result["hardcoded_secrets"]
+            secret_risk = secrets_result["secret_risk"]
+        _log(2, f"Hardcoded secrets: {secret_risk['total_secrets']} ({secret_risk['severity']})")
+    except Exception as e:
+        _log(2, f"[WARN] Secrets scan failed: {e}")
+
+    # 2.5 — LLM Cross-Verification
     high_severity = [c for c in suspicious_classes if c.get("severity") == "high"]
     code_snippets = [f"- Class: {cls['class']}, Pattern: {cls['pattern']}"
                      for cls in high_severity[:5]]
+
+    secrets_summary = ""
+    if hardcoded_secrets:
+        critical_high = [s for s in hardcoded_secrets if s.get("severity") in ("critical", "high")]
+        if critical_high:
+            secrets_summary = (
+                f"\nHardcoded secrets: {len(hardcoded_secrets)} total, "
+                f"{len(critical_high)} critical/high. "
+                f"Types: {', '.join(set(s['secret_type'] for s in critical_high[:5]))}."
+            )
 
     llm_result = llm.verify_threat(
         stage="code_review",
@@ -618,7 +642,8 @@ def stage_2_jadx_code_review(apk_path: str, work_dir: str, llm: LLMVerifier) -> 
             f"Suspicious classes identified:\n"
             f"{chr(10).join(code_snippets) if code_snippets else 'None'}\n\n"
             f"Decompilation status: {decompilation_status}\n"
-            f"High-severity patterns: {len(high_severity)}\n\n"
+            f"High-severity patterns: {len(high_severity)}"
+            f"{secrets_summary}\n\n"
             f"Are these patterns indicative of malware behavior?"
         ),
         verbose=True,
@@ -632,6 +657,8 @@ def stage_2_jadx_code_review(apk_path: str, work_dir: str, llm: LLMVerifier) -> 
             "decompilation_status": decompilation_status,
             "suspicious_classes": suspicious_classes,
             "extracted_ips": jadx_ips,
+            "hardcoded_secrets": hardcoded_secrets,
+            "secret_risk": secret_risk,
             "llm_verification": llm_result,
             "duration_seconds": duration,
         }
@@ -1000,6 +1027,15 @@ def stage_5_consolidation(
         for t in v.get("mitre_tactics", []):
             all_tactics.add(t)
 
+    # Secret risk summary
+    secret_risk = stage2.get("stage_2_jadx_analysis", {}).get("secret_risk", {})
+    secret_summary = ""
+    if secret_risk.get("total_secrets", 0):
+        secret_summary = (
+            f"Hardcoded secrets: {secret_risk['total_secrets']} found "
+            f"({secret_risk['severity']}) — risk score {secret_risk['risk_score']}/100\n"
+        )
+
     # Final LLM consolidation
     llm_result = llm.verify_threat(
         stage="final_consolidation",
@@ -1011,6 +1047,7 @@ def stage_5_consolidation(
             f"Suspicious classes: {len(stage2.get('stage_2_jadx_analysis', {}).get('suspicious_classes', []))}\n"
             f"Suspicious IPs: {len([d for d in stage3.get('stage_3_dns_enrichment', {}).get('ip_enrichment', []) if d.get('threat_level') in ('suspicious', 'malicious')])}\n"
             f"Cross-validation confirmed: {stage4.get('stage_4_cross_validation', {}).get('confirmed', 0)}\n"
+            f"{secret_summary}"
             f"MITRE tactics: {', '.join(all_tactics) if all_tactics else 'none'}\n\n"
             f"Provide the final threat assessment."
         ),
@@ -1036,6 +1073,7 @@ def stage_5_consolidation(
                 "benign_votes": benign_count,
                 "total_stages_voted": total_votes,
             },
+            "secret_risk": secret_risk,
             "llm_consolidation": llm_result,
         },
         **stage0,
@@ -1075,6 +1113,11 @@ def _generate_pdf_report(report: Dict, output_dir: Path) -> Optional[str]:
         from backend.pdf_report import generate_report
 
         # Transform forensic report into the format expected by generate_report
+        secret_risk = report.get("final_assessment", {}).get("secret_risk", {})
+        jadx_secrets = report.get("stage_2_jadx_analysis", {}).get("hardcoded_secrets", [])
+        secrets_report = ""
+        if jadx_secrets:
+            secrets_report = format_for_report(jadx_secrets)
         result_compat = {
             "sample_id": report.get("report_metadata", {}).get("package_name", "forensic"),
             "metadata": {
@@ -1104,6 +1147,9 @@ def _generate_pdf_report(report: Dict, output_dir: Path) -> Optional[str]:
                 "obfuscation_level": "unknown",
                 "indicators": {},
             },
+            "hardcoded_secrets": jadx_secrets,
+            "secret_risk": secret_risk,
+            "secret_report_text": secrets_report,
         }
 
         pdf_bytes = generate_report(result_compat)

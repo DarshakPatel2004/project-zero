@@ -31,6 +31,7 @@ from analysis.step6_correlation import build_threat_chains
 from analysis.step7_llm_assessment import assess_with_llm
 from analysis.step8_obfuscation_analysis import analyze_obfuscation
 from analysis.step9_post_process import post_process_result
+from analysis.hardcoded_secrets import analyze_hardcoded_secrets
 from backend.family_id import identify_family
 from backend.dissection import APKDissector
 
@@ -225,6 +226,17 @@ def run_pipeline(apk_path: str, work_dir: Optional[str] = None,
         "step_context": 2,
     })
 
+    # Hardcoded Secrets Scan (inline after string enumeration)
+    jadx_dir = extraction.get("jadx_output_dir")
+    secrets_result = analyze_hardcoded_secrets(strings_result, jadx_output_dir=jadx_dir)
+    _emit(event_emitter, "metric_updated", {
+        "sample_id": sample_id,
+        "metric_name": "hardcoded_secrets_count",
+        "metric_value": secrets_result.get("secret_risk", {}).get("total_secrets", 0),
+        "step_context": 2,
+    })
+    logger.info("Hardcoded secrets: %d", secrets_result.get("secret_risk", {}).get("total_secrets", 0))
+
     # Step 3: Encoding Detection
     encodings_result, timeline["step3"] = _run_step(
         3, sample_id, apk_size, global_start, event_emitter, work_dir,
@@ -302,7 +314,7 @@ def run_pipeline(apk_path: str, work_dir: Optional[str] = None,
     # Step 8: LLM Assessment
     def llm_with_fallback():
         try:
-            return assess_with_llm(chains_result, c2_result, obfuscation_result)
+            return assess_with_llm(chains_result, c2_result, obfuscation_result, secrets_result)
         except Exception as e:
             return {
                 "severity": "low",
@@ -347,6 +359,8 @@ def run_pipeline(apk_path: str, work_dir: Optional[str] = None,
             "uses_permissions": manifest.get("uses_permissions", []),
         },
         "strings": strings_result["categories"],
+        "hardcoded_secrets": secrets_result["hardcoded_secrets"],
+        "secret_risk": secrets_result["secret_risk"],
         "encodings": encodings_result["encodings"],
         "payloads": payloads_result["payloads"],
         "c2_infrastructure": c2_result["c2_infrastructure"],

@@ -67,17 +67,24 @@ CRITICAL — FALSE POSITIVE PREVENTION
 - If the narrative mentions C2 but no C2 was extracted, you are hallucinating. STOP. Only describe what was actually observed.
 - A high obfuscation score with zero C2 and zero threat chains does NOT justify high severity. It means the app uses obfuscation.
 
+HARDCODED SECRETS
+- If hardcoded secrets findings are provided in the analysis context, include them in your assessment.
+- High-criticality secrets (private keys, cloud credentials, auth tokens) increase the app's risk profile even without active C2 — they indicate credential theft capability or insecure data storage.
+- A private key embedded in the APK is CRITICAL severity regardless of other findings — it means signing credentials or encryption keys are exposed.
+- Hardcoded API keys for cloud services (AWS, Google, Firebase) indicate potential data exfiltration or unauthorized service access.
+- Do NOT flag developer debug keys or well-known test credentials as malicious — use judgment based on context.
+
 CONCRETE EVIDENCE REQUIREMENTS
-- threat_indicators: List specific technical artifacts actually found (e.g. "XOR-encoded strings in resources", "Reflection API usage"), NOT generic labels
+- threat_indicators: List specific technical artifacts actually found (e.g. "XOR-encoded strings in resources", "Reflection API usage", "Hardcoded AWS credentials"), NOT generic labels
 - recommended_actions: Specific to findings, not generic advice like "update antivirus"
-- narrative: Name specific encoding types, permission categories, and techniques observed. Do NOT write generic malware descriptions
+- narrative: Name specific encoding types, permission categories, secret types, and techniques observed. Do NOT write generic malware descriptions
 - Do NOT include actual malicious URLs or payloads in the narrative — describe indirectly
 
 {antml:thinking_mode}auto{/antml:thinking_mode}"""
 
 
-def format_threat_context(chains_result: dict, c2_result: dict, obfuscation_result: Optional[dict] = None) -> str:
-    """Format threat chains, C2 summary, and obfuscation indicators for LLM consumption."""
+def format_threat_context(chains_result: dict, c2_result: dict, obfuscation_result: Optional[dict] = None, secrets_result: Optional[dict] = None) -> str:
+    """Format threat chains, C2 summary, obfuscation indicators, and hardcoded secrets for LLM consumption."""
     lines = []
     lines.append(f"Total threat chains: {chains_result.get('total_chains', 0)}")
     lines.append(f"Total C2 indicators: {c2_result.get('total_c2s', 0)}")
@@ -132,6 +139,28 @@ def format_threat_context(chains_result: dict, c2_result: dict, obfuscation_resu
         if any(d.get("likely_packed") for d in dex_entropy):
             lines.append("  DEX packing detected: likely_packed=True")
 
+    if secrets_result:
+        secrets_findings = secrets_result.get("hardcoded_secrets", [])
+        secret_risk = secrets_result.get("secret_risk", {})
+        if secret_risk.get("total_secrets", 0):
+            lines.append("")
+            lines.append("Hardcoded Secrets Analysis:")
+            lines.append(f"  Total secrets: {secret_risk['total_secrets']} (severity: {secret_risk['severity']})")
+            by_sev = secret_risk.get("by_severity", {})
+            if by_sev.get("critical"):
+                lines.append(f"  Critical: {by_sev['critical']}")
+            if by_sev.get("high"):
+                lines.append(f"  High: {by_sev['high']}")
+            if by_sev.get("medium"):
+                lines.append(f"  Medium: {by_sev['medium']}")
+            lines.append(f"  Unique types: {secret_risk.get('unique_types', 0)}")
+            top_critical = [s for s in secrets_findings if s.get("severity") == "critical"][:3]
+            for s in top_critical:
+                lines.append(f"    - [{s.get('secret_type')}] {s.get('value', '')[:60]}")
+            top_high = [s for s in secrets_findings if s.get("severity") == "high"][:5]
+            for s in top_high:
+                lines.append(f"    - [{s.get('secret_type')}] {s.get('value', '')[:60]}")
+
     return "\n".join(lines)
 
 
@@ -180,8 +209,8 @@ def validate_assessment(assessment: dict) -> bool:
     return True
 
 
-def sanity_check(assessment: dict, chains_result: dict, c2_result: dict, obfuscation_result: Optional[dict] = None) -> dict:
-    """Cross-reference LLM severity against detected indicators, including obfuscation/permissions."""
+def sanity_check(assessment: dict, chains_result: dict, c2_result: dict, obfuscation_result: Optional[dict] = None, secrets_result: Optional[dict] = None) -> dict:
+    """Cross-reference LLM severity against detected indicators, including obfuscation/permissions/secrets."""
     c2_count = c2_result.get("total_c2s", 0)
     chain_count = chains_result.get("total_chains", 0)
     severity = assessment.get("severity", "low")
@@ -189,6 +218,20 @@ def sanity_check(assessment: dict, chains_result: dict, c2_result: dict, obfusca
     obf_score = (obfuscation_result or {}).get("obfuscation_score", 0)
     indicators = (obfuscation_result or {}).get("indicators", {})
     dangerous_perms = indicators.get("dangerous_permissions", [])
+
+    # If critical/high secrets found but severity is low, raise it
+    if secrets_result:
+        secrets_findings = secrets_result.get("hardcoded_secrets", [])
+        critical_count = sum(1 for s in secrets_findings if s.get("severity") == "critical")
+        high_count = sum(1 for s in secrets_findings if s.get("severity") == "high")
+        if critical_count > 0 and severity == "low":
+            assessment["severity"] = "high"
+            assessment["risk_score"] = max(risk_score, 70)
+            assessment["narrative"] += " [SANITY CHECK: elevated due to critical hardcoded secrets (private keys/credentials).]"
+        elif (critical_count > 0 or high_count >= 3) and severity == "medium":
+            assessment["severity"] = "high"
+            assessment["risk_score"] = max(risk_score, 65)
+            assessment["narrative"] += " [SANITY CHECK: elevated due to multiple high-severity hardcoded secrets.]"
 
     # If active C2 exists but severity is low, raise it
     if c2_count > 0 and severity == "low":
@@ -261,12 +304,14 @@ def should_skip_llm(
     chains_result: dict,
     c2_result: dict,
     obfuscation_result: Optional[dict] = None,
+    secrets_result: Optional[dict] = None,
     high_conf_threshold: float = 0.8,
 ) -> bool:
     """
     Decide whether to skip LLM assessment and use rule-based fallback.
     
-    Returns True (skip LLM) if NO high-confidence C2 infrastructure exists.
+    Returns True (skip LLM) if NO high-confidence C2 infrastructure exists
+    AND no critical/high-severity hardcoded secrets were found.
     
     The key insight: C2 infrastructure is the strongest single indicator of
     malicious intent. If no C2 indicator reaches high confidence (> 0.8),
@@ -292,6 +337,17 @@ def should_skip_llm(
     # If ANY high-confidence C2 exists, call LLM — there's real signal to reason about
     if len(high_conf_c2) > 0:
         return False
+    
+    # Check for critical/high-severity hardcoded secrets — these warrant LLM assessment
+    if secrets_result:
+        secret_risk = secrets_result.get("secret_risk", {})
+        if secret_risk.get("severity") in ("critical", "high"):
+            return False
+        # Also check individual findings directly
+        secrets_findings = secrets_result.get("hardcoded_secrets", [])
+        for s in secrets_findings:
+            if s.get("severity") in ("critical", "high"):
+                return False
     
     # No high-confidence C2 → skip LLM. Benign signal, no hallucination risk.
     return True
@@ -699,9 +755,9 @@ def _call_ollama(context: str, host: str, model: str, max_retries: int = 3) -> O
     return client.generate(context)
 
 
-def assess_with_llm(chains_result: dict, c2_result: dict, obfuscation_result: Optional[dict] = None) -> dict:
+def assess_with_llm(chains_result: dict, c2_result: dict, obfuscation_result: Optional[dict] = None, secrets_result: Optional[dict] = None) -> dict:
     """
-    Full Step 7: Get LLM assessment of threat chains and obfuscation indicators.
+    Full Step 7: Get LLM assessment of threat chains, obfuscation indicators, and hardcoded secrets.
 
     Prefers NVIDIA NIM if NVIDIA_NIM_API_KEY is set, otherwise falls back to Ollama.
     Any unexpected error returns the rule-based fallback assessment so the pipeline
@@ -717,7 +773,7 @@ def assess_with_llm(chains_result: dict, c2_result: dict, obfuscation_result: Op
         logging.getLogger(__name__).debug("Could not create work dir %s", work_dir)
 
     # ========== OPTION 2: Pre-flight benign check ==========
-    if should_skip_llm(chains_result, c2_result, obfuscation_result):
+    if should_skip_llm(chains_result, c2_result, obfuscation_result, secrets_result):
         print(f"  [Option 2] Benign signal detected -> skipping LLM, using heuristic verdict")
         assessment = benign_verdict_heuristic(chains_result, c2_result, obfuscation_result)
         assessment["raw_llm_output"] = "(skipped: heuristic benign verdict)"
@@ -733,7 +789,7 @@ def assess_with_llm(chains_result: dict, c2_result: dict, obfuscation_result: Op
         return assessment
 
     try:
-        context = format_threat_context(chains_result, c2_result, obfuscation_result)
+        context = format_threat_context(chains_result, c2_result, obfuscation_result, secrets_result)
         assessment = None
         raw_output = ""
         max_retries = 3
@@ -755,14 +811,14 @@ def assess_with_llm(chains_result: dict, c2_result: dict, obfuscation_result: Op
                 raw_output = _call_nvidia_nim(context, nim_model, nim_base_url, nim_api_key, max_retries=3)
                 parsed = parse_llm_json(raw_output) if raw_output else None
                 if parsed and validate_assessment(parsed):
-                    assessment = sanity_check(parsed, chains_result, c2_result, obfuscation_result)
+                    assessment = sanity_check(parsed, chains_result, c2_result, obfuscation_result, secrets_result)
                     assessment["method"] = "llm"
                     break
                 else:
                     wait = (attempt + 1) * 2
                     print(f"  [!] Invalid LLM response, retrying in {wait}s (attempt {attempt + 1}/{max_retries})...")
                     messages_note = "Your previous response was invalid. Output ONLY valid JSON.\n\n"
-                    context = messages_note + format_threat_context(chains_result, c2_result, obfuscation_result)
+                    context = messages_note + format_threat_context(chains_result, c2_result, obfuscation_result, secrets_result)
                     time.sleep(wait)
         elif use_openrouter:
             # OpenRouter path (OpenAI-compatible API)
@@ -774,14 +830,14 @@ def assess_with_llm(chains_result: dict, c2_result: dict, obfuscation_result: Op
                 raw_output = _call_nvidia_nim(context, or_model, or_base_url, or_api_key, max_retries=3)
                 parsed = parse_llm_json(raw_output) if raw_output else None
                 if parsed and validate_assessment(parsed):
-                    assessment = sanity_check(parsed, chains_result, c2_result, obfuscation_result)
+                    assessment = sanity_check(parsed, chains_result, c2_result, obfuscation_result, secrets_result)
                     assessment["method"] = "llm"
                     break
                 else:
                     wait = (attempt + 1) * 2
                     print(f"  [!] Invalid LLM response, retrying in {wait}s (attempt {attempt + 1}/{max_retries})...")
                     messages_note = "Your previous response was invalid. Output ONLY valid JSON.\n\n"
-                    context = messages_note + format_threat_context(chains_result, c2_result, obfuscation_result)
+                    context = messages_note + format_threat_context(chains_result, c2_result, obfuscation_result, secrets_result)
                     time.sleep(wait)
         else:
             # Local Ollama path
@@ -793,14 +849,14 @@ def assess_with_llm(chains_result: dict, c2_result: dict, obfuscation_result: Op
                 raw_output = _call_ollama(context, ollama_host, ollama_model, max_retries=3)
                 parsed = parse_llm_json(raw_output) if raw_output else None
                 if parsed and validate_assessment(parsed):
-                    assessment = sanity_check(parsed, chains_result, c2_result, obfuscation_result)
+                    assessment = sanity_check(parsed, chains_result, c2_result, obfuscation_result, secrets_result)
                     assessment["method"] = "llm"
                     break
                 else:
                     wait = (attempt + 1) * 2
                     print(f"  [!] Invalid LLM response, retrying in {wait}s (attempt {attempt + 1}/{max_retries})...")
                     messages_note = "Your previous response was invalid. Output ONLY valid JSON.\n\n"
-                    context = messages_note + format_threat_context(chains_result, c2_result, obfuscation_result)
+                    context = messages_note + format_threat_context(chains_result, c2_result, obfuscation_result, secrets_result)
                     time.sleep(wait)
 
         if assessment is None:
