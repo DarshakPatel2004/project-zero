@@ -767,15 +767,19 @@ async def api_generate_pdf_report(sample_id: str, request: dict) -> Response:
     """
     Generate a full forensic PDF report for a sample.
 
-    Body: { "mode": "quick" | "full" }
+    Body: { "mode": "quick" | "full", "sections": { "metadata": true, ... } }
     - quick: LLM summaries for top 30 suspicious methods by suspicion score
-    - full:  LLM summaries for all suspicious methods (may be slow)
+      - sections: optional dict toggling which sections appear. Supported keys:
+        metadata, llm_assessment, obfuscation, c2_infrastructure, suspicious_methods.
+        Unknown keys are ignored. Cover page + executive summary always render.
+    - full:  LLM summaries for all suspicious methods (may be slow); all sections on.
     """
     result = load_result(sample_id)
     if result is None:
         raise HTTPException(status_code=404, detail="Sample not found")
 
     mode = request.get("mode", "quick")
+    sections = request.get("sections") if mode == "quick" else None
 
     # Gather supporting data
     threat_data = ti.build_threat_intel(result, sample_id)
@@ -875,6 +879,7 @@ async def api_generate_pdf_report(sample_id: str, request: dict) -> Response:
                 obfuscation=obfuscation,
                 annotated_methods=annotated_methods,
                 mode=mode,
+                selected_sections=sections,
             )
         )
     except Exception as e:

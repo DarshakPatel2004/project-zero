@@ -128,20 +128,20 @@ class DroidForensixPDFGenerator:
         vt_key: Optional[str] = None,
         otx_key: Optional[str] = None,
         shodan_key: Optional[str] = None,
-        censys_id: Optional[str] = None,
-        censys_secret: Optional[str] = None,
+        censys_token: Optional[str] = None,
+        censys_org_id: Optional[str] = None,
     ):
         self.enable_ti = enable_ti
         self.styles = self._setup_styles()
 
         self.ti_enricher: Optional[ThreatIntelligenceEnricher] = None
-        if enable_ti and any([vt_key, otx_key, shodan_key, censys_id]):
+        if enable_ti and any([vt_key, otx_key, shodan_key, censys_token]):
             self.ti_enricher = ThreatIntelligenceEnricher(
                 vt_key=vt_key,
                 otx_key=otx_key,
                 shodan_key=shodan_key,
-                censys_id=censys_id,
-                censys_secret=censys_secret,
+                censys_token=censys_token,
+                censys_org_id=censys_org_id,
             )
 
     def generate_quick_pdf(

@@ -1,15 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import '../styles/ObfuscationView.css'
 
-const TECHNIQUE_COLORS = {
-  encrypted_assets: 'rose',
-  dynamic_loading: 'rose',
-  native_loading: 'violet',
-  reflection: 'amber',
-  crypto_apis: 'cyan',
-  suspicious_apis: 'emerald',
-  dangerous_permissions: 'slate',
-}
+const TECH_COLORS = ['rose', 'amber', 'cyan', 'violet']
 
 export default function ObfuscationView({ sample, apiUrl }) {
   const [obfuscationData, setObfuscationData] = useState(null)
@@ -23,12 +15,7 @@ export default function ObfuscationView({ sample, apiUrl }) {
   const sampleId = sample?.sampleId || sample?.sha256 || sample?.uploadId
   const API_URL = apiUrl || 'http://localhost:8000'
 
-  useEffect(() => {
-    if (!sampleId) return
-    fetchObfuscation()
-  }, [sampleId])
-
-  const fetchObfuscation = async () => {
+  const fetchObfuscation = useCallback(async () => {
     try {
       setLoading(true)
       const response = await fetch(`${API_URL}/api/sample/${sampleId}/obfuscation`)
@@ -41,7 +28,7 @@ export default function ObfuscationView({ sample, apiUrl }) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [sampleId, API_URL])
 
   const runDeobfuscation = async () => {
     if (!deobfInput.trim() || !sampleId) return
@@ -61,6 +48,11 @@ export default function ObfuscationView({ sample, apiUrl }) {
       setDeobfLoading(false)
     }
   }
+
+  useEffect(() => {
+    if (!sampleId) return
+    fetchObfuscation() // eslint-disable-line react-hooks/set-state-in-effect
+  }, [sampleId, fetchObfuscation])
 
   if (!sample) {
     return (
@@ -105,95 +97,66 @@ export default function ObfuscationView({ sample, apiUrl }) {
   const score = Math.round(obfuscationData.obfuscation_score || 0)
   const level = obfuscationData.obfuscation_level || 'low'
   const techniques = obfuscationData.techniques || []
-  const packedDex = obfuscationData.packed_dex || []
-  const nativeArtifacts = obfuscationData.native_library_artifacts || []
+  const techGrid = techniques.slice(0, 4).map((t, i) => ({
+    name: t.name || t.key,
+    percent: Math.min(t.count * 10, 99),
+    api: t.items?.[0]?.class || t.items?.[0]?.detail || '',
+    color: TECH_COLORS[i] || 'cyan',
+  }))
 
   return (
-    <div className="obfuscation-view view-wrapper">
-      <div className="obfuscation-header card">
-        <div className="obfuscation-header-main">
-          <h2>Obfuscation Analysis</h2>
-          <p>Detected obfuscation techniques, packing indicators, and deobfuscation tools</p>
+    <div className="obfuscation-view">
+      <div className="obf-head">
+        <div>
+          <p className="section-title">EVASION ASSESSMENT</p>
+          <h2>Obfuscation score <span style={{ color: `var(--risk-${level})` }}>{score}/100</span></h2>
         </div>
-        <div className={`obfuscation-score score-${level}`}>
-          <span className="score-value">{score}</span>
-          <span className="score-label">/ 100</span>
-          <span className="score-level">{level}</span>
+        <div className="obf-meter" style={{ width: '100%', maxWidth: 300 }}>
+          <div className="meter-bg">
+            <div className="meter-fill" style={{ width: `${score}%`, background: `var(--risk-${level})` }} />
+          </div>
         </div>
       </div>
 
-      {techniques.length === 0 && packedDex.length === 0 && nativeArtifacts.length === 0 ? (
-        <div className="obfuscation-empty card">
-          <span className="empty-icon">🔍</span>
-          <h3>No obfuscation indicators detected</h3>
-          <p>The sample scored {score}/100. No reflection, dynamic loading, crypto APIs, or packing were found.</p>
+      {techniques.length === 0 ? (
+        <div className="card" style={{ textAlign: 'center', padding: '3rem' }}>
+          <h3 style={{ margin: 0, color: 'var(--text-primary)' }}>No obfuscation indicators detected</h3>
+          <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem' }}>The sample scored {score}/100.</p>
         </div>
       ) : (
-        <>
-          <div className="obfuscation-techniques">
-            {techniques.map(tech => (
-              <TechniqueCard key={tech.key} technique={tech} color={TECHNIQUE_COLORS[tech.key] || 'cyan'} />
-            ))}
-          </div>
-
-          {(packedDex.length > 0 || nativeArtifacts.length > 0) && (
-            <div className="obfuscation-grid">
-              {packedDex.length > 0 && (
-                <div className="obfuscation-card card">
-                  <h3 className="section-title">Packed / Encrypted DEX</h3>
-                  <div className="dex-list">
-                    {packedDex.map((dex, idx) => (
-                      <div key={idx} className="dex-item">
-                        <span className="dex-name text-mono">{dex.file}</span>
-                        <span className="dex-entropy">entropy {dex.entropy}</span>
-                        <span className="badge badge-high">likely packed</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {nativeArtifacts.length > 0 && (
-                <div className="obfuscation-card card">
-                  <h3 className="section-title">Native Library Artifacts</h3>
-                  <div className="native-list">
-                    {nativeArtifacts.map((lib, idx) => (
-                      <div key={idx} className="native-item">
-                        <span className="native-name text-mono">{lib.library}</span>
-                        <span className="native-meta">{lib.total_strings} strings / {lib.artifact_count} artifacts</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </>
+        <div className="tech-grid">
+          {techGrid.map(t => (
+            <section className="tech-card" key={t.name}>
+              <small>{t.name}</small>
+              <strong>{t.percent}%</strong>
+              <div className="meter-bg" style={{ height: 6 }}>
+                <div className="meter-fill" style={{ width: `${t.percent}%`, background: `var(--accent-${t.color})` }} />
+              </div>
+              <p className="text-mono" style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>{t.api}</p>
+            </section>
+          ))}
+        </div>
       )}
 
-      <div className="obfuscation-card card deobf-card">
+      <section className="card" style={{ padding: '1.25rem' }}>
         <h3 className="section-title">Deobfuscation Tool</h3>
-        <p className="deobf-subtitle">Paste an obfuscated string to try Base64, hex, URL, and XOR decoders.</p>
-        <div className="deobf-inputs">
+        <p style={{ color: 'var(--text-secondary)', fontSize: 14, margin: '0 0 0.75rem' }}>Paste an obfuscated string to try Base64, hex, URL, and XOR decoders.</p>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <input
             type="text"
-            className="deobf-text"
             placeholder="e.g. SGVsbG8gV29ybGQ= or 48656c6c6f..."
             value={deobfInput}
             onChange={(e) => setDeobfInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && runDeobfuscation()}
+            style={{ flex: 1, minWidth: 200, padding: '10px 12px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: 6, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}
           />
-          <select
-            className="deobf-hint"
-            value={deobfHint}
-            onChange={(e) => setDeobfHint(e.target.value)}
-          >
+          <select value={deobfHint} onChange={(e) => setDeobfHint(e.target.value)} style={{ padding: '10px 12px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: 6, color: 'var(--text-primary)' }}>
             <option value="">Auto-detect</option>
             <option value="base64">Base64</option>
             <option value="hex">Hex</option>
             <option value="url_decode">URL decode</option>
           </select>
-          <button className="deobf-button" onClick={runDeobfuscation} disabled={deobfLoading}>
+          <button onClick={runDeobfuscation} disabled={deobfLoading} style={{ padding: '10px 20px', background: 'var(--accent-cyan)', border: 'none', borderRadius: 6, color: 'white', fontWeight: 600, cursor: 'pointer' }}>
             {deobfLoading ? 'Decoding...' : 'Decode'}
           </button>
         </div>
@@ -201,69 +164,23 @@ export default function ObfuscationView({ sample, apiUrl }) {
         {deobfResult && (
           <div className="deobf-results">
             <div className="deobf-original">
-              <span className="deobf-label">Original:</span>
-              <code className="text-mono">{deobfResult.original}</code>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Original:</span>
+              <code style={{ fontFamily: 'var(--font-mono)', fontSize: 13 }}>{deobfResult.original}</code>
             </div>
             {deobfResult.results.length === 0 ? (
-              <p className="deobf-no-results">No decodings produced printable output.</p>
+              <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>No decodings produced printable output.</p>
             ) : (
               deobfResult.results.map((r, idx) => (
                 <div key={idx} className={`deobf-result deobf-${r.status}`}>
                   <span className="deobf-type">{r.type}</span>
-                  <code className="deobf-value text-mono">{r.value}</code>
+                  <code className="deobf-value">{r.value}</code>
                   {r.raw_bytes && <span className="deobf-raw">hex: {r.raw_bytes}</span>}
                 </div>
               ))
             )}
           </div>
         )}
-      </div>
-    </div>
-  )
-}
-
-function TechniqueCard({ technique, color }) {
-  const [expanded, setExpanded] = useState(false)
-  const visibleItems = expanded ? technique.items : technique.items.slice(0, 5)
-
-  return (
-    <div className={`obfuscation-card card technique-${color}`}>
-      <div className="technique-header">
-        <div>
-          <h4 className="technique-name">{technique.name}</h4>
-          <span className="technique-count">{technique.count} occurrence(s)</span>
-        </div>
-        <span className={`technique-badge badge-${color}`}>{technique.count}</span>
-      </div>
-      <div className="technique-items">
-        {visibleItems.map((item, idx) => (
-          <div key={idx} className="technique-item">
-            {item.detail ? (
-              <>
-                <span className={`technique-severity badge-${item.severity === 'high' ? 'rose' : 'amber'}`}>
-                  {item.severity}
-                </span>
-                <span className="technique-detail text-mono">{item.detail}</span>
-                {item.asset_to_dex_ratio && (
-                  <span className="technique-ratio">ratio {item.asset_to_dex_ratio}:1</span>
-                )}
-              </>
-            ) : item.class ? (
-              <>
-                <span className="technique-class text-mono" title={item.class}>{item.class}</span>
-                <span className="technique-method text-mono">{item.method}</span>
-              </>
-            ) : (
-              <span className="technique-method text-mono">{item.method}</span>
-            )}
-          </div>
-        ))}
-      </div>
-      {technique.items.length > 5 && (
-        <button className="technique-expand" onClick={() => setExpanded(!expanded)}>
-          {expanded ? 'Show less' : `Show ${technique.items.length - 5} more`}
-        </button>
-      )}
+      </section>
     </div>
   )
 }

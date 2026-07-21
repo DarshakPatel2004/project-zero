@@ -77,20 +77,20 @@ class ThreatIntelligenceEnricher:
         vt_key: Optional[str] = None,
         otx_key: Optional[str] = None,
         shodan_key: Optional[str] = None,
-        censys_id: Optional[str] = None,
-        censys_secret: Optional[str] = None,
+        censys_token: Optional[str] = None,
+        censys_org_id: Optional[str] = None,
         timeout: int = API_TIMEOUT,
         skip_sources: Optional[List[str]] = None,
     ):
         self.vt_key = vt_key
         self.otx_key = otx_key
         self.shodan_key = shodan_key
-        self.censys_id = censys_id
-        self.censys_secret = censys_secret
+        self.censys_token = censys_token
+        self.censys_org_id = censys_org_id
         self.timeout = timeout
         self.skip_sources = skip_sources or []
 
-        if not any([self.vt_key, self.otx_key, self.shodan_key, self.censys_id]):
+        if not any([self.vt_key, self.otx_key, self.shodan_key, self.censys_token]):
             logger.warning(
                 "No TI sources configured. Enrichment will return empty results."
             )
@@ -124,10 +124,12 @@ class ThreatIntelligenceEnricher:
 
             if (
                 "censys" not in self.skip_sources
-                and self.censys_id
-                and indicator_type == "domain"
+                and self.censys_token
+                and indicator_type in ("domain", "ip")
             ):
-                futures["censys"] = executor.submit(self._query_censys, indicator)
+                futures["censys"] = executor.submit(
+                    self._query_censys, indicator, indicator_type
+                )
 
             for source, future in futures.items():
                 try:
@@ -287,34 +289,84 @@ class ThreatIntelligenceEnricher:
         except Exception as e:
             return {"error": str(e)}
 
-    def _query_censys(self, domain: str) -> Dict[str, Any]:
+    def _query_censys(self, indicator: str, itype: str) -> Dict[str, Any]:
         try:
-            query = {"q": f"parsed.names: {domain}"}
-            resp = requests.get(
-                "https://search.censys.io/api/v1/search/certificates",
-                json=query,
-                auth=(self.censys_id, self.censys_secret),
-                timeout=self.timeout,
-            )
+            headers = {"Authorization": f"Bearer {self.censys_token}"}
+            if self.censys_org_id:
+                headers["X-Organization-ID"] = self.censys_org_id
+            base = "https://api.platform.censys.io/v3"
 
-            if resp.status_code == 401:
-                raise ValueError("Invalid Censys credentials")
-            if resp.status_code == 429:
-                raise RuntimeError("Censys rate limited")
+            if itype == "domain":
+                headers["Content-Type"] = "application/json"
+                resp = requests.post(
+                    f"{base}/global/asset/certificate/search",
+                    json={"q": f"names: {indicator}", "per_page": 5},
+                    headers=headers,
+                    timeout=self.timeout,
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    results = data.get("result", {}).get("hits", [])
+                    return {
+                        "found": len(results) > 0,
+                        "cert_count": len(results),
+                        "certificates": results[:5],
+                        "fingerprints": [
+                            c.get("fingerprint_sha256") for c in results[:5]
+                        ],
+                    }
+                if resp.status_code == 401:
+                    raise ValueError("Invalid Censys token")
+                if resp.status_code == 429:
+                    raise RuntimeError("Censys rate limited")
+                return {"found": False, "message": "No certificates found"}
 
-            if resp.status_code == 200:
-                data = resp.json()
-                results = data.get("results", [])
-                return {
-                    "found": len(results) > 0,
-                    "cert_count": len(results),
-                    "certificates": results[:5],
-                    "fingerprints": [
-                        c.get("fingerprint_sha256") for c in results[:5]
-                    ],
-                }
+            if itype == "ip":
+                headers["Accept"] = "application/vnd.censys.api.v3.host.v1+json"
+                resp = requests.get(
+                    f"{base}/global/asset/host/{indicator}",
+                    headers=headers,
+                    timeout=self.timeout,
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    attrs = data.get("result", {})
+                    services = attrs.get("services", [])
+                    return {
+                        "found": True,
+                        "ip": indicator,
+                        "asn": attrs.get("autonomous_system", {}).get("asn"),
+                        "asn_name": attrs.get("autonomous_system", {}).get("name"),
+                        "org": attrs.get("autonomous_system", {}).get(
+                            "organization"
+                        ),
+                        "country": attrs.get("location", {}).get("country"),
+                        "country_code": attrs.get("location", {}).get(
+                            "country_code"
+                        ),
+                        "city": attrs.get("location", {}).get("city"),
+                        "provider": attrs.get("autonomous_system", {}).get(
+                            "organization"
+                        ),
+                        "ports": [s.get("port") for s in services],
+                        "services": list(
+                            set(
+                                s.get("service_name", "")
+                                for s in services
+                                if s.get("service_name")
+                            )
+                        ),
+                        "last_updated": attrs.get("last_updated_at"),
+                    }
+                if resp.status_code == 404:
+                    return {"found": False, "message": "Host not found in Censys"}
+                if resp.status_code == 401:
+                    raise ValueError("Invalid Censys token")
+                if resp.status_code == 429:
+                    raise RuntimeError("Censys rate limited")
+                return {"found": False, "message": f"HTTP {resp.status_code}"}
 
-            return {"found": False, "message": "No certificates found"}
+            return {"error": f"Unsupported indicator type: {itype}"}
 
         except requests.Timeout:
             return {"error": "Request timeout"}
@@ -380,12 +432,21 @@ class ThreatIntelligenceEnricher:
         censys = result.censys_result
         if censys.get("error"):
             evidence.append(f"Censys: Unavailable ({censys.get('error')})")
-        elif censys.get("found"):
+        elif result.indicator_type == "domain" and censys.get("found"):
             cert_count = censys.get("cert_count", 0)
             evidence.append(f"Censys: {cert_count} SSL certificates found")
             if cert_count > 10:
                 evidence.append("  -> Frequent certificate rotation (possible evasion)")
                 risk_signals += 0.5
+        elif result.indicator_type == "ip" and censys.get("found"):
+            asn = censys.get("asn", "N/A")
+            org = censys.get("org", "N/A")
+            country = censys.get("country", "Unknown")
+            services = ", ".join(censys.get("services", [])[:3])
+            evidence.append(f"Censys: AS{asn} ({org}) in {country}")
+            if services:
+                evidence.append(f"  -> Services: {services}")
+            risk_signals += 0.5
         else:
             evidence.append("Censys: No SSL certificate history")
 

@@ -46,6 +46,18 @@ SEVERITY_COLORS = {
 PAGE_W, PAGE_H = A4
 MARGIN = 20 * mm
 
+# Sections the user may toggle on/off for the Quick PDF.
+# Cover page and executive summary are always rendered; the rest is optional.
+QUICK_PDF_DEFAULT_SECTIONS = {
+    'metadata':           True,
+    'llm_assessment':     True,
+    'obfuscation':        True,
+    'c2_infrastructure':  True,
+    'suspicious_methods': True,
+}
+
+AVAILABLE_SECTIONS = list(QUICK_PDF_DEFAULT_SECTIONS.keys())
+
 
 def _styles():
     def s(name, **kw):
@@ -403,7 +415,21 @@ def generate_report(
     obfuscation: dict,
     annotated_methods: list,
     mode: str = 'quick',
+    selected_sections: Optional[dict] = None,
 ) -> bytes:
+    # Quick mode lets the caller pick which sections to include. Full mode
+    # always renders everything (forensic record completeness rule).
+    if mode == 'full':
+        sections = {k: True for k in QUICK_PDF_DEFAULT_SECTIONS}
+    else:
+        sections = {**QUICK_PDF_DEFAULT_SECTIONS}
+        if selected_sections:
+            # Only accept keys we know about; ignore anything else.
+            sections.update({
+                k: bool(v) for k, v in selected_sections.items()
+                if k in QUICK_PDF_DEFAULT_SECTIONS
+            })
+
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
         buf, pagesize=A4,
@@ -417,15 +443,21 @@ def generate_report(
     st = _styles()
     story = []
 
+    # Cover page always renders (forensic identity / chain-of-custody header).
     _section_cover(story, st, sample_result, threat_data, sample_id)
-    _section_metadata(story, st, sample_result)
-    _section_llm_assessment(story, st, sample_result)
-    _section_obfuscation(story, st, obfuscation)
-    _section_c2(story, st, threat_data)
+
+    if sections.get('metadata'):
+        _section_metadata(story, st, sample_result)
+    if sections.get('llm_assessment'):
+        _section_llm_assessment(story, st, sample_result)
+    if sections.get('obfuscation'):
+        _section_obfuscation(story, st, obfuscation)
+    if sections.get('c2_infrastructure'):
+        _section_c2(story, st, threat_data)
     # Only insert PageBreak if there are methods to show
-    if annotated_methods:
+    if annotated_methods and sections.get('suspicious_methods'):
         story.append(CondPageBreak(80 * mm))
-    _section_methods(story, st, annotated_methods)
+        _section_methods(story, st, annotated_methods)
     _section_footer_note(story, st, mode)
 
     doc.build(story)

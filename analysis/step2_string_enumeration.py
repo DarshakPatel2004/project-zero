@@ -46,7 +46,16 @@ BYTE_ARRAY_REGEX = re.compile(r'\{\s*(0x[0-9A-Fa-f]{2}\s*(?:,\s*0x[0-9A-Fa-f]{2}
 NUMERIC_REGEX = re.compile(r'\b(\d{3,5})\b')
 SMALI_STRING_REGEX = re.compile(r'const-string(?:/jumbo)?\s+[^,]+,\s*"([^"\\]*(?:\\.[^"\\]*)*)"')
 
-# Noisy patterns that dilute signal in smali/JADX strings
+# DEX-specific noise patterns (type descriptors, method signatures, field refs)
+DEX_NOISE_RE = re.compile(
+    r"^(L[a-zA-Z/;$]+;|\([^)]*\)[A-Z]|\[+L?[A-Z];|"
+    r"[a-zA-Z_][a-zA-Z0-9_]*\.[a-zA-Z_][a-zA-Z0-9_]*\.)",  # short dotted refs
+)
+# Additional DEX noise: common Java type abbreviations in DEX format
+DEX_TYPE_NAMES = frozenset({
+    "V", "Z", "B", "S", "C", "I", "J", "F", "D",  # Java primitives
+    "void", "boolean", "byte", "short", "char", "int", "long", "float", "double",
+})
 NOISE_STRINGS = {"null", "true", "false", "none", "yes", "no", "ok"}
 NOISE_PREFIXES = (
     "android.", "com.android.", "java.", "javax.", "kotlin.", "kotlinx.", "androidx.",
@@ -219,24 +228,46 @@ def extract_resource_strings(apktool_dir: str) -> List[Dict[str, Any]]:
     return results
 
 
+def is_dex_noise(value: str) -> bool:
+    """Return True if string is DEX-level noise (type descriptors, signatures, field refs)."""
+    if value in DEX_TYPE_NAMES:
+        return True
+    if DEX_NOISE_RE.match(value):
+        return True
+    # Single-letter strings (DEX type abbreviations)
+    if len(value) == 1 and value.isalpha():
+        return True
+    # Strings that look like file paths with .java/.kt/.class extensions
+    if value.endswith((".java", ".kt", ".class", ".smali")):
+        return True
+    return False
+
+
 def extract_androguard_strings(apk_path: str) -> List[Dict[str, Any]]:
-    """Extract string literals from DEX bytecode using Androguard when JADX/apktool fail."""
+    """Extract string literals from DEX bytecode using Androguard (fast primary path)."""
     results = []
     try:
         from androguard.core.apk import APK
         from androguard.core.dex import DEX
         apk = APK(str(apk_path))
-        for idx, dex_data in enumerate(apk.get_all_dex()):
+        seen = set()
+        for dex_data in apk.get_all_dex():
             try:
                 dex = DEX(dex_data)
                 for string in dex.get_strings():
-                    if string and not is_noisy_string(string):
-                        results.append({
-                            "category": "string_literal",
-                            "value": string,
-                            "entropy": round(entropy_of_string(string), 4),
-                            "source": f"classes{idx}.dex",
-                        })
+                    if not string:
+                        continue
+                    if string in seen:
+                        continue
+                    seen.add(string)
+                    if is_noisy_string(string) or is_dex_noise(string):
+                        continue
+                    results.append({
+                        "category": "string_literal",
+                        "value": string,
+                        "entropy": round(entropy_of_string(string), 4),
+                        "source": "dex",
+                    })
             except Exception:
                 continue
     except Exception:
@@ -269,21 +300,20 @@ def enumerate_strings(extraction_result: dict) -> dict:
 
     all_strings = []
 
-    # Java strings from jadx output
-    java_strings = []
-    if jadx_dir:
+    # Primary: Androguard DEX strings (fast, ~5s)
+    if apk_path:
+        andro_strings = extract_androguard_strings(apk_path)
+        all_strings.extend(andro_strings)
+
+    # Secondary: JADX Java strings (enrichment, only if Androguard produced nothing)
+    if jadx_dir and not all_strings:
         java_strings = extract_java_strings(jadx_dir)
         all_strings.extend(java_strings)
 
-    # Fallback: smali strings from apktool output if JADX produced nothing
-    if apktool_dir and not java_strings:
+    # Fallback: smali strings from apktool if both Androguard and JADX failed
+    if apktool_dir and not all_strings:
         smali_strings = extract_smali_strings(apktool_dir)
         all_strings.extend(smali_strings)
-
-    # Fallback 2: Androguard DEX string extraction if both JADX and smali extraction are empty/fail
-    if not all_strings and apk_path:
-        andro_strings = extract_androguard_strings(apk_path)
-        all_strings.extend(andro_strings)
 
     # Resource strings from apktool output
     if apktool_dir:

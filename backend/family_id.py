@@ -183,15 +183,25 @@ def _yara_candidates(result: Dict[str, Any], sample_id: str) -> List[Dict[str, A
 # ---------------------------------------------------------------------------
 
 _FAMILY_SYSTEM_PROMPT = """/no_think
-You are an expert Android malware analyst. Given static-analysis indicators,
-identify the most likely malware family.
+You are an expert Android malware analyst performing family identification on
+an APK. You receive structured static-analysis output covering C2 infrastructure,
+threat chains, obfuscation, encrypted assets, native libraries, and permissions.
+
+Analyze ALL evidence holistically before deciding. Look for:
+- Obfuscated/encrypted game assets hiding real domains (common in game-wrapped malware)
+- Native library undersizing (stub .so files that download real payload at runtime)
+- Encrypted asset archives (splash.zip, data files with entropy >7.9)
+- Repeated obfuscated domain patterns in asset paths
+- Permission clusters that match known family behavior profiles
+- DEX packing indicators (high entropy, few strings relative to size)
 
 Output valid JSON only, no markdown, exactly this schema:
 {"family": "<family name or 'unknown'>", "confidence": 0.0-1.0, "reasoning": "<short>"}
 
-Use well-known family names (e.g. FakeInstaller, DroidKungFu, Plankton, GinMaster,
-BaseBridge, Geinimi, Opfake, DroidDream, Adrd). If indicators are insufficient,
-return "unknown" with low confidence."""
+When returning a known family name, cite specific evidence (e.g. "package name
+contains 'kungfu'", "C2 domain matches known Geinimi infrastructure").
+If indicators are insufficient or the sample appears benign, return "unknown"
+with low confidence. Do NOT force a match when the evidence is weak."""
 
 
 def _family_context(result: Dict[str, Any]) -> str:
@@ -199,15 +209,118 @@ def _family_context(result: Dict[str, Any]) -> str:
     c2s = result.get("c2_infrastructure", []) or []
     perms = ((result.get("manifest", {}) or {}).get("uses_permissions", []) or [])
     assessment = result.get("llm_assessment", {}) or {}
+    obf = result.get("obfuscation_analysis", {}) or {}
+    chains_raw = result.get("threat_chains", []) or []
+    encodings = result.get("encodings", []) or []
+    payloads = result.get("payloads", []) or []
+    extraction = result.get("extraction", {}) or {}
+
+    size_bytes = metadata.get('file_size_bytes', 0)
+    try:
+        size_mb = float(size_bytes) / 1024 / 1024
+    except (TypeError, ValueError):
+        size_mb = 0.0
+
     lines = [
         f"Package: {metadata.get('package') or metadata.get('package_name') or 'unknown'}",
+        f"Version: {metadata.get('version_name', '?')}",
+        f"File size: {size_mb:.1f} MB",
+        f"Strings extracted: {extraction.get('total_strings_extracted', 0)}",
         f"Primary threat: {assessment.get('primary_threat', 'unknown')}",
         f"Severity: {assessment.get('severity', 'unknown')}",
-        f"C2 indicators ({len(c2s)}):",
+        f"Risk score: {assessment.get('risk_score', '?')}",
     ]
+
+    strings_cats = result.get("strings", {}) or {}
+    if isinstance(strings_cats, dict):
+        for cat_name in ["string_literals", "byte_arrays", "numeric_constants", "resource_strings", "native_strings"]:
+            items = strings_cats.get(cat_name, []) or []
+            lines.append(f"  {cat_name}: {len(items)}")
+
+    lines += [
+        f"Total classes: {extraction.get('decompiled_classes', 0)}",
+        f"Native libs found: {extraction.get('native_libs_found', 0)}",
+        "",
+    ]
+
+    # C2 infrastructure
+    lines.append(f"C2 indicators ({len(c2s)}):")
     for c2 in c2s[:12]:
-        lines.append(f"  - {c2.get('protocol', '?')}://{c2.get('domain') or c2.get('ip') or '?'}{c2.get('path', '')}")
-    lines.append(f"Permissions ({len(perms)}): " + ", ".join(p.split('.')[-1] for p in perms[:20]))
+        domain = c2.get('domain') or c2.get('ip') or '?'
+        lines.append(f"  - {c2.get('protocol', '?')}://{domain}{c2.get('path', '')}")
+    if not c2s:
+        lines.append("  (none)")
+    lines.append("")
+
+    # Threat chains
+    lines.append(f"Threat chains: {len(chains_raw)}")
+    high_chains = [c for c in chains_raw if c.get('severity') == 'high']
+    if high_chains:
+        lines.append(f"  High-severity chains: {len(high_chains)}")
+        for c in high_chains[:5]:
+            dc = c.get('decoding_chain', [])
+            dc_str = ' -> '.join(dc) if dc else '?'
+            lines.append(f"    Chain {c.get('chain_id')}: {dc_str}")
+    lines.append("")
+
+    # Encodings
+    lines.append(f"Encoding types ({len(encodings)}):")
+    if encodings:
+        for enc in encodings[:10]:
+            if isinstance(enc, dict):
+                lines.append(f"  - {enc.get('type', '?')} ({enc.get('count', 0)} occurrences)")
+            else:
+                lines.append(f"  - {enc}")
+    lines.append("")
+
+    # Payloads
+    lines.append(f"Decoded payloads: {len(payloads)}")
+    for p in payloads[:8]:
+        if isinstance(p, dict):
+            lines.append(f"  - {str(p.get('decoded', ''))[:80]}")
+        else:
+            lines.append(f"  - {str(p)[:80]}")
+    lines.append("")
+
+    # Obfuscation analysis
+    obf_score = obf.get('obfuscation_score', 0)
+    obf_level = obf.get('obfuscation_level', 'unknown')
+    lines.append(f"Obfuscation score: {obf_score} ({obf_level})")
+    indicators = obf.get('indicators', {}) or {}
+    lines.append(f"  Reflection usages: {len(indicators.get('reflection', []))}")
+    lines.append(f"  Dynamic loading: {len(indicators.get('dynamic_loading', []))}")
+    lines.append(f"  Crypto APIs: {len(indicators.get('crypto_apis', []))}")
+    lines.append(f"  Suspicious APIs: {len(indicators.get('suspicious_apis', []))}")
+    dangerous_perms = indicators.get('dangerous_permissions', [])
+    if dangerous_perms:
+        lines.append(f"  Dangerous permissions ({len(dangerous_perms)}): " + ", ".join(p.split('.')[-1] for p in dangerous_perms[:10]))
+
+    # Flags from obfuscation (encrypted assets, packing, etc.)
+    flags = obf.get('flags', []) or []
+    if flags:
+        lines.append(f"  Flags ({len(flags)}):")
+        for f in flags[:10]:
+            lines.append(f"    [{f.get('severity','?')}] {f.get('type','?')}: {str(f.get('detail',''))[:100]}")
+
+    # Native library anomalies
+    native = obf.get('native_library_analysis', {}) or {}
+    suspicious_libs = native.get('suspicious', []) or []
+    if suspicious_libs:
+        lines.append(f"  Suspicious native libs ({len(suspicious_libs)}):")
+        for lib in suspicious_libs[:8]:
+            lines.append(f"    {lib.get('library', '?')}: {lib.get('reason', '?')} ({lib.get('detail', '')})")
+
+    # DEX entropy / packing
+    dex_ents = obf.get('dex_entropy', []) or []
+    if any(d.get('likely_packed') for d in dex_ents):
+        lines.append("  DEX packing: DETECTED")
+    lines.append("")
+
+    # Permissions (full list)
+    lines.append(f"All permissions ({len(perms)}): " + ", ".join(p.split('.')[-1] for p in perms[:25]))
+    if len(perms) > 25:
+        lines.append(f"  ... and {len(perms) - 25} more")
+
     return "\n".join(lines)
 
 
@@ -236,7 +349,7 @@ def _llm_family(result: Dict[str, Any]) -> Optional[Dict[str, Any]]:
                     {"role": "user", "content": f"INDICATORS:\n{context}\n\nFAMILY:"},
                 ],
                 temperature=0.1,
-                max_tokens=200,
+                max_tokens=400,
                 response_format={"type": "json_object"},
             )
             raw = resp.choices[0].message.content
@@ -247,12 +360,12 @@ def _llm_family(result: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             if not _ollama_available(host):
                 return None
             import ollama
-            client = ollama.Client(host=host, timeout=30)
+            client = ollama.Client(host=host, timeout=120)
             resp = client.generate(
                 model=os.environ.get("OLLAMA_MODEL", settings.OLLAMA_MODEL),
                 prompt=f"{_FAMILY_SYSTEM_PROMPT}\n\nINDICATORS:\n{context}\n\nFAMILY:",
                 format="json",
-                options={"num_ctx": 4096, "temperature": 0.1},
+                options={"num_ctx": 8192, "temperature": 0.1},
             )
             raw = resp.get("response", "")
     except Exception:
@@ -288,7 +401,15 @@ def identify_family(sample_id: str, result: Dict[str, Any],
 
     Returns a dict with the chosen ``family``, ``confidence``, ``method``,
     the full list of ``candidates`` and per-source detail.
+
+    ``use_cache`` can also be controlled via ``FAMILY_USE_CACHE`` env var
+    (0/false disables).  The parameter takes precedence when explicitly set
+    by the caller.
     """
+    env_val = os.environ.get("FAMILY_USE_CACHE", "")
+    if env_val and env_val.lower() in ("0", "false", "no"):
+        use_cache = False
+
     cache_path = settings.WORK_DIR / sample_id / "family.json"
     if use_cache and cache_path.exists():
         try:

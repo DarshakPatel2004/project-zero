@@ -7,6 +7,8 @@ import { ErrorBoundary } from './components/ErrorBoundary'
 import ThreatIntelView from './components/ThreatIntelView'
 import DissectionPage from './components/DissectionPage'
 
+/* eslint-disable react-hooks/set-state-in-effect */
+
 const API_URL = 'http://localhost:8000'
 const WS_URL = 'ws://localhost:8000/ws'
 
@@ -270,6 +272,37 @@ function AppInner() {
   const backendReady = httpStatus === 'connected' && wsState === 'connected'
   const backendReconnecting = httpStatus === 'reconnecting' || wsState === 'reconnecting'
 
+  /**
+   * Unified WebSocket message handler.
+   */
+  const handleWsMessage = useCallback((message) => {
+    const { event_type, data } = message
+
+    console.log('[WS]', event_type, data?.sample_id)
+
+    switch (event_type) {
+      case 'pong':
+        break
+      case 'analysis_started':
+        dispatch({ type: 'ANALYSIS_STARTED', payload: data })
+        break
+      case 'step_completed':
+        dispatch({ type: 'STEP_COMPLETED', payload: data })
+        break
+      case 'metric_updated':
+        dispatch({ type: 'METRIC_UPDATED', payload: data })
+        break
+      case 'analysis_complete':
+        dispatch({ type: 'ANALYSIS_COMPLETE', payload: data })
+        break
+      case 'error':
+        dispatch({ type: 'ERROR', payload: data })
+        break
+      default:
+        console.log('[WS] Unknown event:', event_type)
+    }
+  }, [])
+
   // WebSocket connection for live pipeline events
   useEffect(() => {
     let ws
@@ -331,37 +364,6 @@ function AppInner() {
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  /**
-   * Unified WebSocket message handler.
-   */
-  const handleWsMessage = useCallback((message) => {
-    const { event_type, data } = message
-
-    console.log('[WS]', event_type, data?.sample_id)
-
-    switch (event_type) {
-      case 'pong':
-        break
-      case 'analysis_started':
-        dispatch({ type: 'ANALYSIS_STARTED', payload: data })
-        break
-      case 'step_completed':
-        dispatch({ type: 'STEP_COMPLETED', payload: data })
-        break
-      case 'metric_updated':
-        dispatch({ type: 'METRIC_UPDATED', payload: data })
-        break
-      case 'analysis_complete':
-        dispatch({ type: 'ANALYSIS_COMPLETE', payload: data })
-        break
-      case 'error':
-        dispatch({ type: 'ERROR', payload: data })
-        break
-      default:
-        console.log('[WS] Unknown event:', event_type)
-    }
-  }, [])
-
   const analyzeUpload = useCallback(async (uploadId) => {
     try {
       const response = await fetch(`${API_URL}/api/analyze/${uploadId}`, {
@@ -400,7 +402,7 @@ function AppInner() {
    * Core upload function with retry support (Phases 1, 4).
    * On retryable failure, stores file and begins exponential backoff loop.
    */
-  const executeUpload = useCallback(async (file, attempt = 0) => {
+  const executeUpload = useCallback(async (file) => {
     const controller = new AbortController()
     retryAbortRef.current = controller
 
@@ -483,7 +485,7 @@ function AppInner() {
         ? 'Cannot reach backend'
         : error.message || 'Upload failed'
 
-      throw new Error(errorMsg)
+      throw new Error(errorMsg, { cause: error })
     }
   }, [analyzeUpload, addToast])
 
@@ -624,60 +626,57 @@ function AppInner() {
   }
 
   const activeLabel = NAV_ITEMS.find(n => n.id === activeTab)?.label || ''
+  const severity = selectedSample?.severity || analysisState?.verdictData?.verdict
+  const riskScore = selectedSample?.risk_score || analysisState?.verdictData?.riskScore
 
   return (
-    <div className="app-layout">
-      <aside className={`app-sidebar ${sidebarOpen ? 'open' : ''}`}>
-        <div className="sidebar-brand">
-          <div className="brand-icon">DF</div>
-          <div className="brand-text">
-            <h1>DroidForensix</h1>
-            <p>Android Malware Intelligence</p>
-          </div>
+    <div className="app-shell">
+      <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
+        <div className="brand">
+          <span className="brand-mark">D</span>
+          <span>DROID<span>FORENSIX</span></span>
         </div>
-
-        <nav className="sidebar-nav">
-          {NAV_ITEMS.map(item => (
-            <button
-              key={item.id}
-              className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
-              onClick={() => {
-                setActiveTab(item.id)
-                setSidebarOpen(false)
-              }}
-              disabled={item.id !== 'upload' && !selectedSample}
-            >
-              <span className="nav-icon">{item.icon}</span>
-              <span>{item.label}</span>
-            </button>
-          ))}
-        </nav>
-
-        <div className="sidebar-footer">
-          <p>Static Analysis Pipeline</p>
-          <p className={`ws-indicator ws-${wsState}`}>{wsState}</p>
+        <div className="nav-caption">WORKSPACE</div>
+        {NAV_ITEMS.map(item => (
+          <button
+            key={item.id}
+            className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
+            onClick={() => {
+              setActiveTab(item.id)
+              setSidebarOpen(false)
+            }}
+            disabled={item.id !== 'upload' && !selectedSample}
+          >
+            <b>{item.icon}</b>{item.label}
+          </button>
+        ))}
+        <div className="sidebar-bottom">
+          <div className="case-card">
+            <small>CURRENT CASE</small>
+            <strong>{selectedSample?.fileName || 'No sample selected'}</strong>
+            <span>
+              <i className={`pulse ${backendReady ? '' : 'offline'}`} />
+              {' '}{backendReady ? (severity ? `${severity.toUpperCase()} · ${riskScore || 0}/100` : 'SCANNER ONLINE') : 'OFFLINE'}
+            </span>
+          </div>
+          <button className="help">? &nbsp; Documentation</button>
         </div>
       </aside>
 
-      <div className="app-main">
-        <header className="app-topbar">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <button className="sidebar-toggle" onClick={() => setSidebarOpen(o => !o)}>
-              ☰
-            </button>
-            <span className="topbar-title">{activeLabel}</span>
-          </div>
-          <div className="topbar-status">
-            <span className={`status-dot ${backendReady ? 'online' : backendReconnecting ? 'reconnecting' : 'offline'}`}></span>
-            <span>
-              {backendReady && 'Backend Online'}
-              {backendReconnecting && 'Reconnecting...'}
-              {!backendReady && !backendReconnecting && 'Backend Offline'}
+      <div className="main">
+        <header className="topbar">
+          <button className="menu" onClick={() => setSidebarOpen(o => !o)}>☰</button>
+          <div className="crumb">CASE / <strong>{activeLabel.toUpperCase()}</strong></div>
+          <div className="top-actions">
+            <button className="selector">{selectedSample?.fileName || 'droidforensix.apk'} <span>⌄</span></button>
+            <span className={`online ${!backendReady ? 'offline' : ''}`}>
+              <i />{backendReady ? 'SCANNER ONLINE' : 'OFFLINE'}
             </span>
+            <button className="avatar">DF</button>
           </div>
         </header>
 
-        <main className="app-content">
+        <section className="content">
           {activeTab === 'upload' && (
             <div className="view-wrapper">
               <UploadPanel
@@ -723,7 +722,7 @@ function AppInner() {
               />
             </div>
           )}
-        </main>
+        </section>
       </div>
     </div>
   )

@@ -189,6 +189,126 @@ def correct_benign_false_positive(result: Dict[str, Any]) -> Dict[str, Any]:
     return result
 
 
+def _has_suspicious_package(package: str) -> bool:
+    """Return True if package name looks randomly generated or obfuscated."""
+    if not package:
+        return False
+    segments = package.split(".")
+    if len(segments) < 2:
+        return False
+    # Known benign package prefixes
+    benign_prefixes = ("com.", "org.", "net.", "io.", "co.", "app.", "me.",
+                       "uk.", "de.", "fr.", "jp.", "cn.", "ru.", "biz.",
+                       "info.", "tv.", "name.", "pro.", "xyz.", "cloud.")
+    first_seg = segments[0].lower() + "."
+    if first_seg in benign_prefixes:
+        return False
+    # Check each segment for randomness indicators
+    import re
+    suspicious_count = 0
+    for seg in segments:
+        if len(seg) < 3:
+            suspicious_count += 1
+            continue
+        # All consonants or repeating chars
+        vowels = sum(1 for c in seg.lower() if c in "aeiou")
+        if vowels == 0 and len(seg) >= 5:
+            suspicious_count += 1
+            continue
+        # Mixed case (obfuscated naming)
+        if seg != seg.lower() and seg != seg.upper():
+            upper_count = sum(1 for c in seg if c.isupper())
+            if upper_count >= 2 and upper_count < len(seg):
+                suspicious_count += 1
+                continue
+        # No recognizable dictionary words
+        if not re.search(r'[aeiou]{2,}', seg.lower()) and len(seg) >= 6:
+            suspicious_count += 1
+            continue
+    return suspicious_count >= 2
+
+
+def correct_suspicious_package(result: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Boost samples with obfuscated/random package names and dangerous permissions
+    but no detected C2 (likely runtime-decoded C2 that static analysis misses).
+
+    Many modern malware families (GhostBat, SpyNote) use randomly-generated
+    package names and build C2 strings at runtime, making them invisible to
+    static C2 extraction.
+    """
+    metadata = result.get("metadata", {})
+    package = metadata.get("package_name", "") or ""
+    manifest = result.get("manifest", {}) or {}
+    permissions = manifest.get("uses_permissions", [])
+
+    obfuscation = result.get("obfuscation_analysis", {}) or {}
+    counts = _count_obfuscation_indicators(obfuscation)
+    c2_list = result.get("c2_infrastructure", []) or []
+
+    package_suspicious = False
+    if package and _has_suspicious_package(package):
+        package_suspicious = True
+    elif not package:
+        # No package extracted at all (malformed APK) — strong signal
+        if counts["suspicious_apis"] > 0 or counts["reflection"] > 0:
+            package_suspicious = True
+        else:
+            package_suspicious = True
+
+    if not package_suspicious:
+        return result
+
+    # Only boost if no real C2 detected (the case we're correcting)
+    if _has_real_c2(c2_list):
+        return result
+
+    llm = result.get("llm_assessment", {}) or {}
+    current_score = llm.get("risk_score", 0) or 0
+
+    # Don't downgrade already-high scores
+    if current_score >= 60:
+        return result
+
+    reason_parts = []
+    if package:
+        reason_parts.append(f"suspicious package: {package}")
+    else:
+        reason_parts.append("package name not extractable (malformed APK)")
+
+    risk_floor = 55
+    if counts["suspicious_apis"] >= 2:
+        risk_floor = 65
+        reason_parts.append(f"{counts['suspicious_apis']} suspicious APIs")
+
+    if permissions:
+        danger = [p for p in permissions if "INSTALL" in p.upper() or "ADMIN" in p.upper()
+                  or "DEVICE" in p.upper() or "SMS" in p.upper()]
+        if danger:
+            risk_floor = max(risk_floor, 65)
+            reason_parts.append(f"dangerous perms: {len(danger)}")
+
+    llm["severity"] = "medium" if risk_floor < 60 else "high"
+    llm["risk_score"] = max(current_score, risk_floor)
+    llm["primary_threat"] = llm.get("primary_threat", "other")
+    llm["confidence"] = max(llm.get("confidence", 0.0), 0.6)
+    narrative = (
+        f"Post-process correction: {'; '.join(reason_parts)}. "
+        f"No static C2 found — likely runtime-decoded. "
+        f"Original score was {current_score}."
+    )
+    llm["narrative"] = narrative
+    if "recommended_actions" not in llm or not llm["recommended_actions"]:
+        llm["recommended_actions"] = [
+            "Dynamic analysis recommended: C2 likely constructed at runtime",
+            "Check for native code or reflection-based string building",
+        ]
+
+    result["llm_assessment"] = llm
+    result.setdefault("post_process_notes", []).append(narrative)
+    return result
+
+
 def post_process_result(result: Dict[str, Any]) -> Dict[str, Any]:
     """
     Apply all sanity corrections to a pipeline result.
@@ -201,5 +321,6 @@ def post_process_result(result: Dict[str, Any]) -> Dict[str, Any]:
         raise PostProcessError("Pipeline result must be a dict")
 
     result = correct_metasploit_stager(result)
+    result = correct_suspicious_package(result)
     result = correct_benign_false_positive(result)
     return result

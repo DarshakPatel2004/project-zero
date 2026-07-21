@@ -25,6 +25,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from urllib.request import urlopen, Request
 
 from backend.config import settings
+from backend.censys_enrichment import enrich_ip as _censys_enrich
 
 try:
     import geoip2.database
@@ -430,10 +431,15 @@ def build_threat_intel(result: Dict[str, Any], sample_id: str) -> Dict[str, Any]
             ip_type = _classify_ip(ip)
             geo = geo_cache.get(ip) or _geo_lookup(ip)
             isp_data = _enrich_isp(ip) if not (geo and geo.get('isp')) else {'isp': geo.get('isp', ''), 'org': '', 'as': ''}
+
+            censys = _censys_enrich(ip) if ip_type == 'public' else None
+            if censys and censys.get('_error'):
+                censys = None
+
+            base = {'ip': ip, 'ip_type': ip_type}
+
             if geo:
-                ips_geolocated.append({
-                    'ip': ip,
-                    'ip_type': ip_type,
+                base.update({
                     'country': geo.get('country', 'Unknown'),
                     'region': geo.get('regionName') or geo.get('region') or '',
                     'city': geo.get('city', ''),
@@ -445,18 +451,26 @@ def build_threat_intel(result: Dict[str, Any], sample_id: str) -> Dict[str, Any]
                 })
             else:
                 country = 'Private Network' if ip_type in ('private', 'loopback') else 'Unknown'
-                ips_geolocated.append({
-                    'ip': ip,
-                    'ip_type': ip_type,
-                    'country': country,
-                    'region': '',
-                    'city': '',
-                    'isp': '',
-                    'org': '',
-                    'as': '',
-                    'latitude': None,
-                    'longitude': None,
+                base.update({
+                    'country': country, 'region': '', 'city': '',
+                    'isp': '', 'org': '', 'as': '',
+                    'latitude': None, 'longitude': None,
                 })
+
+            if censys:
+                base.setdefault('org', censys.get('provider', ''))
+                base['asn'] = censys.get('asn')
+                base['asn_description'] = censys.get('asn_description', '')
+                base['asn_name'] = censys.get('asn_name', '')
+                base['censys_country'] = censys.get('country', '')
+                base['censys_city'] = censys.get('city', '')
+                base['censys_provider'] = censys.get('provider', '')
+                base['censys_services'] = censys.get('services', [])
+                base['censys_dns_names'] = censys.get('dns_names', [])
+                base['censys_certs'] = censys.get('certs', [])
+                base['censys_enriched_at'] = censys.get('_enriched_at', '')
+
+            ips_geolocated.append(base)
 
     return {
         'sample_id': sample_id,

@@ -95,6 +95,32 @@ def run_jadx(apk_path: str, output_dir: str) -> dict:
     return result
 
 
+def run_androguard(apk_path: str) -> dict:
+    """Extract DEX-level info using Androguard (fast, pure Python)."""
+    result = {"success": False, "class_count": 0, "dex_strings": [], "error": None}
+    try:
+        from androguard.core.apk import APK
+        from androguard.core.dex import DEX
+        apk = APK(str(apk_path))
+        dex_strings = set()
+        class_count = 0
+        for dex_data in apk.get_all_dex():
+            try:
+                dex = DEX(dex_data)
+                class_count += len(list(dex.get_classes()))
+                for s in dex.get_strings():
+                    if s:
+                        dex_strings.add(s)
+            except Exception:
+                continue
+        result["success"] = True
+        result["class_count"] = class_count
+        result["dex_strings"] = sorted(dex_strings)
+    except Exception as e:
+        result["error"] = str(e)
+    return result
+
+
 def _extract_printable_strings(data: bytes, min_len: int = 6) -> list:
     """Pure-Python fallback to extract printable ASCII strings."""
     strings = []
@@ -286,22 +312,27 @@ def extract_apk(apk_path: str, work_dir: Optional[str] = None) -> dict:
     # Run apktool
     apktool_result = run_apktool(str(apk_path), str(apktool_dir))
 
-    # Run jadx with retry logic (3 attempts, exponential backoff)
-    retry_result = None
+    # Run Androguard (fast, pure Python — ~5s per APK)
+    androguard_result = run_androguard(str(apk_path))
     jadx_result = {"success": False, "output_dir": str(jadx_dir), "error": None}
-    try:
-        retry_result = safe_decompile_apk(
-            str(apk_path),
-            str(jadx_dir),
-            timeout=settings.STEP_TIMEOUT,
-            max_retries=3,
-            jadx_path=settings.JADX_PATH,
-        )
-        jadx_result = {"success": True, "output_dir": str(jadx_dir), "error": None}
-    except DecompilationError as e:
-        jadx_result["error"] = e.to_dict()["message"]
-    except Exception as e:
-        jadx_result["error"] = str(e)
+
+    # JADX: only run if USE_JADX is True or Androguard failed
+    use_jadx = settings.USE_JADX or not androguard_result["success"]
+    if use_jadx:
+        retry_result = None
+        try:
+            retry_result = safe_decompile_apk(
+                str(apk_path),
+                str(jadx_dir),
+                timeout=settings.STEP_TIMEOUT,
+                max_retries=3,
+                jadx_path=settings.JADX_PATH,
+            )
+            jadx_result = {"success": True, "output_dir": str(jadx_dir), "error": None}
+        except DecompilationError as e:
+            jadx_result["error"] = e.to_dict()["message"]
+        except Exception as e:
+            jadx_result["error"] = str(e)
 
     # Extract native strings
     native_strings = []
@@ -315,27 +346,15 @@ def extract_apk(apk_path: str, work_dir: Optional[str] = None) -> dict:
         package_name = extract_package_name(str(apktool_dir))
         manifest_info = extract_manifest_info(str(apktool_dir))
 
-    decompiled_classes = retry_result.get("classes", 0) if jadx_result["success"] else 0
-    jadx_success = jadx_result["success"]
-    if jadx_success and not decompiled_classes:
-        decompiled_classes = count_decompiled_classes(str(jadx_dir))
-    if not jadx_success:
-        try:
-            from androguard.core.apk import APK
-            from androguard.core.dex import DEX
-            apk = APK(str(apk_path))
-            total_classes = 0
-            for dex_data in apk.get_all_dex():
-                try:
-                    dex = DEX(dex_data)
-                    total_classes += len(list(dex.get_classes()))
-                except Exception:
-                    continue
-            if total_classes > 0:
-                decompiled_classes = total_classes
-                jadx_success = True
-        except Exception:
-            pass
+    # Class count: Androguard primary, JADX fallback
+    decompiled_classes = androguard_result["class_count"]
+    if decompiled_classes == 0 and jadx_result["success"]:
+        decompiled_classes = retry_result.get("classes", 0) if retry_result else 0
+        if not decompiled_classes:
+            decompiled_classes = count_decompiled_classes(str(jadx_dir))
+
+    # Collect all DEX strings from Androguard
+    dex_strings = androguard_result.get("dex_strings", [])
 
     result = {
         "sample_id": sample_id,
@@ -346,7 +365,8 @@ def extract_apk(apk_path: str, work_dir: Optional[str] = None) -> dict:
         "package_name": package_name,
         "manifest_info": manifest_info,
         "apktool_success": apktool_result["success"],
-        "jadx_success": jadx_success,
+        "jadx_success": jadx_result["success"],
+        "androguard_success": androguard_result["success"],
         "apktool_output_dir": str(apktool_dir) if apktool_result["success"] else None,
         "jadx_output_dir": str(jadx_dir) if jadx_result["success"] else None,
         "apk_path": str(apk_path),
@@ -356,13 +376,17 @@ def extract_apk(apk_path: str, work_dir: Optional[str] = None) -> dict:
         "decompiled_classes": decompiled_classes,
         "native_strings_count": len(native_strings),
         "native_strings": native_strings,
+        "dex_strings_count": len(dex_strings),
+        "dex_strings": dex_strings,
         "errors": [],
     }
 
     if not apktool_result["success"]:
         result["errors"].append(apktool_result["error"])
-    if not jadx_result["success"] and not jadx_success:
+    if not jadx_result["success"] and use_jadx:
         result["errors"].append(jadx_result["error"])
+    if not androguard_result["success"]:
+        result["errors"].append(androguard_result["error"])
 
     # Save intermediate result
     result_path = sample_work / "step1_extraction.json"

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import '../styles/ThreatIntelView.css'
 
 const API_URL = 'http://localhost:8000'
@@ -8,14 +8,9 @@ export default function ThreatIntelView({ sample, apiUrl }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  useEffect(() => {
-    if (!sample) return
-    fetchThreatIntel()
-  }, [sample])
-
   const sampleId = sample?.sampleId || sample?.sha256 || sample?.uploadId
 
-  const fetchThreatIntel = async () => {
+  const fetchThreatIntel = useCallback(async () => {
     if (!sampleId) return
     try {
       setLoading(true)
@@ -30,7 +25,12 @@ export default function ThreatIntelView({ sample, apiUrl }) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [sampleId, apiUrl])
+
+  useEffect(() => {
+    if (!sample) return
+    fetchThreatIntel() // eslint-disable-line react-hooks/set-state-in-effect
+  }, [sample, fetchThreatIntel])
 
   if (!sample) {
     return (
@@ -383,6 +383,20 @@ function PdfExportSection({ sampleId, apiUrl }) {
   const [state, setState] = useState('idle') // idle | generating | done | error
   const [mode, setMode] = useState(null)
   const [errorMsg, setErrorMsg] = useState('')
+  const [showQuickOptions, setShowQuickOptions] = useState(false)
+  // Selected sections for Quick PDF; defaults match the backend's defaults so
+  // sending the object unchanged reproduces prior behaviour.
+  const [sections, setSections] = useState({
+    metadata: true,
+    llm_assessment: true,
+    obfuscation: true,
+    c2_infrastructure: true,
+    suspicious_methods: true,
+  })
+
+  const toggleSection = (key) => {
+    setSections(prev => ({ ...prev, [key]: !prev[key] }))
+  }
 
   const startExport = async (exportMode) => {
     if (state === 'generating') return
@@ -395,6 +409,11 @@ function PdfExportSection({ sampleId, apiUrl }) {
       if (!confirmed) return
     }
 
+    const payload = { mode: exportMode }
+    if (exportMode === 'quick') {
+      payload.sections = sections
+    }
+
     setState('generating')
     setMode(exportMode)
     setErrorMsg('')
@@ -403,7 +422,7 @@ function PdfExportSection({ sampleId, apiUrl }) {
       const res = await fetch(`${apiUrl}/api/sample/${sampleId}/report/pdf`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: exportMode }),
+        body: JSON.stringify(payload),
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: res.statusText }))
@@ -413,7 +432,17 @@ function PdfExportSection({ sampleId, apiUrl }) {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `droidforensix_${sampleId.slice(0, 12)}_${exportMode}.pdf`
+      // Make the filename distinct when the Quick PDF has a non-default
+      // section selection so multiple exports don't silently overwrite.
+      let suffix = exportMode
+      if (exportMode === 'quick') {
+        const active = Object.entries(sections)
+          .filter(([, v]) => v)
+          .map(([k]) => k.split('_')[0])
+        const allOn = active.length === quickOptions.length
+        suffix = allOn ? 'quick' : `quick_${active.join('-') || 'cover'}`
+      }
+      a.download = `droidforensix_${sampleId.slice(0, 12)}_${suffix}.pdf`
       a.click()
       URL.revokeObjectURL(url)
       setState('done')
@@ -424,6 +453,14 @@ function PdfExportSection({ sampleId, apiUrl }) {
       setTimeout(() => setState('idle'), 5000)
     }
   }
+
+  const quickOptions = [
+    { key: 'metadata',           label: 'Sample Metadata' },
+    { key: 'llm_assessment',      label: 'LLM Threat Assessment' },
+    { key: 'obfuscation',         label: 'Obfuscation Analysis' },
+    { key: 'c2_infrastructure',   label: 'C2 Infrastructure' },
+    { key: 'suspicious_methods',  label: 'Suspicious Methods' },
+  ]
 
   return (
     <div className="threat-card card">
@@ -462,6 +499,27 @@ function PdfExportSection({ sampleId, apiUrl }) {
         </button>
       </div>
 
+      <details className="quick-pdf-options" open={showQuickOptions}
+        onToggle={(e) => setShowQuickOptions(e.target.open)}>
+        <summary>Customize Quick PDF sections</summary>
+        <p className="quick-pdf-options-hint">
+          Choose which sections appear in the Quick PDF. Cover page is always included.
+        </p>
+        <div className="quick-pdf-section-list">
+          {quickOptions.map(opt => (
+            <label key={opt.key} className="quick-pdf-section-item">
+              <input
+                type="checkbox"
+                checked={sections[opt.key]}
+                onChange={() => toggleSection(opt.key)}
+                disabled={state === 'generating'}
+              />
+              <span>{opt.label}</span>
+            </label>
+          ))}
+        </div>
+      </details>
+
       {state === 'done' && (
         <p className="pdf-status pdf-status-ok">✓ Report downloaded successfully</p>
       )}
@@ -470,23 +528,6 @@ function PdfExportSection({ sampleId, apiUrl }) {
       )}
     </div>
   )
-}
-
-function ExportButton({ url, ext, label, count, preview }) {
-  const handleClick = () => downloadExport(url, ext)
-  return (
-    <button className="export-button" onClick={handleClick} title={preview}>
-      <span className="export-icon">⬇</span>
-      <span className="export-label">{label}</span>
-      <span className="export-ext">.{ext}</span>
-      <span className={`export-count ${count === 0 ? 'export-count-zero' : ''}`}>{count}</span>
-    </button>
-  )
-}
-
-function pct(value, total) {
-  if (!total) return 0
-  return (value / total) * 100
 }
 
 function ThreatIntelLoading() {
@@ -504,7 +545,7 @@ function ThreatIntelLoading() {
       setPhase(p => (p + 1) % phases.length)
     }, 1200)
     return () => clearInterval(interval)
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const progress = Math.round(((phase + 1) / phases.length) * 100)
 
@@ -540,20 +581,4 @@ function latToY(lat) {
   return ((90 - lat) / 180) * 100
 }
 
-function downloadExport(url, ext) {
-  fetch(url)
-    .then(res => {
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      return res.blob()
-    })
-    .then(blob => {
-      const a = document.createElement('a')
-      a.href = URL.createObjectURL(blob)
-      a.download = `droidforensix_export.${ext}`
-      a.click()
-      URL.revokeObjectURL(a.href)
-    })
-    .catch(err => {
-      alert('Export failed: ' + err.message)
-    })
-}
+

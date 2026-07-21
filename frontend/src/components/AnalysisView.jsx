@@ -251,6 +251,7 @@ const ResultView = memo(({ analysisState, apiUrl, sample }) => {
       <div className="result-tabs">
         {[
           { id: 'overview', label: 'Overview' },
+          { id: 'secrets', label: 'Secrets' },
           { id: 'llm', label: 'LLM Summary' },
           { id: 'dissection-summary', label: 'Dissection Summary' },
           { id: 'obfuscation', label: 'Obfuscation' },
@@ -270,7 +271,10 @@ const ResultView = memo(({ analysisState, apiUrl, sample }) => {
       {/* Tab Content */}
       <div className="tab-content">
         {activeResultTab === 'overview' && (
-          <OverviewTab result={fullResult} verdict={verdict} />
+          <OverviewTab result={fullResult} />
+        )}
+        {activeResultTab === 'secrets' && (
+          <SecretsTab result={fullResult} />
         )}
         {activeResultTab === 'llm' && (
           <LLMSummaryTab result={fullResult} />
@@ -297,7 +301,7 @@ ResultView.displayName = 'ResultView'
 /**
  * Overview Tab Content
  */
-const OverviewTab = memo(({ result, verdict }) => (
+const OverviewTab = memo(({ result }) => (
   <div className="tab-panel">
     <div className="card">
       <h3>Assessment Summary</h3>
@@ -329,6 +333,13 @@ const OverviewTab = memo(({ result, verdict }) => (
       <div className="card">
         <h4>Threat Chains</h4>
         <p className="metric-value">{(result?.threat_chains || []).length}</p>
+      </div>
+      <div className="card">
+        <h4>Secrets</h4>
+        <p className="metric-value">{result?.secret_risk?.total_secrets || 0}</p>
+        <p className="metric-sub" style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+          {result?.secret_risk?.severity || 'none'}
+        </p>
       </div>
     </div>
   </div>
@@ -711,7 +722,7 @@ function ChainCard({ chain, sampleId, apiUrl }) {
   // Fetch LLM explanation when first expanded
   useEffect(() => {
     if (!expanded || llmResult || llmLoading || !sampleId || !apiUrl) return
-    setLlmLoading(true)
+    setLlmLoading(true) // eslint-disable-line react-hooks/set-state-in-effect
     fetch(`${apiUrl}/api/sample/${sampleId}/explain-chain`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -887,7 +898,7 @@ const SORT_OPTIONS = [
  * Threat Chains Tab
  */
 const ChainsTab = memo(({ result, apiUrl, sampleId }) => {
-  const chains = result?.threat_chains || []
+  const chains = useMemo(() => result?.threat_chains || [], [result?.threat_chains])
   const [filterSeverity, setFilterSeverity] = useState('all')
   const [sortBy, setSortBy] = useState('severity')
 
@@ -1186,5 +1197,98 @@ function AnalysisView({ sample, analysisState, apiUrl, onRetry }) {
     </div>
   )
 }
+
+const SEVERITY_CONFIG = {
+  critical: { color: 'var(--accent-rose)', badge: 'rose', order: 0 },
+  high: { color: 'var(--accent-rose)', badge: 'rose', order: 1 },
+  medium: { color: 'var(--accent-amber)', badge: 'amber', order: 2 },
+  low: { color: 'var(--accent-emerald)', badge: 'emerald', order: 3 },
+}
+
+function SevBadge({ severity }) {
+  const cfg = SEVERITY_CONFIG[severity] || { color: 'var(--text-muted)', badge: 'slate' }
+  return <span style={{
+    padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 700,
+    background: cfg.color + '22', color: cfg.color, textTransform: 'uppercase',
+  }}>{severity}</span>
+}
+
+const SecretsTab = memo(({ result }) => {
+  const secrets = result?.hardcoded_secrets || []
+  const risk = result?.secret_risk || {}
+  const bySev = risk?.by_severity || {}
+  const total = (bySev.critical || 0) + (bySev.high || 0) + (bySev.medium || 0) + (bySev.low || 0)
+
+  if (!secrets.length) {
+    return (
+      <div className="tab-panel">
+        <div className="card" style={{ textAlign: 'center', padding: '3rem' }}>
+          <p style={{ color: 'var(--text-muted)' }}>No hardcoded secrets detected.</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="tab-panel">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', marginBottom: 16, padding: 16, background: 'var(--bg-surface)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)' }}>
+        <div>
+          <small style={{ fontFamily: 'JetBrains Mono', fontSize: 10, letterSpacing: '.08em', color: 'var(--text-muted)' }}>EXPOSED SECRET POSTURE</small>
+          <strong style={{ display: 'block', fontSize: 20, color: 'var(--text-primary)' }}>{total} findings</strong>
+        </div>
+        <div style={{ display: 'flex', gap: 12, marginLeft: 'auto' }}>
+          {['critical', 'high', 'medium'].map(s => (
+            <div key={s} style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 18, fontWeight: 800, color: SEVERITY_CONFIG[s].color }}>{bySev[s] || 0}</div>
+              <small style={{ fontFamily: 'JetBrains Mono', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)' }}>{s}</small>
+            </div>
+          ))}
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <small style={{ fontFamily: 'JetBrains Mono', fontSize: 10, color: 'var(--text-muted)' }}>SECRETS RISK</small>
+          <strong style={{ display: 'block', fontSize: 22, color: risk.risk_score > 60 ? 'var(--accent-rose)' : 'var(--accent-amber)' }}>{risk.risk_score || 0}</strong>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 4, marginBottom: 16, height: 8 }}>
+        {['critical', 'high', 'medium', 'low'].map(s => {
+          const cfg = SEVERITY_CONFIG[s]
+          const count = bySev[s] || 0
+          return count > 0 ? (
+            <div key={s} style={{ flex: count, height: 8, borderRadius: 4, background: cfg.color, opacity: 0.7 }} />
+          ) : null
+        })}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 12 }}>
+        {secrets.sort((a, b) => (SEVERITY_CONFIG[a.severity]?.order ?? 9) - (SEVERITY_CONFIG[b.severity]?.order ?? 9)).map((s, i) => {
+          const cfg = SEVERITY_CONFIG[s.severity] || { color: 'var(--text-muted)' }
+          const loc = s.source || s.source_file || '?'
+          return (
+            <article key={i} style={{
+              padding: 14, background: 'var(--bg-surface)', border: '1px solid var(--border-color)',
+              borderTop: `3px solid ${cfg.color}`, borderRadius: 'var(--radius-md)',
+              display: 'flex', flexDirection: 'column', gap: 8,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <SevBadge severity={s.severity} />
+                <strong style={{ fontSize: 13 }}>{s.secret_type}</strong>
+              </div>
+              <p style={{ margin: 0, fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--accent-cyan)', wordBreak: 'break-all' }}>{s.value}</p>
+              {s.decoded && (
+                <p style={{ margin: 0, fontSize: 12, color: 'var(--accent-emerald)' }}>✓ {s.decoded}</p>
+              )}
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                {loc}{s.occurrence_count > 1 ? ` · ${s.occurrence_count} occurrences` : ''}
+              </div>
+            </article>
+          )
+        })}
+      </div>
+    </div>
+  )
+})
+
+SecretsTab.displayName = 'SecretsTab'
 
 export default memo(AnalysisView)

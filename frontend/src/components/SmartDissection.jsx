@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import '../styles/SmartDissection.css'
 
 const UNWANTED_PATTERNS = [
@@ -49,13 +49,7 @@ export default function SmartDissection({ sample, apiUrl, onSelectClass }) {
 
   const sampleId = sample?.sampleId || sample?.sha256 || sample?.uploadId
 
-  useEffect(() => {
-    let cancelled = false
-    fetchDissection(() => cancelled)
-    return () => { cancelled = true }
-  }, [sampleId, apiUrl])
-
-  const fetchDissection = async (isCancelled) => {
+  const fetchDissection = useCallback(async (isCancelled) => {
     if (!sampleId) return
     try {
       setLoading(true)
@@ -81,9 +75,15 @@ export default function SmartDissection({ sample, apiUrl, onSelectClass }) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [sampleId, apiUrl])
 
-  const allClasses = dissectionData?.classes || []
+  useEffect(() => {
+    let cancelled = false
+    fetchDissection(() => cancelled) // eslint-disable-line react-hooks/set-state-in-effect
+    return () => { cancelled = true }
+  }, [sampleId, apiUrl, fetchDissection])
+
+  const allClasses = useMemo(() => dissectionData?.classes || [], [dissectionData?.classes])
 
   const obfuscatedClasses = useMemo(() => {
     const names = new Set()
@@ -96,7 +96,7 @@ export default function SmartDissection({ sample, apiUrl, onSelectClass }) {
     return names
   }, [obfuscationData])
 
-  const isObfuscatedClass = (cls) => obfuscatedClasses.has(cls.name)
+  const isObfuscatedClass = useCallback((cls) => obfuscatedClasses.has(cls.name), [obfuscatedClasses])
 
   const filteredClasses = useMemo(() => {
     let classes = allClasses
@@ -116,7 +116,7 @@ export default function SmartDissection({ sample, apiUrl, onSelectClass }) {
     }
 
     return classes
-  }, [allClasses, filter, search, obfuscatedClasses])
+  }, [allClasses, filter, search, isObfuscatedClass])
 
   const suspiciousCount = allClasses.filter(isSuspiciousClass).length
   const obfuscatedCount = allClasses.filter(isObfuscatedClass).length
@@ -260,7 +260,7 @@ function ClassCard({ classData, isObfuscated, expandAll, onSelectClass, sampleId
   // Lazy-load method bodies when first expanded
   useEffect(() => {
     if (!expanded || methods !== null || methodsLoading) return
-    setMethodsLoading(true)
+    setMethodsLoading(true) // eslint-disable-line react-hooks/set-state-in-effect
     fetch(`${apiUrl}/api/sample/${sampleId}/dissection/class-methods/${encodeURIComponent(classData.name)}`)
       .then(r => r.ok ? r.json() : Promise.reject(`HTTP ${r.status}`))
       .then(data => {
@@ -417,13 +417,13 @@ const THREAT_TYPE_LABELS = {
 }
 
 function MethodCard({ method, expandAll, sampleId, className, apiUrl }) {
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(expandAll)
   const [annotation, setAnnotation] = useState(null)
   const [annotationError, setAnnotationError] = useState(null)
   const [annotating, setAnnotating] = useState(false)
 
   useEffect(() => {
-    setExpanded(expandAll)
+    setExpanded(expandAll) // eslint-disable-line react-hooks/set-state-in-effect
   }, [expandAll])
 
   // Fire explain-method when first expanded
@@ -436,7 +436,7 @@ function MethodCard({ method, expandAll, sampleId, className, apiUrl }) {
       (method.body && method.body.toLowerCase().includes(kw.toLowerCase()))
     )
 
-    setAnnotating(true)
+    setAnnotating(true) // eslint-disable-line react-hooks/set-state-in-effect
     fetch(`${apiUrl}/api/sample/${sampleId}/dissection/explain-method`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
