@@ -20,7 +20,7 @@ class CorrelationError(Exception):
 # Weights for composite confidence calculation
 STEP_WEIGHTS = [0.15, 0.20, 0.25, 0.20, 0.20]
 
-# FIX: Minimum confidence threshold for C2 records to be included in threat chains.
+# Minimum confidence threshold for C2 records to be included in threat chains.
 # Low-confidence C2s (e.g. leftover SDK references) generate false-positive chains.
 C2_CONFIDENCE_THRESHOLD = 0.6
 
@@ -65,7 +65,7 @@ def build_threat_chains(encodings_result: dict, payloads_result: dict,
         if enc_id:
             payloads_by_encoding.setdefault(enc_id, []).append(payload)
 
-    # FIX: Filter C2s by confidence threshold BEFORE building chains.
+    # Filter C2s by confidence threshold BEFORE building chains.
     high_confidence_c2s = [
         c2 for c2 in c2_result.get("c2_infrastructure", [])
         if c2.get("confidence", 0) >= C2_CONFIDENCE_THRESHOLD
