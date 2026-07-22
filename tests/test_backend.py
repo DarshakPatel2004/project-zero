@@ -16,14 +16,12 @@ def client():
 
 @pytest.fixture(scope="module")
 def test_apk_path() -> Path:
-    """Return a small, real APK for pipeline tests."""
-    path = Path(
-        "CICAndMal2017/_extracted_Adware-APKs/Adware/dowgin/"
-        "1c4e357a8ec5f13de4ffd57cc2711afe.apk"
-    )
-    if not path.exists():
-        pytest.skip("Test APK not found")
-    return path
+    """Return the first real APK from the benign eval set for pipeline tests."""
+    samples_dir = Path("samples/goodware/benign_eval")
+    apks = list(samples_dir.glob("*.apk")) if samples_dir.is_dir() else []
+    if not apks:
+        pytest.skip("No test APK found in samples/goodware/benign_eval/")
+    return apks[0]
 
 
 def _tools_available() -> bool:
