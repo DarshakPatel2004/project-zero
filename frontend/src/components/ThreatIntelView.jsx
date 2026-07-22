@@ -1,7 +1,18 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
 import '../styles/ThreatIntelView.css'
 
 const API_URL = 'http://localhost:8000'
+
+const DEFAULT_ICON = L.divIcon({
+  className: 'custom-marker',
+  html: '<div class="marker-dot"></div>',
+  iconSize: [16, 16],
+  iconAnchor: [8, 8],
+  popupAnchor: [0, -10],
+})
 
 export default function ThreatIntelView({ sample, apiUrl }) {
   const [threatData, setThreatData] = useState(null)
@@ -137,24 +148,28 @@ export default function ThreatIntelView({ sample, apiUrl }) {
           <p className="empty-state">No geo-located IPs available</p>
         ) : (
           <div className="geo-layout">
-              <div className="geo-map">
+            <div className="geo-map">
+              <MapContainer
+                center={[20, 0]}
+                zoom={2}
+                scrollWheelZoom={true}
+                style={{ width: '100%', height: '100%', minHeight: '300px' }}
+                zoomControl={false}
+              >
+                <TileLayer
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+                <MapBoundsUpdater markers={geoIps.filter(ip => ip.latitude != null && ip.longitude != null)} />
                 {geoIps.filter(ip => ip.latitude != null && ip.longitude != null).map((ip, idx) => (
-                  <div
-                    key={idx}
-                    className="geo-pin"
-                    style={{
-                      left: `${longToX(ip.longitude)}%`,
-                      top: `${latToY(ip.latitude)}%`
-                    }}
-                    title={`${ip.ip} (${ip.country})`}
-                  >
-                    <span className="geo-dot"></span>
-                    <span className="geo-tooltip">{ip.ip}<br />{ip.country}{ip.isp ? `<br/>${ip.isp}` : ''}</span>
-                  </div>
+                  <Marker key={idx} position={[ip.latitude, ip.longitude]} icon={DEFAULT_ICON}>
+                    <Popup>
+                      <strong>{ip.ip}</strong><br />
+                      {ip.country}{ip.isp ? `<br/>${ip.isp}` : ''}
+                    </Popup>
+                  </Marker>
                 ))}
-              <div className="geo-bg">
-                <span className="geo-placeholder">🌍 World Map</span>
-              </div>
+              </MapContainer>
             </div>
             <div className="geo-table-wrap">
               <table className="geo-table">
@@ -530,6 +545,22 @@ function PdfExportSection({ sampleId, apiUrl }) {
   )
 }
 
+function MapBoundsUpdater({ markers }) {
+  const map = useMap()
+  const fitted = useRef(false)
+
+  useEffect(() => {
+    if (markers.length === 0 || fitted.current) return
+    const bounds = L.latLngBounds(markers.map(m => [m.latitude, m.longitude]))
+    if (bounds.isValid()) {
+      map.fitBounds(bounds, { padding: [60, 60], maxZoom: 10 })
+      fitted.current = true
+    }
+  }, [markers, map])
+
+  return null
+}
+
 function ThreatIntelLoading() {
   const phases = [
     'Resolving C2 domains',
@@ -573,12 +604,5 @@ function ThreatIntelLoading() {
   )
 }
 
-function longToX(lng) {
-  return ((lng + 180) / 360) * 100
-}
-
-function latToY(lat) {
-  return ((90 - lat) / 180) * 100
-}
 
 

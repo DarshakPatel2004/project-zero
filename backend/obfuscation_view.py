@@ -9,11 +9,14 @@ Transforms the raw Step 8 result into a dashboard-friendly structure with:
 """
 
 import json
+import logging
 import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from backend.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 # Mapping from indicator key to human-friendly obfuscation technique name.
@@ -143,6 +146,58 @@ def build_obfuscation_view(sample_id: str, result: Optional[Dict[str, Any]] = No
                 "artifact_count": len(artifact.get("artifacts", [])),
             })
 
+    # ELF analysis from native_library_analysis
+    native_analysis = obf.get("native_library_analysis", {}) or {}
+    elf_analysis = native_analysis.get("elf_analysis", {}) or {}
+
+    # Build lightweight elf_summary per library for the frontend
+    elf_summary = []
+    for lib_path, analysis in elf_analysis.items():
+        header = analysis.get("header", {})
+        packing = analysis.get("packing", {})
+        risk = analysis.get("risk_score", {})
+        jni_count = len(analysis.get("jni_exports", []))
+        anti_count = len(analysis.get("anti_analysis", []))
+        suspicious_count = len(analysis.get("suspicious_strings", []))
+        embedded_count = len(analysis.get("embedded_blobs", []))
+        deob_count = len(analysis.get("deobfuscated_strings", []))
+
+        entry = {
+            "library": lib_path,
+            "arch": header.get("arch", "unknown"),
+            "class": header.get("class", "unknown"),
+            "is_stripped": header.get("is_stripped", False),
+            "entry_point": header.get("entry_point"),
+            "jni_exports_count": jni_count,
+            "anti_analysis_count": anti_count,
+            "suspicious_strings_count": suspicious_count,
+            "embedded_blobs_count": embedded_count,
+            "deobfuscated_strings_count": deob_count,
+            "packing_level": packing.get("level", "none"),
+            "risk_level": risk.get("level", "LOW"),
+            "risk_score": risk.get("score", 0),
+        }
+
+        if jni_count:
+            entry["jni_exports"] = analysis["jni_exports"]
+        if anti_count:
+            entry["anti_analysis"] = analysis["anti_analysis"]
+        if suspicious_count:
+            entry["suspicious_strings"] = analysis["suspicious_strings"]
+        if embedded_count:
+            entry["embedded_blobs"] = analysis["embedded_blobs"]
+        if deob_count:
+            entry["deobfuscated_strings"] = analysis["deobfuscated_strings"]
+        if analysis.get("sections"):
+            entry["high_entropy_sections"] = [
+                s for s in analysis["sections"]
+                if s.get("entropy", 0) > 7.0
+            ]
+        if analysis.get("import_summary"):
+            entry["import_summary"] = analysis["import_summary"]
+
+        elf_summary.append(entry)
+
     return {
         "sample_id": sample_id,
         "obfuscation_score": obf.get("obfuscation_score", 0),
@@ -151,6 +206,7 @@ def build_obfuscation_view(sample_id: str, result: Optional[Dict[str, Any]] = No
         "dex_entropy": dex_entropy,
         "packed_dex": packed_dex,
         "native_library_artifacts": native_summary,
+        "elf_analysis": elf_summary,
         "total_classes": indicators.get("total_classes", 0),
         "total_methods": indicators.get("total_methods", 0),
         "asset_analysis": {
@@ -200,6 +256,7 @@ def deobfuscate_text(text: str, hint: Optional[str] = None) -> Dict[str, Any]:
             try:
                 add_result(label, decoded)
             except Exception:
+                logger.debug("Failed to add base64 decode result")
                 pass
 
     # Hex
@@ -215,6 +272,7 @@ def deobfuscate_text(text: str, hint: Optional[str] = None) -> Dict[str, Any]:
         if url_decoded != text:
             add_result("url_decode", url_decoded.encode("utf-8"))
     except Exception:
+        logger.debug("Failed to URL-decode text")
         pass
 
     # XOR brute force (common single-byte keys)
@@ -227,6 +285,7 @@ def deobfuscate_text(text: str, hint: Optional[str] = None) -> Dict[str, Any]:
                 if all(32 <= ord(c) < 127 or c in "\n\r\t" for c in printable):
                     add_result(f"xor_{key}", decoded)
             except Exception:
+                logger.debug("Failed to decode XOR result")
                 pass
 
     # If a hint is provided, try to surface the matching result first.

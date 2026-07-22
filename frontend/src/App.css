@@ -17,7 +17,12 @@
   display: flex;
   flex-direction: column;
   z-index: 100;
+}
+
+.nav-scroll {
+  flex: 1;
   overflow-y: auto;
+  min-height: 0;
 }
 
 .brand {
@@ -109,37 +114,43 @@ small {
 
 .case-card {
   margin: 0 4px 16px;
-  padding: 13px;
+  padding: 20px;
+  min-height: 170px;
   background: #111b2a;
   border: 1px solid var(--line);
   border-radius: 9px;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .case-card small {
   color: #627189;
   display: block;
+  font-size: 11px;
+  letter-spacing: 0.1em;
 }
 
 .case-card strong {
   display: block;
-  font-size: 12px;
-  margin: 5px 0;
+  font-size: 14px;
+  margin: 8px 0;
+  line-height: 1.5;
 }
 
 .case-card span {
   color: #ff9aaa;
   font-family: 'JetBrains Mono';
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .pulse,
 .online i {
   display: inline-block;
-  width: 7px;
-  height: 7px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   background: var(--emerald);
-  box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.12), 0 0 12px var(--emerald);
+  box-shadow: 0 0 0 6px rgba(16, 185, 129, 0.12), 0 0 16px var(--emerald);
 }
 
 .pulse.offline,
@@ -230,11 +241,12 @@ small {
 .online {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 10px;
   color: var(--emerald);
   font-family: 'JetBrains Mono';
-  font-size: 9px;
+  font-size: 12px;
   letter-spacing: 0.05em;
+  font-weight: 600;
 }
 
 .online.offline {

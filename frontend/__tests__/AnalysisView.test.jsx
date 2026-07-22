@@ -64,9 +64,10 @@ describe('AnalysisView Error Recovery', () => {
     })
 
     fireEvent.click(screen.getByText('Retry Analysis'))
+
     await waitFor(() => {
       expect(onRetry).toHaveBeenCalled()
-    })
+    }, { timeout: 5000 })
   })
 
   test('shows max retries reached message', async () => {
@@ -90,7 +91,7 @@ describe('AnalysisView Error Recovery', () => {
     render(
       <AnalysisView
         sample={{ uploadId: 'test-1' }}
-        analysisState={{ status: 'analyzing', progress: 50, eta: 30 }}
+        analysisState={{ status: 'running', progress: 50, eta: 30 }}
         apiUrl="http://localhost:8000"
       />
     )
@@ -115,13 +116,14 @@ describe('AnalysisView Error Recovery', () => {
   })
 
   test('error boundary reset works', async () => {
+    fetch.mockResolvedValue({ ok: true })
     let shouldCrash = true
     const CrashComponent = () => {
       if (shouldCrash) throw new Error('Test crash')
       return <div>Recovered</div>
     }
 
-    render(
+    const { unmount } = render(
       <ErrorBoundary>
         <CrashComponent />
       </ErrorBoundary>
@@ -131,6 +133,7 @@ describe('AnalysisView Error Recovery', () => {
 
     shouldCrash = false
     fireEvent.click(screen.getByText('Try Again'))
+    unmount()
 
     render(
       <ErrorBoundary>

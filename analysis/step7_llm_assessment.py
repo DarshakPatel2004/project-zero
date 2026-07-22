@@ -6,7 +6,7 @@ Validates JSON output, retries on failure, and provides rule-based fallback.
 
 Environment variables:
     NVIDIA_NIM_API_KEY  - NVIDIA NIM API key (required unless Ollama is used)
-    NVIDIA_NIM_MODEL    - Model ID on NVIDIA NIM (default: nvidia/nemotron-nano-9b-v2)
+    NVIDIA_NIM_MODEL    - Model ID on NVIDIA NIM (default: deepseek-ai/deepseek-v4-pro)
     NVIDIA_NIM_BASE_URL - Endpoint base URL (default: https://integrate.api.nvidia.com/v1)
 
 Fallback to local Ollama is still supported:
@@ -803,7 +803,7 @@ def assess_with_llm(chains_result: dict, c2_result: dict, obfuscation_result: Op
 
         if use_nvidia:
             # NVIDIA NIM path
-            nim_model = os.environ.get("NVIDIA_NIM_MODEL", settings.NIM_MODEL or "nvidia/nemotron-nano-9b-v2")
+            nim_model = os.environ.get("NVIDIA_NIM_MODEL", settings.NIM_MODEL or "deepseek-ai/deepseek-v4-pro")
             nim_base_url = os.environ.get("NVIDIA_NIM_BASE_URL", settings.NIM_HOST or "https://integrate.api.nvidia.com/v1")
             print(f"  [*] Using NVIDIA NIM model: {nim_model}")
 
@@ -996,7 +996,7 @@ def explain_threat_chain(chain: dict) -> dict:
         raw_output = ""
         if use_nvidia:
             combined = f"{CHAIN_EXPLAIN_SYSTEM_PROMPT}\n\nTHREAT CHAIN:\n{context}\n\nEXPLANATION:"
-            raw_output = _call_nvidia_nim(combined, os.environ.get("NVIDIA_NIM_MODEL", settings.NIM_MODEL or "nvidia/nemotron-nano-9b-v2"), os.environ.get("NVIDIA_NIM_BASE_URL", settings.NIM_HOST or "https://integrate.api.nvidia.com/v1"), nim_api_key, max_retries=2) or ""
+            raw_output = _call_nvidia_nim(combined, os.environ.get("NVIDIA_NIM_MODEL", settings.NIM_MODEL or "deepseek-ai/deepseek-v4-pro"), os.environ.get("NVIDIA_NIM_BASE_URL", settings.NIM_HOST or "https://integrate.api.nvidia.com/v1"), nim_api_key, max_retries=2) or ""
         else:
             ollama_host = _normalize_ollama_host(os.environ.get("OLLAMA_HOST", settings.OLLAMA_HOST))
             ollama_model = os.environ.get("OLLAMA_MODEL", settings.OLLAMA_MODEL)
@@ -1061,7 +1061,7 @@ def explain_method(
 
         raw_output = ""
         if use_nvidia:
-            nim_model = os.environ.get("NVIDIA_NIM_MODEL", settings.NIM_MODEL or "nvidia/nemotron-nano-9b-v2")
+            nim_model = os.environ.get("NVIDIA_NIM_MODEL", settings.NIM_MODEL or "deepseek-ai/deepseek-v4-pro")
             nim_base_url = os.environ.get("NVIDIA_NIM_BASE_URL", settings.NIM_HOST or "https://integrate.api.nvidia.com/v1")
             # Temporarily swap system prompt via a wrapper prompt
             combined = f"{METHOD_EXPLAIN_SYSTEM_PROMPT}\n\nMETHOD TO ANALYSE:\n{context}\n\nEXPLANATION:"
@@ -1280,7 +1280,7 @@ def summarize_dissection(dissection: dict, class_objects: list | None = None) ->
         if use_nvidia:
             raw_output = _call_nvidia_nim(
                 combined,
-                settings.NIM_MODEL or os.environ.get("NIM_MODEL", ""),
+                settings.NIM_MODEL or os.environ.get("NIM_MODEL", "deepseek-ai/deepseek-v4-pro"),
                 settings.NIM_HOST or os.environ.get("NVIDIA_NIM_BASE_URL", ""),
                 nim_api_key,
                 max_retries=2,

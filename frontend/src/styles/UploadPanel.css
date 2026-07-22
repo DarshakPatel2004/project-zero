@@ -5,13 +5,13 @@
 }
 
 .upload-hero {
-  padding: 2rem;
+  padding: 3rem;
 }
 
 .upload-dropzone {
   border: 2px dashed var(--border-strong);
   border-radius: var(--radius-lg);
-  padding: 3rem 2rem;
+  padding: 4rem 3rem;
   text-align: center;
   cursor: pointer;
   transition: all 0.25s ease;
@@ -56,13 +56,13 @@
 }
 
 .upload-illustration {
-  font-size: 3.5rem;
+  font-size: 4.5rem;
   filter: drop-shadow(0 0 12px rgba(6, 182, 212, 0.3));
 }
 
 .upload-dropzone h2 {
   margin: 0;
-  font-size: 1.5rem;
+  font-size: 1.75rem;
   font-weight: 600;
   color: var(--text-primary);
 }
@@ -70,17 +70,17 @@
 .upload-subtitle {
   margin: 0;
   color: var(--text-secondary);
-  font-size: 0.95rem;
+  font-size: 1.1rem;
 }
 
 .upload-primary-button {
-  padding: 0.8rem 2rem;
+  padding: 1rem 2.5rem;
   background: linear-gradient(135deg, var(--accent-cyan), #0891b2);
   color: white;
   border: none;
   border-radius: var(--radius-md);
   cursor: pointer;
-  font-size: 0.95rem;
+  font-size: 1rem;
   font-weight: 600;
   transition: all 0.2s ease;
   box-shadow: var(--shadow-glow-cyan);
@@ -100,15 +100,15 @@
 
 .upload-progress {
   width: 100%;
-  max-width: 320px;
+  max-width: 400px;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 1rem;
 }
 
 .upload-progress-track {
   flex: 1;
-  height: 8px;
+  height: 12px;
   background: rgba(255, 255, 255, 0.08);
   border-radius: 999px;
   overflow: hidden;
@@ -122,10 +122,10 @@
 }
 
 .upload-progress-text {
-  font-size: 0.85rem;
+  font-size: 1rem;
   font-weight: 600;
   color: var(--text-secondary);
-  min-width: 36px;
+  min-width: 42px;
   text-align: right;
 }
 

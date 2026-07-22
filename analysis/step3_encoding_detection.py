@@ -58,6 +58,12 @@ BENIGN_SOURCE_PATTERNS = [
     re.compile(r"res[\\/]values[\\/]", re.IGNORECASE),
     re.compile(r"res[\\/]xml[\\/]", re.IGNORECASE),
     re.compile(r"AndroidManifest\.xml", re.IGNORECASE),
+    # Utility/helper classes — constants, not payloads.
+    re.compile(r"[\\/]utils?[\\/]", re.IGNORECASE),
+    re.compile(r"[\\/]helpers?[\\/]", re.IGNORECASE),
+    re.compile(r"[\\/]constants?[\\/]", re.IGNORECASE),
+    re.compile(r"[\\/]BuildConfig\.", re.IGNORECASE),
+    re.compile(r"[\\/]R\$", re.IGNORECASE),  # Android resource IDs
 ]
 
 # Source locations that suggest the string is actually used as an obfuscated
@@ -78,6 +84,11 @@ BENIGN_VALUE_PATTERNS = [
     re.compile(r"^[A-Z][A-Z0-9_]*$"),  # UPPER_SNAKE_CASE constants
     re.compile(r"^[a-z]+(_[a-z]+)+$"),  # lowercase_snake_case
     re.compile(r"^[A-Za-z0-9_]+\.[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)*$"),  # Dotted names
+    re.compile(r"^[A-Za-z0-9+/]{20,}$"),  # Base64-like but no padding — often a constant
+    re.compile(r"^[A-Za-z0-9_-]{20,}$"),  # URL-safe-base64-like — often a token
+    re.compile(r"^[a-zA-Z]+$"),  # Plain alphabetic string (no digits, no special chars)
+    re.compile(r"^[A-Z][A-Z_0-9]+$"),  # UPPER_CASE_WITH_DIGITS constants
+    re.compile(r"^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$"),  # package.name format
 ]
 
 
@@ -183,30 +194,41 @@ def is_likely_obfuscated_payload(value: str, decoded: str, source: str,
                                   entropy: float) -> bool:
     """
     Decide whether a decoded candidate is a real obfuscated payload or a
-    false positive. We require at least one strong signal:
-      - decoded content contains URLs, IPs, domains, or emails; OR
-      - the source context looks suspicious (reflection, crypto, loading, etc.)
+    false positive.
 
-    Benign framework/library sources are demoted unless one of the strong
-    signals is present, and obvious code-identifier shapes are rejected.
+    Rules (strict — biased toward fewer false positives):
+      1. Meaningful decoded content (URL/IP/domain/email) → keep regardless.
+      2. Suspicious source AND (high entropy OR meaningful) → keep.
+      3. Benign source / benign value shape → reject.
+      4. Short string (< 16 chars) in a utility class → reject (constants).
+      5. High entropy alone → keep as uncertain (XOR candidates).
     """
     meaningful = has_meaningful_content(decoded)
     suspicious = is_suspicious_source(source)
+    high_entropy = entropy > HIGH_ENTROPY_THRESHOLD
 
-    # Strong signals: always keep.
-    if meaningful or suspicious:
+    # Rule 1: decoded content itself is clearly malicious → always keep.
+    if meaningful:
         return True
 
-    # Benign framework / library code without meaningful decode -> likely FP.
+    # Rule 2: suspicious source only counts if the content or entropy backs it up.
+    if suspicious and (high_entropy or meaningful):
+        return True
+
+    # Rule 3a: benign framework / library code → reject.
     if is_benign_source(source):
         return False
 
-    # Common identifier shapes without meaningful decode -> likely FP.
+    # Rule 3b: common identifier shapes → reject.
     if is_benign_value_pattern(value):
         return False
 
-    # Keep high-entropy unknowns as uncertain candidates.
-    if entropy > HIGH_ENTROPY_THRESHOLD:
+    # Rule 4: short constant in a utility class → reject.
+    if len(value) < 16 and ('utils' in source.lower() or 'util' in source.lower()):
+        return False
+
+    # Rule 5: high-entropy unknown → keep as uncertain (XOR candidates).
+    if high_entropy:
         return True
 
     return False

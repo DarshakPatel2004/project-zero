@@ -15,7 +15,7 @@ export class ErrorBoundary extends Component {
     if (import.meta.env.DEV) {
       console.error('ErrorBoundary caught:', error, errorInfo)
     }
-    fetch('/api/log-error', {
+    fetch('http://localhost:8000/api/log-error', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

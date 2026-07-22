@@ -20,12 +20,21 @@ from androguard.core.apk import APK
 from androguard.core.dex import DEX
 
 from backend.config import settings
+from backend.elf_analyzer import ELFBreaker
 
 logger = logging.getLogger(__name__)
 
 # Per-sample locks for atomic class cache writes
 _class_cache_locks: Dict[str, threading.Lock] = {}
 _class_cache_locks_lock = threading.Lock()
+
+# In-memory class objects cache (avoids re-reading 841KB JSON from disk on every API call)
+_CLASS_OBJECTS_CACHE: Dict[str, Tuple[List[Dict[str, Any]], float]] = {}
+_CLASS_OBJECTS_TTL = 300  # 5 minutes
+
+# In-memory dissection.json cache (avoids re-reading 2.7MB JSON per endpoint call)
+_DISSECTION_CACHE: Dict[str, Tuple[Dict[str, Any], float]] = {}
+_DISSECTION_TTL = 300  # 5 minutes
 
 # Android namespace used in binary XML manifests
 ANDROID_NS = "{http://schemas.android.com/apk/res/android}"
@@ -327,26 +336,63 @@ class APKDissector:
         return components
 
     def extract_native_libs(self) -> List[Dict[str, Any]]:
-        """Return list of .so files and architectures."""
+        """Return list of .so files with full ELF break down."""
         apk = self._get_apk()
         libs = []
-        # Build a map of filename -> (size, crc32) from the APK zip
         with zipfile.ZipFile(self.apk_path, "r") as zf:
             zip_info = {info.filename: info for info in zf.infolist()}
-        for file_name in apk.get_files():
-            if not file_name.endswith(".so"):
-                continue
-            parts = Path(file_name).parts
-            # Typical path: lib/<arch>/<name>.so
-            arch = parts[1] if len(parts) >= 3 else "unknown"
-            info = zip_info.get(file_name)
-            libs.append({
-                "path": file_name,
-                "arch": arch,
-                "name": Path(file_name).name,
-                "size": info.file_size if info else 0,
-                "crc32": f"{info.CRC & 0xFFFFFFFF:08x}" if info else None,
-            })
+            content_cache = {}
+            for file_name in apk.get_files():
+                if not file_name.endswith(".so"):
+                    continue
+                parts = Path(file_name).parts
+                arch = parts[1] if len(parts) >= 3 else "unknown"
+                info = zip_info.get(file_name)
+                entry = {
+                    "path": file_name,
+                    "arch": arch,
+                    "name": Path(file_name).name,
+                    "size": info.file_size if info else 0,
+                    "crc32": f"{info.CRC & 0xFFFFFFFF:08x}" if info else None,
+                }
+
+                # Run full ELF break down
+                try:
+                    if file_name not in content_cache:
+                        content_cache[file_name] = zf.read(file_name)
+                    content = content_cache[file_name]
+                    if content:
+                        breaker = ELFBreaker(entry["name"], content)
+                        analysis = breaker.analyze()
+                        entry["elf_analysis"] = analysis
+
+                        jni_count = len(analysis.get("jni_exports", []))
+                        if jni_count:
+                            entry["jni_exports_count"] = jni_count
+                            entry["jni_exports"] = analysis["jni_exports"]
+
+                        packing = analysis.get("packing", {})
+                        if packing.get("level", "none") != "none":
+                            entry["packing"] = packing
+
+                        anti = analysis.get("anti_analysis", [])
+                        if anti:
+                            entry["anti_analysis"] = anti
+
+                        risk = analysis.get("risk_score", {})
+                        entry["risk"] = risk
+
+                        suspicious_strs = analysis.get("suspicious_strings", [])
+                        if suspicious_strs:
+                            entry["suspicious_strings"] = suspicious_strs
+
+                        deob_strs = analysis.get("deobfuscated_strings", [])
+                        if deob_strs:
+                            entry["deobfuscated_strings"] = deob_strs
+                except Exception:
+                    logger.debug("Failed to run ELF break down on %s", file_name)
+
+                libs.append(entry)
         return libs
 
     def extract_resources_structure(self) -> Dict[str, Any]:
@@ -467,18 +513,30 @@ class APKDissector:
         sources_dir = self.work_dir / sample_id / "jadx" / "sources"
         return sources_dir.exists() and any(sources_dir.rglob("*.java"))
 
-    def list_decompiled_class_objects(self) -> List[Dict[str, Any]]:
+    def list_decompiled_class_objects(self, refresh: bool = False) -> List[Dict[str, Any]]:
         """Return class objects with method/network summaries for the dashboard.
-        Cached to disk so subsequent loads are instant.
+        Cached in-memory (5min TTL) and on-disk so subsequent loads are instant.
         """
         sample_id = self._sample_id_from_apk()
+        now = time.time()
+
+        if refresh:
+            _CLASS_OBJECTS_CACHE.pop(sample_id, None)
+
+        # In-memory cache (avoids re-reading 841KB JSON from disk per request)
+        cached = _CLASS_OBJECTS_CACHE.get(sample_id)
+        if cached is not None and (now - cached[1]) < _CLASS_OBJECTS_TTL:
+            return cached[0]
+
         cache_path = self.work_dir / sample_id / "dissection_classes_cache.json"
 
         # Return cached result if available
         if cache_path.exists():
             try:
                 with open(cache_path, "r", encoding="utf-8") as f:
-                    return json.load(f)
+                    data = json.load(f)
+                _CLASS_OBJECTS_CACHE[sample_id] = (data, now)
+                return data
             except Exception:
                 logger.debug("Class cache corrupt, rebuilding")
 
@@ -504,6 +562,7 @@ class APKDissector:
             except Exception:
                 logger.debug("Cache write failed (non-fatal)")
 
+        _CLASS_OBJECTS_CACHE[sample_id] = (result, now)
         return result
 
     def _list_class_objects_from_jadx(self, sources_dir: Path) -> List[Dict[str, Any]]:
@@ -636,12 +695,17 @@ class APKDissector:
         """Disassemble a class from DEX using Androguard and return a text representation."""
         try:
             apk = self._get_apk()
-            target_raw = "L" + class_name.replace(".", "/") + ";"
+            targets = [
+                "L" + class_name.replace(".", "/") + ";",
+                class_name,
+                class_name.replace(".", "/"),
+            ]
             for dex_data in apk.get_all_dex():
                 try:
                     dex = DEX(dex_data)
                     for cls in dex.get_classes():
-                        if cls.get_name() == target_raw:
+                        cls_raw = cls.get_name()
+                        if cls_raw in targets:
                             output = [
                                 f"// Disassembled DEX Class (Fallback for packed/encrypted APK)",
                                 f"class {class_name} {{",
@@ -675,6 +739,7 @@ class APKDissector:
                     continue
         except Exception:
             logger.debug("Androguard disassemble failed for class %s", class_name)
+        logger.warning("Androguard fallback: class '%s' not found in DEX (listed but source unavailable)", class_name)
         return None
 
     def load_strings(self) -> Optional[Dict[str, Any]]:
@@ -716,13 +781,20 @@ def get_class_methods_lite(class_objects: List[Dict[str, Any]], class_name: str)
 
 
 def load_dissection(work_dir: str, sample_id: str) -> Optional[Dict[str, Any]]:
-    """Load cached dissection.json for a sample if it exists."""
+    """Load cached dissection.json for a sample if it exists (in-memory cached, 5min TTL)."""
+    now = time.time()
+    cached = _DISSECTION_CACHE.get(sample_id)
+    if cached is not None and (now - cached[1]) < _DISSECTION_TTL:
+        return cached[0]
+
     path = Path(work_dir) / sample_id / "dissection.json"
     if not path.exists():
         return None
     try:
         with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
+        _DISSECTION_CACHE[sample_id] = (data, now)
+        return data
     except Exception:
         logger.debug("Failed to load dissection.json for %s", sample_id)
         return None

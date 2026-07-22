@@ -17,6 +17,7 @@ import csv
 import io
 import ipaddress
 import json
+import logging
 import socket
 import time
 from collections import defaultdict
@@ -26,6 +27,9 @@ from urllib.request import urlopen, Request
 
 from backend.config import settings
 from backend.censys_enrichment import enrich_ip as _censys_enrich
+from backend.family_id import identify_family
+
+logger = logging.getLogger(__name__)
 
 try:
     import geoip2.database
@@ -42,7 +46,7 @@ def _load_isp_cache() -> Dict[str, Any]:
             with open(_ISP_CACHE_PATH, 'r', encoding='utf-8') as f:
                 return json.load(f)
         except Exception:
-            pass
+            logger.debug("Failed to load ISP cache")
     return {}
 
 def _save_isp_cache(cache: Dict[str, Any]) -> None:
@@ -50,7 +54,7 @@ def _save_isp_cache(cache: Dict[str, Any]) -> None:
         with open(_ISP_CACHE_PATH, 'w', encoding='utf-8') as f:
             json.dump(cache, f, indent=2)
     except Exception:
-        pass
+        logger.warning("Failed to save ISP cache")
 
 def _enrich_isp(ip: str) -> Dict[str, str]:
     """Query ip-api.com for ISP/org/AS, with rate limiting and caching."""
@@ -233,7 +237,7 @@ def classify_c2(c2: Dict[str, Any]) -> Tuple[str, str]:
         if port and int(port) in SUSPICIOUS_PORTS:
             reasons.append(f'unusual port: {port}')
     except (TypeError, ValueError):
-        pass
+        logger.debug("Failed to parse port: %s", port)
 
     if protocol and protocol not in ('http', 'https'):
         reasons.append(f'unusual protocol: {protocol}')
@@ -353,7 +357,7 @@ def build_threat_intel(result: Dict[str, Any], sample_id: str) -> Dict[str, Any]
                     try:
                         socket.setdefaulttimeout(old_timeout)
                     except Exception:
-                        pass
+                        logger.debug("Failed to restore socket timeout")
                     return c, {'live_dns': {'resolves': False, 'ips': [], 'error': str(e)[:60]}, 'status': 'dead'}
             elif ip:
                 ip_class = _classify_ip(ip)
@@ -373,7 +377,7 @@ def build_threat_intel(result: Dict[str, Any], sample_id: str) -> Dict[str, Any]
                         c.update(update)
                         has_changes = True
                 except Exception:
-                    pass
+                    logger.debug("C2 live-dns lookup failed for %s", c.get("domain", c.get("ip", "unknown")))
 
         if has_changes:
             try:
@@ -472,12 +476,22 @@ def build_threat_intel(result: Dict[str, Any], sample_id: str) -> Dict[str, Any]
 
             ips_geolocated.append(base)
 
+    family_data = identify_family(sample_id, result)
+    family = {
+        'family': family_data.get('family', 'unknown'),
+        'confidence': family_data.get('confidence', 0.0),
+        'method': family_data.get('method', 'none'),
+        'reasoning': family_data.get('reasoning', ''),
+        'candidates': family_data.get('candidates', []),
+    }
+
     return {
         'sample_id': sample_id,
         'c2s': enriched_c2s,
         'dns': dns,
         'classification': classification,
         'ips_geolocated': ips_geolocated,
+        'family': family,
         'totals': {
             'c2s': len(enriched_c2s),
             'geolocated_ips': len(ips_geolocated),

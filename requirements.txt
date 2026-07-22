@@ -14,6 +14,7 @@ pydantic-settings
 
 # HTTP Client
 requests
+aiohttp
 
 # Phone Number Validation
 phonenumbers
@@ -32,7 +33,7 @@ pytest-asyncio
 httpx
 
 # Report Generation (PDF)
-weasyprint
+reportlab
 
 # Utilities
 python-dotenv

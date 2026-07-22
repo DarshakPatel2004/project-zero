@@ -47,7 +47,7 @@ def _load_cache() -> Dict[str, Any]:
             with open(CACHE_PATH, "r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception:
-            pass
+            logger.debug("Failed to load Censys cache")
     return {}
 
 

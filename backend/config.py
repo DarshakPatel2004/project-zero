@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -76,6 +77,13 @@ class Settings(BaseSettings):
         "http://127.0.0.1:4173",
         "http://127.0.0.1:8443",
     ]
+
+    @property
+    def cors_origins(self) -> list:
+        env_val = os.environ.get("CORS_ORIGINS")
+        if env_val:
+            return [o.strip() for o in env_val.split(",") if o.strip()]
+        return self.CORS_ORIGINS
 
 
 settings = Settings()

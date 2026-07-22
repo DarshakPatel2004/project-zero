@@ -3,6 +3,146 @@ import '../styles/ObfuscationView.css'
 
 const TECH_COLORS = ['rose', 'amber', 'cyan', 'violet']
 
+const TECH_LABELS = {
+  xor_single: 'XOR (single-byte)',
+  xor_multi: 'XOR (multi-byte)',
+  sub_cipher: 'SUB cipher',
+  add_cipher: 'ADD cipher',
+  rot47: 'ROT47',
+}
+
+function DeobfCard({ item }) {
+  const [open, setOpen] = useState(false)
+  const decoded = item.decoded || ''
+  return (
+    <div style={{
+      border: '1px solid var(--border-color)',
+      borderRadius: 6, padding: '8px 10px',
+      background: 'var(--bg-primary)',
+    }}>
+      <div
+        onClick={() => setOpen(!open)}
+        style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
+          <span style={{
+            fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
+            color: 'var(--accent-cyan)', whiteSpace: 'nowrap',
+          }}>
+            {TECH_LABELS[item.technique] || item.technique}
+          </span>
+          <span style={{
+            fontSize: 11, color: 'var(--text-muted)', fontFamily: "'JetBrains Mono', monospace", whiteSpace: 'nowrap',
+          }}>
+            key={item.key} score={item.score}
+          </span>
+        </div>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{open ? '▲' : '▼'}</span>
+      </div>
+      <code style={{
+        display: 'block', marginTop: 4,
+        fontFamily: "'JetBrains Mono', monospace", fontSize: 12,
+        color: 'var(--text-primary)', wordBreak: 'break-all',
+        lineHeight: 1.5,
+      }}>
+        {decoded.length > 120 && !open ? decoded.slice(0, 120) + '...' : decoded}
+      </code>
+    </div>
+  )
+}
+
+function LibCard({ lib }) {
+  const [open, setOpen] = useState(false)
+  const deobs = lib.deobfuscated_strings || []
+  const name = lib.library || 'unknown'
+  const shortName = name.split('/').pop()
+  return (
+    <div style={{
+      border: '1px solid var(--border-color)',
+      borderRadius: 8, overflow: 'hidden',
+      background: 'var(--bg-surface)',
+    }}>
+      <div
+        onClick={() => setOpen(!open)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          padding: '10px 14px', cursor: 'pointer',
+          background: open ? 'var(--bg-primary)' : 'transparent',
+          borderBottom: open ? '1px solid var(--border-color)' : 'none',
+        }}
+      >
+        <span style={{ fontSize: 16 }}>📦</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)', fontFamily: "'JetBrains Mono', monospace" }}>
+            {shortName}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <span>{lib.arch} / {lib.class}</span>
+            <span>risk: {lib.risk_level} ({lib.risk_score})</span>
+            {lib.packing_level !== 'none' && <span>packing: {lib.packing_level}</span>}
+            {deobs.length > 0 && <span style={{ color: 'var(--accent-cyan)', fontWeight: 600 }}>{deobs.length} deobfuscated</span>}
+          </div>
+        </div>
+        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{open ? '▲' : '▼'}</span>
+      </div>
+
+      {open && (
+        <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {lib.jni_exports_count > 0 && (
+            <div>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>JNI Exports: {lib.jni_exports_count}</span>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+                {(lib.jni_exports || []).map((e, i) => (
+                  <span key={i} style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: 'var(--accent-rose)', padding: '2px 6px', background: 'var(--bg-primary)', borderRadius: 4 }}>
+                    {e.symbol || e.class || e}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {lib.anti_analysis_count > 0 && (
+            <div>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Anti-Analysis: {lib.anti_analysis_count}</span>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+                {(lib.anti_analysis || []).map((a, i) => (
+                  <span key={i} style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: 'var(--accent-amber)', padding: '2px 6px', background: 'var(--bg-primary)', borderRadius: 4 }}>
+                    {a.value || a.type || a}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {lib.suspicious_strings_count > 0 && (
+            <div>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Suspicious Strings: {lib.suspicious_strings_count}</span>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+                {(lib.suspicious_strings || []).map((s, i) => (
+                  <span key={i} style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: 'var(--accent-violet)', padding: '2px 6px', background: 'var(--bg-primary)', borderRadius: 4 }}>
+                    {s.value || s}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {deobs.length > 0 && (
+            <div>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>
+                Deobfuscated Strings ({deobs.length})
+              </span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
+                {deobs.map((item, i) => <DeobfCard key={i} item={item} />)}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function ObfuscationView({ sample, apiUrl }) {
   const [obfuscationData, setObfuscationData] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -136,6 +276,20 @@ export default function ObfuscationView({ sample, apiUrl }) {
             </section>
           ))}
         </div>
+      )}
+
+      {(obfuscationData.elf_analysis || []).length > 0 && (
+        <section className="card" style={{ padding: '1.25rem' }}>
+          <h3 className="section-title">Native Library ELF Analysis</h3>
+          <p style={{ color: 'var(--text-secondary)', fontSize: 14, margin: '0 0 0.75rem' }}>
+            Deobfuscated strings recovered from obfuscated ELF binaries via XOR/ROT/ADD cipher cracking.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {obfuscationData.elf_analysis.map((lib, i) => (
+              <LibCard key={i} lib={lib} />
+            ))}
+          </div>
+        </section>
       )}
 
       <section className="card" style={{ padding: '1.25rem' }}>

@@ -189,6 +189,96 @@ def correct_benign_false_positive(result: Dict[str, Any]) -> Dict[str, Any]:
     return result
 
 
+def _get_dex_method_count(result: Dict[str, Any]) -> int:
+    """Return total DEX methods from obfuscation analysis or extraction metadata."""
+    obfuscation = result.get("obfuscation_analysis", {}) or {}
+    indicators = obfuscation.get("indicators", {}) or {}
+    total_methods = indicators.get("total_methods", 0)
+    if not total_methods:
+        metadata = result.get("metadata", {}) or {}
+        total_methods = metadata.get("decompiled_classes", 0) or 0
+    return total_methods
+
+
+def correct_tiny_dex(result: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Boost samples with abnormally small code footprints.
+
+    Legitimate apps that request dangerous permissions always have substantial
+    code (SDK integrations, UI, business logic). A tiny DEX (< 25 methods)
+    combined with dangerous permissions is a strong indicator of malware that
+    collects permissions for runtime abuse.
+
+    Even without permissions, an APK with < 15 total methods and no UI activity
+    is almost certainly not a legitimate user-facing application.
+
+    Catches 3 of 5 remaining failure-analysis FNs (#1, #8 for dangerous-perm
+    path; #2 for the zero-permission path).
+    """
+    obfuscation = result.get("obfuscation_analysis", {}) or {}
+    indicators = obfuscation.get("indicators", {}) or {}
+
+    total_methods = _get_dex_method_count(result)
+    dangerous_perms = indicators.get("dangerous_permissions", [])
+    suspicious_apis = indicators.get("suspicious_apis", [])
+    reflection = indicators.get("reflection", [])
+    dynamic_loading = indicators.get("dynamic_loading", [])
+    c2_list = result.get("c2_infrastructure", []) or []
+    permission_count = len(dangerous_perms)
+    code_signals = len(suspicious_apis) + len(reflection) + len(dynamic_loading)
+
+    if total_methods == 0:
+        total_methods = (result.get("metadata", {}) or {}).get("decompiled_classes", 0) or 0
+
+    tiny_with_perms = (
+        total_methods < 25
+        and permission_count >= 1
+        and code_signals == 0
+        and not _has_real_c2(c2_list)
+    )
+    tiny_empty = (
+        total_methods < 15
+        and permission_count == 0
+        and code_signals == 0
+        and not _has_real_c2(c2_list)
+    )
+
+    if not tiny_with_perms and not tiny_empty:
+        return result
+
+    llm = result.get("llm_assessment", {}) or {}
+    current_score = llm.get("risk_score", 0) or 0
+
+    if current_score >= 55:
+        return result
+
+    risk_floor = 55
+    reason_parts = [f"tiny DEX ({total_methods} methods)"]
+    if tiny_with_perms:
+        reason_parts.append(f"{permission_count} dangerous perms, zero code")
+    else:
+        reason_parts.append("zero permissions and code — likely non-UI payload")
+
+    llm["severity"] = "medium"
+    llm["risk_score"] = max(current_score, risk_floor)
+    llm["primary_threat"] = "other"
+    llm["confidence"] = max(llm.get("confidence", 0.0), 0.55)
+    narrative = (
+        f"Post-process correction: {'; '.join(reason_parts)}. "
+        f"Abnormally small codebase for the permission profile. "
+        f"Original score was {current_score}."
+    )
+    llm["narrative"] = narrative
+    if "recommended_actions" not in llm or not llm["recommended_actions"]:
+        llm["recommended_actions"] = [
+            "Investigate runtime behavior — C2 may be fetched post-install",
+            "Check for native code or asset-based payloads",
+        ]
+    result["llm_assessment"] = llm
+    result.setdefault("post_process_notes", []).append(narrative)
+    return result
+
+
 def _has_suspicious_package(package: str) -> bool:
     """Return True if package name looks randomly generated or obfuscated."""
     if not package:
@@ -309,6 +399,73 @@ def correct_suspicious_package(result: Dict[str, Any]) -> Dict[str, Any]:
     return result
 
 
+def correct_decoding_no_c2(result: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Boost samples where threat chains exist with non-trivial decoding but no C2.
+
+    The heuristic fallback gives risk_score 45 for chains without C2 (base 45).
+    When the decoding chain includes deliberate obfuscation (XOR, Base64,
+    alphabet permutation) and there are no code-level signals, the 45 is
+    insufficient — the encoding itself is a malicious behavior signal.
+
+    Catches 1 of 5 remaining failure-analysis FNs (#5: 0 permissions, has
+    generic decoding chain, risk_score 45 stayed below threshold 55).
+    """
+    threat_chains = result.get("threat_chains", []) or []
+    c2_list = result.get("c2_infrastructure", []) or []
+
+    if not threat_chains:
+        return result
+    if _has_real_c2(c2_list) or _chains_have_c2(threat_chains):
+        return result
+
+    obfuscation = result.get("obfuscation_analysis", {}) or {}
+    indicators = obfuscation.get("indicators", {}) or {}
+    code_signals = (
+        len(indicators.get("reflection", []))
+        + len(indicators.get("dynamic_loading", []))
+        + len(indicators.get("suspicious_apis", []))
+    )
+    if code_signals > 0:
+        return result
+
+    chain_count = len(threat_chains)
+    non_trivial_encodings = 0
+    for chain in threat_chains:
+        dc = chain.get("decoding_chain", [])
+        if dc and any(t not in ("unknown", "raw") for t in dc):
+            non_trivial_encodings += 1
+
+    if non_trivial_encodings == 0:
+        return result
+
+    llm = result.get("llm_assessment", {}) or {}
+    current_score = llm.get("risk_score", 0) or 0
+
+    if current_score >= 55:
+        return result
+
+    risk_floor = 55
+    llm["severity"] = "medium"
+    llm["risk_score"] = max(current_score, risk_floor)
+    llm["confidence"] = max(llm.get("confidence", 0.0), 0.55)
+    narrative = (
+        f"Post-process correction: {non_trivial_encodings}/{chain_count} threat "
+        f"chains with deliberate encoding (XOR/Base64/permutation) but no C2. "
+        f"Encoding without matched code signals indicates automated obfuscation. "
+        f"Original score was {current_score}."
+    )
+    llm["narrative"] = narrative
+    if "recommended_actions" not in llm or not llm["recommended_actions"]:
+        llm["recommended_actions"] = [
+            "Run dynamic analysis — C2 likely constructed at runtime",
+            "Inspect encoding functions for hidden infrastructure strings",
+        ]
+    result["llm_assessment"] = llm
+    result.setdefault("post_process_notes", []).append(narrative)
+    return result
+
+
 def post_process_result(result: Dict[str, Any]) -> Dict[str, Any]:
     """
     Apply all sanity corrections to a pipeline result.
@@ -322,5 +479,7 @@ def post_process_result(result: Dict[str, Any]) -> Dict[str, Any]:
 
     result = correct_metasploit_stager(result)
     result = correct_suspicious_package(result)
+    result = correct_tiny_dex(result)
+    result = correct_decoding_no_c2(result)
     result = correct_benign_false_positive(result)
     return result

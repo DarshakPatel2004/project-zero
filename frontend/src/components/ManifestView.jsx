@@ -103,45 +103,22 @@ export default function ManifestView({ sample, apiUrl }) {
         setManifest(data.manifest || {})
 
         // Fetch components (activities, services, etc.)
-        const fetchComponents = async () => {
-          try {
-            const compResponse = await fetch(
-              `${baseUrl}/api/sample/${sampleId}/dissection/components`,
-              { signal: controller.signal }
-            )
-            if (compResponse.ok) {
-              const compData = await compResponse.json()
-              if (!stale) setComponents(compData.components || {})
-            }
-          } catch (compErr) {
-            if (compErr.name !== 'AbortError') {
-              console.warn('Components fetch failed:', compErr)
+        const [compResponse, permResponse] = await Promise.all([
+          fetch(`${baseUrl}/api/sample/${sampleId}/dissection/components`, { signal: controller.signal }),
+          fetch(`${baseUrl}/api/sample/${sampleId}/dissection/permissions`, { signal: controller.signal }),
+        ])
+        if (!stale) {
+          if (compResponse.ok) {
+            const compData = await compResponse.json()
+            setComponents(compData.components || {})
+          }
+          if (permResponse.ok) {
+            const permData = await permResponse.json()
+            if (permData.permissions) {
+              setManifest(prev => ({ ...prev, uses_permissions: permData.permissions }))
             }
           }
         }
-
-        // Fetch permissions separately
-        const fetchPermissions = async () => {
-          try {
-            const permResponse = await fetch(
-              `${baseUrl}/api/sample/${sampleId}/dissection/permissions`,
-              { signal: controller.signal }
-            )
-            if (permResponse.ok) {
-              const permData = await permResponse.json()
-              if (!stale && permData.permissions) {
-                setManifest(prev => ({ ...prev, uses_permissions: permData.permissions }))
-              }
-            }
-          } catch (permErr) {
-            if (permErr.name !== 'AbortError') {
-              console.warn('Permissions fetch failed:', permErr)
-            }
-          }
-        }
-
-        await fetchComponents()
-        await fetchPermissions()
       } catch (err) {
         if (stale || err.name === 'AbortError') return
         setError(err.message)

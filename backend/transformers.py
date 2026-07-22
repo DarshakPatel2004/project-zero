@@ -10,6 +10,8 @@ Converts pipeline_result.json into frontend-friendly formats:
 import hashlib
 import json
 import math
+import time
+from functools import lru_cache
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 
@@ -17,6 +19,16 @@ from backend.config import settings
 
 
 WORK_DIR = settings.WORK_DIR
+
+
+_ALL_RESULTS_CACHE: list | None = None
+_ALL_RESULTS_MTIME: float = 0
+_ALL_RESULTS_TTL = 300  # seconds before re-scanning disk (pipeline results are immutable)
+
+# Lightweight family index: sample_id -> family
+_FAMILY_INDEX_CACHE: dict[str, str] | None = None
+_FAMILY_INDEX_MTIME: float = 0
+_FAMILY_INDEX_TTL = 300
 
 
 # ---------------------------------------------------------------------------
@@ -94,16 +106,51 @@ def load_result(sample_id: str) -> Optional[Dict[str, Any]]:
 
 
 def load_all_results() -> List[Dict[str, Any]]:
-    """Load all available pipeline results."""
+    """Load all available pipeline results (cached, re-scans every 5s)."""
+    global _ALL_RESULTS_CACHE, _ALL_RESULTS_MTIME
+    now = time.time()
+    if _ALL_RESULTS_CACHE is not None and (now - _ALL_RESULTS_MTIME) < _ALL_RESULTS_TTL:
+        return _ALL_RESULTS_CACHE
     results = []
     if not WORK_DIR.exists():
+        _ALL_RESULTS_CACHE = results
+        _ALL_RESULTS_MTIME = now
         return results
     for sample_dir in WORK_DIR.iterdir():
         result_path = sample_dir / "pipeline_result.json"
         if result_path.exists():
             with open(result_path, "r", encoding="utf-8") as f:
                 results.append(_strip_surrogates(json.load(f)))
+    _ALL_RESULTS_CACHE = results
+    _ALL_RESULTS_MTIME = now
     return results
+
+
+def load_family_index() -> dict[str, str]:
+    """Load lightweight sample_id -> family mapping from family.json files (cached)."""
+    global _FAMILY_INDEX_CACHE, _FAMILY_INDEX_MTIME
+    now = time.time()
+    if _FAMILY_INDEX_CACHE is not None and (now - _FAMILY_INDEX_MTIME) < _FAMILY_INDEX_TTL:
+        return _FAMILY_INDEX_CACHE
+    index: dict[str, str] = {}
+    if not WORK_DIR.exists():
+        _FAMILY_INDEX_CACHE = index
+        _FAMILY_INDEX_MTIME = now
+        return index
+    for sample_dir in WORK_DIR.iterdir():
+        family_path = sample_dir / "family.json"
+        if family_path.exists():
+            try:
+                with open(family_path, "r", encoding="utf-8") as f:
+                    fd = json.load(f)
+                    sid = fd.get("sample_id") or sample_dir.name
+                    fam = fd.get("family", "unknown")
+                    index[sid] = fam.lower()
+            except Exception:
+                pass
+    _FAMILY_INDEX_CACHE = index
+    _FAMILY_INDEX_MTIME = now
+    return index
 
 
 # ---------------------------------------------------------------------------

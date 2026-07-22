@@ -47,6 +47,7 @@ from backend.dissection import APKDissector, SampleAPKCache, load_dissection
 from backend import threat_intel as ti
 from backend.family_id import identify_family
 from backend.obfuscation_view import build_obfuscation_view, deobfuscate_text
+from backend.code_analysis import CodeAnalyzer
 from backend.core.apk_processor import APKProcessor
 from backend.core.androguard_analyzer import APKAnalyzer
 
@@ -204,7 +205,7 @@ app = FastAPI(title="DroidForensix Backend", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS + [settings.FRONTEND_URL],
+    allow_origins=settings.cors_origins + [settings.FRONTEND_URL],
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
@@ -317,7 +318,9 @@ def _get_sample_apk_path(sample_id: str) -> Optional[Path]:
 def _get_or_create_dissection(sample_id: str, refresh: bool = False) -> dict:
     """Return cached dissection.json or generate and cache it."""
     if refresh:
+        from backend.dissection import _DISSECTION_CACHE
         _dissection_cache.invalidate(sample_id)
+        _DISSECTION_CACHE.pop(sample_id, None)
         dissection_path = WORK_DIR / sample_id / "dissection.json"
         if dissection_path.exists():
             try:
@@ -360,13 +363,16 @@ async def api_get_dissection(sample_id: str, refresh: bool = Query(False)) -> di
 
 @app.get("/api/sample/{sample_id}/dissection/manifest")
 async def api_get_dissection_manifest(sample_id: str, refresh: bool = Query(False)) -> dict:
-    """Get parsed AndroidManifest.xml."""
+    """Get parsed AndroidManifest.xml (raw_manifest truncated to 5KB)."""
     result = load_result(sample_id)
     if result is None:
         raise HTTPException(status_code=404, detail="Sample not found")
 
     data = _get_or_create_dissection(sample_id, refresh=refresh)
-    return {"manifest": data.get("manifest", {})}
+    manifest = data.get("manifest", {})
+    if isinstance(manifest.get("raw_manifest"), str) and len(manifest["raw_manifest"]) > 5000:
+        manifest = {**manifest, "raw_manifest": manifest["raw_manifest"][:5000]}
+    return {"manifest": manifest}
 
 
 @app.get("/api/sample/{sample_id}/dissection/permissions")
@@ -433,8 +439,7 @@ async def api_get_dissection_classes(
     try:
         dissector = APKDissector(str(apk_path), work_dir=str(WORK_DIR), cache=_dissection_cache)
         loop = asyncio.get_event_loop()
-        # list_decompiled_class_objects now handles its own disk caching
-        all_classes = await loop.run_in_executor(None, dissector.list_decompiled_class_objects)
+        all_classes = await loop.run_in_executor(None, lambda: dissector.list_decompiled_class_objects(refresh=refresh))
 
         # Strip method bodies to reduce payload size — return only names + metadata
         lightweight = []
@@ -487,7 +492,7 @@ async def api_get_class_methods(sample_id: str, class_name: str, refresh: bool =
         from backend.dissection import get_class_methods_lite
         dissector = APKDissector(str(apk_path), work_dir=str(WORK_DIR), cache=_dissection_cache)
         loop = asyncio.get_event_loop()
-        all_classes = await loop.run_in_executor(None, dissector.list_decompiled_class_objects)
+        all_classes = await loop.run_in_executor(None, lambda: dissector.list_decompiled_class_objects(refresh=refresh))
 
         cls = get_class_methods_lite(all_classes, class_name)
         if cls is None:
@@ -499,7 +504,7 @@ async def api_get_class_methods(sample_id: str, class_name: str, refresh: bool =
         raise HTTPException(status_code=500, detail=f"Failed to load class methods: {e}")
 
 
-@app.get("/api/sample/{sample_id}/dissection/code/{class_name}")
+@app.get("/api/sample/{sample_id}/dissection/code/{class_name:path}")
 async def api_get_class_code(sample_id: str, class_name: str, refresh: bool = Query(False)) -> dict:
     """Get decompiled source for a specific Java class."""
     result = load_result(sample_id)
@@ -526,7 +531,7 @@ async def api_get_class_code(sample_id: str, class_name: str, refresh: bool = Qu
 
 
 @app.get("/api/sample/{sample_id}/dissection/strings")
-async def api_get_dissection_strings(sample_id: str) -> dict:
+async def api_get_dissection_strings(sample_id: str):
     """Get extracted strings from Step 2 result."""
     result = load_result(sample_id)
     if result is None:
@@ -537,8 +542,19 @@ async def api_get_dissection_strings(sample_id: str) -> dict:
         raise HTTPException(status_code=404, detail="Strings not found for sample")
 
     try:
-        with open(strings_path, "r", encoding="utf-8") as f:
-            return json.load(f)
+        raw = strings_path.read_bytes()
+        data = json.loads(raw)
+
+        def _clean(obj):
+            if isinstance(obj, str):
+                return obj.encode("utf-8", errors="replace").decode("utf-8")
+            if isinstance(obj, dict):
+                return {k: _clean(v) for k, v in obj.items()}
+            if isinstance(obj, list):
+                return [_clean(v) for v in obj]
+            return obj
+
+        return JSONResponse(content=_clean(data))
     except json.JSONDecodeError as e:
         raise HTTPException(status_code=500, detail=f"Failed to parse strings JSON: {e}")
     except OSError as e:
@@ -595,6 +611,313 @@ class ExplainMethodRequest(BaseModel):
     method_name: str
     method_code: str
     flags: Optional[List[str]] = None
+
+
+# ---------------------------------------------------------------------------
+# Code Analysis endpoints
+# ---------------------------------------------------------------------------
+
+
+def _get_code_analyzer(sample_id: str) -> CodeAnalyzer:
+    """Create a CodeAnalyzer for a sample, raising 404 if APK not found."""
+    apk_path = _get_sample_apk_path(sample_id)
+    if apk_path is None:
+        raise HTTPException(status_code=404, detail="APK file not found for sample")
+    return CodeAnalyzer(str(apk_path), str(WORK_DIR), sample_id, cache=_dissection_cache)
+
+
+@app.get("/api/sample/{sample_id}/code-analysis/{class_name:path}")
+async def api_get_code_analysis(sample_id: str, class_name: str) -> dict:
+    """Method-level risk assessment, suspicious lines, and attack flow for a class."""
+    result = load_result(sample_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Sample not found")
+
+    analyzer = _get_code_analyzer(sample_id)
+    loop = asyncio.get_event_loop()
+    try:
+        analysis = await loop.run_in_executor(None, analyzer.analyze_class, class_name)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Code analysis failed: {e}")
+
+    if analysis is None:
+        raise HTTPException(status_code=404, detail=f"Class '{class_name}' not found or has no decompiled source")
+
+    return analysis
+
+
+@app.get("/api/sample/{sample_id}/string-references/{string_value:path}")
+async def api_get_string_references(sample_id: str, string_value: str) -> dict:
+    """Find all usages of a specific string value across all decompiled classes."""
+    result = load_result(sample_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Sample not found")
+
+    analyzer = _get_code_analyzer(sample_id)
+    loop = asyncio.get_event_loop()
+    try:
+        refs = await loop.run_in_executor(None, analyzer.get_string_references, string_value)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"String reference lookup failed: {e}")
+
+    if refs is None:
+        return {"string": string_value, "usages": []}
+
+    return refs
+
+
+# ---------------------------------------------------------------------------
+# Attribution & Threat Summary endpoints
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/sample/{sample_id}/attribution")
+async def api_get_attribution(sample_id: str) -> dict:
+    """MAFIA confidence breakdown: permissions match, C2 overlap, obfuscation pattern, code similarity."""
+    result = load_result(sample_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Sample not found")
+
+    cache_path = settings.WORK_DIR / sample_id / "attribution_cache.json"
+    if cache_path.exists():
+        try:
+            with open(cache_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            logger.warning("Failed to read attribution cache for %s, recomputing", sample_id)
+
+    # Family identification
+    family_data = identify_family(sample_id, result)
+    family = family_data.get("family", "unknown")
+    confidence = family_data.get("confidence", 0.0)
+
+    breakdown = _compute_confidence_breakdown(result, family)
+
+    related = _find_related_samples(sample_id, family, result)
+    supporting_signals = _build_supporting_signals(result, family_data, breakdown)
+
+    payload = {
+        "family": family,
+        "confidence": round(confidence, 2),
+        "confidence_breakdown": breakdown,
+        "supporting_signals": supporting_signals,
+        "related_samples": related,
+    }
+
+    try:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(cache_path, "w", encoding="utf-8") as f:
+            json.dump(payload, f)
+    except Exception:
+        logger.warning("Failed to write attribution cache for %s", sample_id)
+
+    return payload
+
+
+def _compute_confidence_breakdown(result: dict, family: str) -> dict:
+    """Compute per-dimension confidence scores."""
+    # Permissions match score
+    metadata = result.get("metadata", {})
+    declared_perms = set(metadata.get("permissions", []))
+    family_id_result = result.get("family_identification", {})
+    family_perms = set(family_id_result.get("matched_permissions", []))
+    if family_perms:
+        overlap = len(declared_perms & family_perms)
+        permissions_match = round(overlap / len(family_perms), 2) if family_perms else 0.0
+    else:
+        permissions_match = 0.5
+
+    # C2 overlap score
+    c2_list = result.get("c2_infrastructure", [])
+    c2_domains = {c.get("domain", "") for c in c2_list if c.get("domain")}
+    c2_overlap = 0.5
+    if c2_domains and family_id_result:
+        family_c2s = set(family_id_result.get("matched_c2", []))
+        if family_c2s:
+            overlap = len(c2_domains & family_c2s)
+            c2_overlap = round(overlap / len(c2_domains), 2) if c2_domains else 0.5
+
+    # Obfuscation pattern score
+    obfuscation = result.get("obfuscation_analysis", {})
+    obf_score = obfuscation.get("obfuscation_score", 0)
+    obf_pattern = round(min(obf_score / 100, 1.0), 2)
+
+    # Code similarity (simplified: use overall heuristic score)
+    heuristic = result.get("heuristic", {})
+    heuristic_score = heuristic.get("score", 0) if isinstance(heuristic, dict) else 0
+    code_similarity = round(min(heuristic_score / 100, 1.0), 2)
+
+    return {
+        "permissions_match": permissions_match,
+        "c2_overlap": c2_overlap,
+        "obfuscation_pattern": obf_pattern,
+        "code_similarity": code_similarity,
+    }
+
+
+def _build_supporting_signals(result: dict, family_data: dict, breakdown: dict) -> List[str]:
+    """Generate human-readable supporting signals from the data."""
+    signals = []
+    metadata = result.get("metadata", {})
+    permissions = metadata.get("permissions", [])
+    c2_list = result.get("c2_infrastructure", [])
+    obfuscation = result.get("obfuscation_analysis", {})
+
+    perm_match_pct = round(breakdown["permissions_match"] * 100)
+    if perm_match_pct > 0:
+        signals.append(f"{perm_match_pct}% permissions match family baseline")
+
+    c2_domains = {c.get("domain") for c in c2_list if c.get("domain")}
+    if c2_domains:
+        signals.append(f"C2 indicators overlap with {len(c2_domains)} known indicators")
+
+    obf_level = obfuscation.get("obfuscation_level", "low")
+    if obf_level != "low":
+        signals.append(f"Obfuscation pattern: {obf_level.upper()}")
+
+    family = family_data.get("family", "unknown")
+    if family != "unknown":
+        signals.append(f"Code structure consistent with {family}")
+
+    heuristic = result.get("heuristic", {})
+    if isinstance(heuristic, dict) and heuristic.get("method"):
+        signals.append(f"Detection method: {heuristic['method']}")
+
+    return signals
+
+
+def _find_related_samples(sample_id: str, family: str, result: dict) -> List[dict]:
+    """Find other samples in the same family (uses lightweight family index)."""
+    if family.lower() == "unknown":
+        return []
+
+    from backend.transformers import load_family_index
+
+    index = load_family_index()
+    matching = [sid for sid, fam in index.items() if fam.lower() == family.lower() and sid != sample_id]
+    if not matching:
+        return []
+
+    related = []
+    for sid in matching:
+        other = load_result(sid)
+        if other is None:
+            continue
+        similarity = _compute_similarity(result, other)
+        related.append({
+            "sample_id": sid,
+            "similarity": round(similarity, 2),
+        })
+
+    related.sort(key=lambda r: r["similarity"], reverse=True)
+    return related[:10]
+
+
+def _compute_similarity(a: dict, b: dict) -> float:
+    """Compute similarity score between two samples based on shared signals."""
+    score = 0.0
+    factors = 0
+
+    # Permission overlap
+    a_perms = set(a.get("metadata", {}).get("permissions", []))
+    b_perms = set(b.get("metadata", {}).get("permissions", []))
+    if a_perms and b_perms:
+        union = a_perms | b_perms
+        if union:
+            score += len(a_perms & b_perms) / len(union)
+            factors += 1
+
+    # C2 domain overlap
+    a_c2 = {c.get("domain", "") for c in a.get("c2_infrastructure", []) if c.get("domain")}
+    b_c2 = {c.get("domain", "") for c in b.get("c2_infrastructure", []) if c.get("domain")}
+    if a_c2 and b_c2:
+        union = a_c2 | b_c2
+        if union:
+            score += len(a_c2 & b_c2) / len(union)
+            factors += 1
+
+    if factors == 0:
+        return 0.0
+    return score / factors
+
+
+@app.get("/api/sample/{sample_id}/threat-summary")
+async def api_get_threat_summary(sample_id: str) -> dict:
+    """Glance-level threat summary with threat score, red flags, and key indicators."""
+    result = load_result(sample_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Sample not found")
+
+    metadata = result.get("metadata", {})
+    assessment = result.get("llm_assessment", {})
+    obfuscation = result.get("obfuscation_analysis", {})
+    c2_list = result.get("c2_infrastructure", [])
+    family_data = result.get("family_identification", {})
+    heuristic = result.get("heuristic", {})
+
+    risk_score = assessment.get("risk_score", 0)
+    if not risk_score and isinstance(heuristic, dict):
+        risk_score = heuristic.get("score", 0)
+    severity = assessment.get("severity", "low")
+
+    permissions = metadata.get("permissions", [])
+    dangerous_count = sum(
+        1 for p in permissions
+        if p.startswith("android.permission.")
+        and p.split(".")[-1] in {
+            "SEND_SMS", "RECEIVE_SMS", "READ_SMS", "CALL_PHONE",
+            "READ_CONTACTS", "ACCESS_FINE_LOCATION", "CAMERA",
+            "RECORD_AUDIO", "READ_PHONE_STATE", "WRITE_EXTERNAL_STORAGE",
+        }
+    )
+
+    c2_active = sum(1 for c in c2_list if c.get("status") == "active")
+    obf_level = obfuscation.get("obfuscation_level", "low")
+
+    techniques = obfuscation.get("indicators", {}) or {}
+    evasion_count = sum(len(v) if isinstance(v, (list, tuple, set)) else (v if isinstance(v, int) else 0) for v in techniques.values())
+
+    threat_level = "CRITICAL" if risk_score >= 75 else "HIGH" if risk_score >= 50 else "MEDIUM" if risk_score >= 25 else "LOW"
+
+    family_name = family_data.get("family", "unknown")
+    family_conf = family_data.get("confidence", 0.0)
+
+    similar_count = _count_similar(family_name, sample_id)
+
+    return {
+        "sample_id": sample_id,
+        "package_name": metadata.get("package_name", ""),
+        "version_name": metadata.get("version_name", ""),
+        "threat_score": risk_score,
+        "threat_level": threat_level,
+        "severity": severity,
+        "red_flags": [
+            {"type": "dangerous_permissions", "count": dangerous_count},
+            {"type": "active_c2_endpoints", "count": c2_active},
+            {"type": "obfuscation", "level": obf_level.upper()},
+            {"type": "evasion_techniques", "count": evasion_count},
+        ],
+        "family": family_name,
+        "confidence": round(family_conf, 2),
+        "similar_samples_count": similar_count,
+        "c2_count": len(c2_list),
+        "obfuscation_score": obfuscation.get("obfuscation_score", 0),
+    }
+
+
+def _count_similar(family: str, exclude_id: str) -> int:
+    """Count samples in the same family (excluding the current one)."""
+    if family == "unknown":
+        return 0
+    from backend.transformers import load_all_results
+    count = 0
+    for other in load_all_results():
+        if other.get("sample_id", "") == exclude_id:
+            continue
+        of = other.get("family_identification", {}).get("family", "unknown")
+        if of == family:
+            count += 1
+    return count
 
 
 class ExplainChainRequest(BaseModel):
@@ -864,8 +1187,7 @@ async def api_generate_pdf_report(sample_id: str, request: dict) -> Response:
                     processed += 1
 
         except Exception as e:
-            # Don't fail the whole report if dissection breaks
-            pass
+            logger.exception("Method annotation failed during PDF generation (sample %s): %s", sample_id, e)
 
     # Generate PDF
     loop = asyncio.get_event_loop()
@@ -1258,6 +1580,18 @@ async def api_diagnostics_jadx() -> dict:
         "status": "ok" if exists and version else "missing" if not exists else "error",
         "help": "See JADX_SETUP.md for installation instructions"
     }
+
+
+# ---------------------------------------------------------------------------
+# Client-side error logging
+# ---------------------------------------------------------------------------
+
+@app.post("/api/log-error")
+async def log_error(payload: dict):
+    logger.warning("Client-side error: %s", payload.get("message", "No message"))
+    if payload.get("stack"):
+        logger.debug("Client-side stack trace: %s", payload["stack"])
+    return {"ok": True}
 
 
 # ---------------------------------------------------------------------------

@@ -1,16 +1,20 @@
-import { useState, useEffect, useCallback, useRef, useReducer } from 'react'
+import { useState, useEffect, useCallback, useRef, useReducer, lazy, Suspense } from 'react'
 import './App.css'
 import { ToastProvider, useToast } from './components/Toast'
 import UploadPanel from './components/UploadPanel'
 import AnalysisView from './components/AnalysisView'
 import { ErrorBoundary } from './components/ErrorBoundary'
-import ThreatIntelView from './components/ThreatIntelView'
 import DissectionPage from './components/DissectionPage'
+import RawCodeView from './components/RawCodeView'
+import SampleDetail from './pages/SampleDetail'
+
+const ThreatIntelView = lazy(() => import('./components/ThreatIntelView'))
 
 /* eslint-disable react-hooks/set-state-in-effect */
 
 const API_URL = 'http://localhost:8000'
 const WS_URL = 'ws://localhost:8000/ws'
+const debugLog = import.meta.env.DEV ? console.log : () => {}
 
 const MAX_RETRIES = 5
 const RETRY_BASE_DELAY_MS = 2000
@@ -18,7 +22,9 @@ const RETRY_BASE_DELAY_MS = 2000
 const NAV_ITEMS = [
   { id: 'upload', label: 'Upload & Analyze', icon: '⬆' },
   { id: 'analysis', label: 'Analysis Results', icon: '🔍' },
+  { id: 'attribution', label: 'Attribution', icon: '🎯' },
   { id: 'dissection', label: 'Code Dissection', icon: '🔬' },
+  { id: 'raw-code', label: 'Raw Code', icon: '📄' },
   { id: 'threat-intel', label: 'Threat Intelligence', icon: '🌐' },
 ]
 
@@ -270,7 +276,7 @@ function AppInner() {
 
   // Update topbar status dot based on combined HTTP + WS state (Phase 6)
   const backendReady = httpStatus === 'connected' && wsState === 'connected'
-  const backendReconnecting = httpStatus === 'reconnecting' || wsState === 'reconnecting'
+  // const backendReconnecting = httpStatus === 'reconnecting' || wsState === 'reconnecting'
 
   /**
    * Unified WebSocket message handler.
@@ -278,7 +284,7 @@ function AppInner() {
   const handleWsMessage = useCallback((message) => {
     const { event_type, data } = message
 
-    console.log('[WS]', event_type, data?.sample_id)
+    debugLog('[WS]', event_type, data?.sample_id)
 
     switch (event_type) {
       case 'pong':
@@ -370,7 +376,7 @@ function AppInner() {
         method: 'POST',
       })
       const data = await response.json()
-      console.log('Analysis triggered:', data)
+      debugLog('Analysis triggered:', data)
     } catch (error) {
       console.error('Analysis failed:', error)
       dispatch({ type: 'ERROR', payload: { error_message: error.message } })
@@ -636,20 +642,22 @@ function AppInner() {
           <span className="brand-mark">D</span>
           <span>DROID<span>FORENSIX</span></span>
         </div>
-        <div className="nav-caption">WORKSPACE</div>
-        {NAV_ITEMS.map(item => (
-          <button
-            key={item.id}
-            className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
-            onClick={() => {
-              setActiveTab(item.id)
-              setSidebarOpen(false)
-            }}
-            disabled={item.id !== 'upload' && !selectedSample}
-          >
-            <b>{item.icon}</b>{item.label}
-          </button>
-        ))}
+        <div className="nav-scroll">
+          <div className="nav-caption">WORKSPACE</div>
+          {NAV_ITEMS.map(item => (
+            <button
+              key={item.id}
+              className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
+              onClick={() => {
+                setActiveTab(item.id)
+                setSidebarOpen(false)
+              }}
+              disabled={item.id !== 'upload' && !selectedSample}
+            >
+              <b>{item.icon}</b>{item.label}
+            </button>
+          ))}
+        </div>
         <div className="sidebar-bottom">
           <div className="case-card">
             <small>CURRENT CASE</small>
@@ -659,7 +667,7 @@ function AppInner() {
               {' '}{backendReady ? (severity ? `${severity.toUpperCase()} · ${riskScore || 0}/100` : 'SCANNER ONLINE') : 'OFFLINE'}
             </span>
           </div>
-          <button className="help">? &nbsp; Documentation</button>
+          <button className="help" onClick={() => window.open('https://github.com/DarshakPatel2004/DroidForensix', '_blank')}>? &nbsp; Documentation</button>
         </div>
       </aside>
 
@@ -705,21 +713,48 @@ function AppInner() {
             </div>
           )}
 
+          {activeTab === 'attribution' && selectedSample && (
+            <div className="view-wrapper">
+              <ErrorBoundary>
+                <SampleDetail
+                  sample={selectedSample}
+                  apiUrl={API_URL}
+                  onSelectSample={handleSelectSample}
+                />
+              </ErrorBoundary>
+            </div>
+          )}
+
           {activeTab === 'dissection' && selectedSample && (
             <div className="view-wrapper">
-              <DissectionPage
-                sample={selectedSample}
-                apiUrl={API_URL}
-              />
+              <ErrorBoundary>
+                <DissectionPage
+                  sample={selectedSample}
+                  apiUrl={API_URL}
+                />
+              </ErrorBoundary>
+            </div>
+          )}
+
+          {activeTab === 'raw-code' && selectedSample && (
+            <div className="view-wrapper">
+              <ErrorBoundary>
+                <RawCodeView
+                  sample={selectedSample}
+                  apiUrl={API_URL}
+                />
+              </ErrorBoundary>
             </div>
           )}
 
           {activeTab === 'threat-intel' && selectedSample && (
             <div className="view-wrapper">
-              <ThreatIntelView
-                sample={selectedSample}
-                apiUrl={API_URL}
-              />
+              <Suspense fallback={<div className="empty-state">Loading threat intelligence...</div>}>
+                <ThreatIntelView
+                  sample={selectedSample}
+                  apiUrl={API_URL}
+                />
+              </Suspense>
             </div>
           )}
         </section>

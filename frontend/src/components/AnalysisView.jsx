@@ -47,10 +47,30 @@ const LoadingState = memo(({ analysisState }) => {
   return (
     <div className="analysis-loading">
       <div className="loading-radar">
-        <svg viewBox="0 0 100 100" style={{ animation: 'spin 3s linear infinite' }}>
-          <circle cx="50" cy="50" r="40" stroke="var(--accent-cyan)" strokeWidth="2" fill="none" opacity="0.3" />
-          <circle cx="50" cy="50" r="30" stroke="var(--accent-cyan)" strokeWidth="1.5" fill="none" opacity="0.5" />
-          <circle cx="50" cy="50" r="10" fill="var(--accent-cyan)" />
+        <svg viewBox="0 0 100 100" className="hex-radar">
+          <defs>
+            <linearGradient id="hex-sweep" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="transparent" />
+              <stop offset="45%" stopColor="var(--accent-cyan)" stopOpacity="0.08" />
+              <stop offset="50%" stopColor="var(--accent-cyan)" stopOpacity="0.4" />
+              <stop offset="55%" stopColor="var(--accent-cyan)" stopOpacity="0.08" />
+              <stop offset="100%" stopColor="transparent" />
+            </linearGradient>
+          </defs>
+
+          <polygon points="50 3, 93 26.5, 93 73.5, 50 97, 7 73.5, 7 26.5"
+            fill="none" stroke="var(--accent-cyan)" strokeWidth="1" opacity="0.2" className="hex-ripple" />
+
+          <polygon points="50 18, 78 33, 78 67, 50 82, 22 67, 22 33"
+            fill="none" stroke="var(--accent-cyan)" strokeWidth="1.5" opacity="0.35" className="hex-ripple" style={{ animationDelay: '0.6s' }} />
+
+          <polygon points="50 30, 65 39, 65 61, 50 70, 35 61, 35 39"
+            fill="none" stroke="var(--accent-cyan)" strokeWidth="2" opacity="0.55" className="hex-ripple" style={{ animationDelay: '1.2s' }} />
+
+          <polygon points="50 3, 93 26.5, 93 73.5, 50 97, 7 73.5, 7 26.5"
+            fill="url(#hex-sweep)" className="scan-sweep-hex" />
+
+          <circle cx="50" cy="50" r="5" fill="var(--accent-cyan)" className="center-pulse" />
         </svg>
       </div>
 
@@ -788,7 +808,15 @@ function ChainCard({ chain, sampleId, apiUrl }) {
                       <span className="chain-step-expand-hint">{isSelected ? '▾' : '▸'}</span>
                     </div>
                     <div className="chain-step-artifact">
-                      {step.artifact || '—'}
+                      {step.original_string && step.original_string !== step.artifact ? (
+                        <span className="chain-step-artifact-pair">
+                          <span className="chain-step-original" title="Original encoded string">{step.original_string}</span>
+                          <span className="chain-step-arrow">→</span>
+                          <span className="chain-step-decoded">{step.artifact || '—'}</span>
+                        </span>
+                      ) : (
+                        step.artifact || '—'
+                      )}
                     </div>
 
                     {/* Detail panel — shown when step is selected */}
@@ -799,12 +827,29 @@ function ChainCard({ chain, sampleId, apiUrl }) {
                         </p>
 
                         <div className="chain-step-detail-grid">
-                          <div className="chain-step-detail-row">
-                            <span className="detail-label">Artifact Content</span>
-                            <span className="detail-value detail-artifact">
-                              {step.artifact || '—'}
-                            </span>
-                          </div>
+                          {step.original_string && step.original_string !== step.artifact ? (
+                            <>
+                              <div className="chain-step-detail-row">
+                                <span className="detail-label">Original String</span>
+                                <span className="detail-value detail-artifact">
+                                  {step.original_string}
+                                </span>
+                              </div>
+                              <div className="chain-step-detail-row">
+                                <span className="detail-label">Decoded Content</span>
+                                <span className="detail-value detail-artifact">
+                                  {step.artifact || '—'}
+                                </span>
+                              </div>
+                            </>
+                          ) : (
+                            <div className="chain-step-detail-row">
+                              <span className="detail-label">Artifact Content</span>
+                              <span className="detail-value detail-artifact">
+                                {step.artifact || '—'}
+                              </span>
+                            </div>
+                          )}
                           {step.source_location && (
                             <div className="chain-step-detail-row">
                               <span className="detail-label">Source</span>

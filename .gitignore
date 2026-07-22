@@ -21,6 +21,7 @@ setenv.sh
 .kiro/
 .qoder/
 .agents/
+.codex/
 .cursorrules
 .github/code-review-graph.instruction.md
 .opencode.json

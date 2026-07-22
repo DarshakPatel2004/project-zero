@@ -29,6 +29,8 @@ from pathlib import Path
 from collections import defaultdict
 from typing import Dict, List, Any, Optional, Tuple
 
+from backend.elf_analyzer import ELFBreaker
+
 try:
     from androguard.core.apk import APK
     from androguard.core.dex import DEX
@@ -235,7 +237,8 @@ class APKAnalyzer:
             logger.warning(f"FCM analysis failed: {e}")
     
     def extract_native_libraries(self) -> None:
-        """Extract and analyze native libraries (.so files)."""
+        """Extract and analyze native libraries (.so files) with full ELF break down."""
+        all_native_strings = []
         try:
             with zipfile.ZipFile(self.apk_path, 'r') as z:
                 for name in z.namelist():
@@ -244,66 +247,59 @@ class APKAnalyzer:
                         parts = name.split('/')
                         arch = parts[1] if len(parts) > 1 else 'unknown'
                         
-                        self.results['native_libs'].append({
-                            'path': name,
-                            'name': lib_name,
-                            'architecture': arch
-                        })
-                        
-                        # Extract interesting strings from binary
                         try:
                             with z.open(name) as f:
                                 content = f.read()
-                                self._extract_native_strings(content, lib_name)
+
+                            breaker = ELFBreaker(lib_name, content)
+                            analysis = breaker.analyze()
+
+                            entry = {
+                                'path': name,
+                                'name': lib_name,
+                                'architecture': arch,
+                                'size_bytes': analysis.get('size_bytes', len(content)),
+                                'elf_analysis': analysis,
+                            }
+
+                            suspicious_count = len(analysis.get('suspicious_strings', []))
+                            if suspicious_count:
+                                entry['suspicious_strings_count'] = suspicious_count
+
+                            jni_count = len(analysis.get('jni_exports', []))
+                            if jni_count:
+                                entry['jni_exports_count'] = jni_count
+                                entry['jni_exports'] = analysis['jni_exports']
+
+                            packing = analysis.get('packing', {})
+                            if packing.get('level', 'none') != 'none':
+                                entry['packing'] = packing
+
+                            anti = analysis.get('anti_analysis', [])
+                            if anti:
+                                entry['anti_analysis'] = anti
+
+                            risk = analysis.get('risk_score', {})
+                            entry['risk'] = risk
+
+                            self.results['native_libs'].append(entry)
+
+                            all_native_strings.extend(analysis.get('suspicious_strings', []))
+
                         except Exception as e:
-                            logger.debug(f"Failed to extract strings from {name}: {e}")
-            
-            logger.info(f"Found {len(self.results['native_libs'])} native libraries")
+                            logger.warning("Failed to analyze %s: %s", name, e)
+                            self.results['native_libs'].append({
+                                'path': name,
+                                'name': lib_name,
+                                'architecture': arch,
+                                'error': str(e),
+                            })
+
+            self.results['native_strings'] = all_native_strings
+            logger.info("Analyzed %d native libraries (%d suspicious strings)",
+                        len(self.results['native_libs']), len(all_native_strings))
         except Exception as e:
-            logger.warning(f"Native library extraction failed: {e}")
-    
-    def _extract_native_strings(self, binary_content: bytes, lib_name: str) -> None:
-        """Extract meaningful strings from binary content."""
-        try:
-            # Extract ASCII strings (4+ chars)
-            strings = re.findall(b'[\x20-\x7e]{4,}', binary_content)
-            
-            for s in strings:
-                try:
-                    decoded = s.decode('ascii', errors='ignore').strip()
-                    
-                    # Skip compiler/metadata strings
-                    if any(x in decoded for x in ['clang version', 'Android (', 'based on']):
-                        continue
-                    
-                    # Check for suspicious content
-                    if re.search(r'com\.[a-zA-Z0-9_\.]{5,}', decoded):
-                        self.results['native_strings'].append({
-                            'type': 'package_name',
-                            'value': decoded,
-                            'source': lib_name
-                        })
-                    elif re.search(r'https?://', decoded):
-                        self.results['native_strings'].append({
-                            'type': 'url',
-                            'value': decoded,
-                            'source': lib_name
-                        })
-                    elif any(x in decoded.lower() for x in ['firebase', 'fcm', 'messaging', 'c2']):
-                        self.results['native_strings'].append({
-                            'type': 'c2_indicator',
-                            'value': decoded,
-                            'source': lib_name
-                        })
-                    elif re.search(r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}', decoded):
-                        self.results['native_strings'].append({
-                            'type': 'ip_address',
-                            'value': decoded,
-                            'source': lib_name
-                        })
-                except Exception:
-                    continue
-        except Exception as e:
+            logger.warning("Native library extraction failed: %s", e)
             logger.debug(f"Native string extraction error: {e}")
     
     def analyze_bytecode_deep(self) -> None:

@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional
 
 from backend.config import settings
+from backend.elf_analyzer import ELFBreaker
 
 logger = logging.getLogger(__name__)
 
@@ -459,14 +460,15 @@ def _has_elf_symbols(so_data: bytes) -> bool:
     return b'.strtab' in so_data or b'.symtab' in so_data
 
 
-def analyze_native_libraries(apk_path: Path) -> Dict[str, list]:
-    """Flag suspicious .so files by metadata heuristics — no disassembly needed.
+def analyze_native_libraries(apk_path: Path) -> Dict[str, Any]:
+    """Flag suspicious .so files by heuristics and full ELF break down.
 
     Returns a dict with keys:
       - "suspicious": list of {library, reason, detail} for flagged .so files
       - "summary": {"total_so": int, "flagged": int}
+      - "elf_analysis": {lib_path: <full ELFBreaker result>, ...}
     """
-    output = {"suspicious": [], "summary": {"total_so": 0, "flagged": 0}}
+    output: Dict[str, Any] = {"suspicious": [], "summary": {"total_so": 0, "flagged": 0}, "elf_analysis": {}}
     try:
         with zipfile.ZipFile(apk_path, 'r') as z:
             for name in z.namelist():
@@ -477,6 +479,12 @@ def analyze_native_libraries(apk_path: Path) -> Dict[str, list]:
                     data = z.read(name)
                     if not data:
                         continue
+
+                    # Full ELF break down using ELFBreaker
+                    lib_name = name.split('/')[-1]
+                    breaker = ELFBreaker(lib_name, data)
+                    elf_result = breaker.analyze()
+                    output["elf_analysis"][name] = elf_result
 
                     # Heuristic 1: undersized .so (< 16 KB = likely loader stub)
                     if len(data) < 16384:
