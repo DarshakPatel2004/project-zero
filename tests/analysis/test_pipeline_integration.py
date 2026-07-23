@@ -538,9 +538,9 @@ class TestPipelineResultStructure:
 
 
 class TestStepNames:
-    def test_all_18_steps_defined(self):
-        assert TOTAL_STEPS == 18
-        for i in range(1, 19):
+    def test_all_19_steps_defined(self):
+        assert TOTAL_STEPS == 19
+        for i in range(1, 20):
             assert i in STEP_NAMES, f"Step {i} missing from STEP_NAMES"
 
     def test_step_names_are_descriptive(self):
@@ -622,7 +622,7 @@ class TestTimeline:
                     f"{key} should be numeric, got {type(tl[key])}"
                 )
             assert "total" in tl
-            assert tl["total"] >= sum(tl.get(f"step{i}", 0) for i in range(1, 19))
+            assert tl["total"] >= sum(tl.get(f"step{i}", 0) for i in range(1, 20))
 
 
 class TestEventEmission:

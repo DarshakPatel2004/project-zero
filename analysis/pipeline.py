@@ -42,6 +42,7 @@ from analysis.step15_reflective_permission_correlation import correlate_reflecti
 from analysis.step16_certificate_analysis import analyze_certificate
 from analysis.step17_family_clustering import cluster_family
 from analysis.step18_threat_synthesis import synthesize_threat_profile
+from analysis.dynamic.dynamic_validation import validate_with_dynamic, DynamicValidationError
 from backend.family_id import identify_family
 from backend.dissection import APKDissector
 
@@ -56,7 +57,7 @@ EventEmitter = Optional[Callable[[str, dict], None]]
 
 logger = logging.getLogger(__name__)
 
-TOTAL_STEPS = 18
+TOTAL_STEPS = 19
 
 STEP_NAMES = {
     1: "APK Extraction",
@@ -77,13 +78,14 @@ STEP_NAMES = {
     16: "Certificate Analysis",
     17: "Family Clustering",
     18: "Threat Synthesis",
+    19: "Dynamic Validation",
 }
 
 STEP_TIMEOUTS = {
     1: 120, 2: 120, 3: 120, 4: 60, 5: 120,
     6: 60, 7: 60, 8: 30, 9: 30,
     10: 60, 11: 60, 12: 60, 13: 60, 14: 60,
-    15: 30, 16: 30, 17: 30, 18: 30,
+    15: 30, 16: 30, 17: 30, 18: 30, 19: 180,
 }
 
 
@@ -578,6 +580,39 @@ def run_pipeline(apk_path: str, work_dir: Optional[str] = None,
         synthesize_threat_profile, synthesis_context
     )
 
+    # Step 19: Dynamic Validation (optional, driven by config)
+    if settings.ENABLE_DYNAMIC:
+        def dynamic_with_fallback():
+            try:
+                return validate_with_dynamic(
+                    apk_path=apk_path,
+                    package_name=extraction.get("package_name"),
+                    work_dir=work_dir,
+                    pipeline_result=result,
+                )
+            except Exception as e:
+                return {
+                    "status": "error",
+                    "reason": f"Dynamic validation failed: {e}",
+                    "events": {},
+                    "correlation": {},
+                    "errors": [str(e)],
+                }
+
+        dynamic_result, timeline["step19"] = _run_step(
+            19, sample_id, apk_size, global_start, event_emitter, work_dir,
+            dynamic_with_fallback
+        )
+        _emit(event_emitter, "metric_updated", {
+            "sample_id": sample_id,
+            "metric_name": "dynamic_events",
+            "metric_value": dynamic_result.get("events", {}).get("total_events", 0),
+            "step_context": 19,
+        })
+    else:
+        dynamic_result = None
+        timeline["step19"] = 0.0
+
     # Save structural APK dissection (fast, cached for dashboard)
     try:
         dissector = APKDissector(apk_path, work_dir=work_dir)
@@ -597,7 +632,7 @@ def run_pipeline(apk_path: str, work_dir: Optional[str] = None,
     duration = round(time.time() - global_start, 3)
     timeline["total"] = duration
 
-    # Merge step 10-18 results
+    # Merge step 10-19 results
     result.update({
         "binary_packing": packing_result,
         "string_clustering": string_cluster_result,
@@ -609,6 +644,8 @@ def run_pipeline(apk_path: str, work_dir: Optional[str] = None,
         "family_clustering": family_cluster_result,
         "threat_synthesis": synthesis_result,
     })
+    if dynamic_result is not None:
+        result["dynamic_validation"] = dynamic_result
 
     # Save full result (strip lone surrogates so Pydantic serialization never fails)
     from backend.transformers import _strip_surrogates
@@ -641,6 +678,7 @@ def run_pipeline(apk_path: str, work_dir: Optional[str] = None,
             "step16_certificate": timeline.get("step16", 0),
             "step17_clustering": timeline.get("step17", 0),
             "step18_synthesis": timeline.get("step18", 0),
+            "step19_dynamic": timeline.get("step19", 0),
         },
         "final_verdict": result.get("llm_assessment", {}).get("severity", "unknown"),
         "risk_score": result.get("llm_assessment", {}).get("risk_score", 0),
@@ -651,11 +689,15 @@ def run_pipeline(apk_path: str, work_dir: Optional[str] = None,
 
 if __name__ == "__main__":
     import sys
+    import os
     if len(sys.argv) < 2:
-        print("Usage: python pipeline.py <apk_path> [work_dir]")
+        print("Usage: python pipeline.py <apk_path> [work_dir] [--dynamic]")
         sys.exit(1)
     apk = sys.argv[1]
-    work = sys.argv[2] if len(sys.argv) > 2 else str(settings.WORK_DIR)
+    work = sys.argv[2] if len(sys.argv) > 2 and not sys.argv[2].startswith("--") else str(settings.WORK_DIR)
+    if "--dynamic" in sys.argv:
+        os.environ["ENABLE_DYNAMIC"] = "true"
+        settings.ENABLE_DYNAMIC = True
 
     def print_event(event_type, data):
         print(f"[EVENT] {event_type}: {json.dumps(data, default=str)[:150]}")

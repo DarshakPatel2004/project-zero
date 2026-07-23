@@ -26,6 +26,8 @@ C2_PATH_PATTERNS = re.compile(r'/(?:gate|cmd|admin|panel|boss|manage|control|she
 def extract_endpoints(strings: List[str]) -> List[str]:
     endpoints = []
     for s in strings:
+        if not isinstance(s, str):
+            continue
         for match in URL_RE.findall(s):
             endpoints.append(match.rstrip("/"))
         for match in IP_RE.findall(s):
@@ -89,7 +91,7 @@ def analyze_network_protocols(strings: List[str]) -> Dict[str, Any]:
     suspicious = [c for c in classified if c["classification"] == "suspicious"]
     benign = [c for c in classified if c["classification"] == "benign"]
 
-    socket_patterns = [s for s in strings if SOCKET_CALL_RE.search(s)]
+    socket_patterns = [s for s in strings if isinstance(s, str) and SOCKET_CALL_RE.search(s)]
 
     return {
         "total_endpoints": len(classified),
