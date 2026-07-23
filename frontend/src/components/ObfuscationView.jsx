@@ -143,7 +143,7 @@ function LibCard({ lib }) {
   )
 }
 
-export default function ObfuscationView({ sample, apiUrl }) {
+export default function ObfuscationView({ sample, apiUrl, result }) {
   const [obfuscationData, setObfuscationData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -152,6 +152,9 @@ export default function ObfuscationView({ sample, apiUrl }) {
   const [deobfResult, setDeobfResult] = useState(null)
   const [deobfLoading, setDeobfLoading] = useState(false)
 
+  const packing = result?.binary_packing || {}
+  const reflective = result?.reflective_tracing || {}
+  const strings = result?.string_clustering || {}
   const sampleId = sample?.sampleId || sample?.sha256 || sample?.uploadId
   const API_URL = apiUrl || 'http://localhost:8000'
 
@@ -275,6 +278,58 @@ export default function ObfuscationView({ sample, apiUrl }) {
               <p className="text-mono" style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>{t.api}</p>
             </section>
           ))}
+        </div>
+      )}
+
+      {result && (
+        <div className="obfuscation-grid">
+          {packing.packing_detected && (
+            <div className="obfuscation-card card">
+              <h3 className="section-title">Binary Packing</h3>
+              <div className="native-list">
+                <div className="native-item">
+                  <span className="native-name">Obfuscation Score</span>
+                  <span className="native-meta">{packing.obfuscation_score ?? 0}/100</span>
+                </div>
+                <div className="native-item">
+                  <span className="native-name">Indicators</span>
+                  <span className="native-meta">{(packing.indicators || []).join(', ') || 'none'}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {reflective.total_reflective_calls > 0 && (
+            <div className="obfuscation-card card">
+              <h3 className="section-title">Reflective Tracing</h3>
+              <div className="native-list">
+                <div className="native-item">
+                  <span className="native-name">Total Reflective Calls</span>
+                  <span className="native-meta">{reflective.total_reflective_calls}</span>
+                </div>
+                <div className="native-item">
+                  <span className="native-name">Sensitive API Targets</span>
+                  <span className="native-meta">{reflective.total_sensitive ?? 0}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {strings.total_high_entropy > 0 && (
+            <div className="obfuscation-card card">
+              <h3 className="section-title">High-Entropy Strings</h3>
+              <div className="native-list">
+                <div className="native-item">
+                  <span className="native-name">Total High-Entropy</span>
+                  <span className="native-meta">{strings.total_high_entropy}</span>
+                </div>
+                <div className="native-item">
+                  <span className="native-name">Clusters</span>
+                  <span className="native-meta">{strings.total_clusters ?? 0}</span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

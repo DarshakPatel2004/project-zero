@@ -342,22 +342,26 @@ def build_threat_intel(result: Dict[str, Any], sample_id: str) -> Dict[str, Any]
     if unresolved_c2s:
         from concurrent.futures import ThreadPoolExecutor
 
+        def resolve_dns(hostname, timeout=2.0):
+            from concurrent.futures import ThreadPoolExecutor, TimeoutError as _FutTimeoutError
+            def _resolve():
+                return socket.getaddrinfo(hostname, 80, socket.AF_INET)
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(_resolve)
+                try:
+                    addrs = future.result(timeout=timeout)
+                    return list(sorted(set(a[4][0] for a in addrs)))
+                except _FutTimeoutError:
+                    raise _FutTimeoutError(f"DNS resolution timed out for {hostname}")
+
         def resolve_one(c):
             domain = c.get('domain')
             ip = c.get('ip')
             if domain:
                 try:
-                    old_timeout = socket.getdefaulttimeout()
-                    socket.setdefaulttimeout(2.0)
-                    addrs = socket.getaddrinfo(domain, 80, socket.AF_INET)
-                    ips = list(sorted(set(a[4][0] for a in addrs)))
-                    socket.setdefaulttimeout(old_timeout)
+                    ips = resolve_dns(domain, timeout=2.0)
                     return c, {'live_dns': {'resolves': True, 'ips': ips}, 'status': 'active'}
                 except Exception as e:
-                    try:
-                        socket.setdefaulttimeout(old_timeout)
-                    except Exception:
-                        logger.debug("Failed to restore socket timeout")
                     return c, {'live_dns': {'resolves': False, 'ips': [], 'error': str(e)[:60]}, 'status': 'dead'}
             elif ip:
                 ip_class = _classify_ip(ip)

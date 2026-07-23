@@ -1343,11 +1343,13 @@ async def api_upload_file(file: UploadFile = File(...)) -> dict:
     try:
         with open(dest_path, "wb") as f:
             while True:
-                chunk = await file.read(64 * 1024)  # 64KB chunks
+                chunk = await asyncio.wait_for(file.read(64 * 1024), timeout=60.0)
                 if not chunk:
                     break
                 f.write(chunk)
                 sha256_hash.update(chunk)
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=408, detail="Upload timed out after 60 seconds")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save uploaded file: {e}")
 
@@ -1435,7 +1437,12 @@ async def api_analyze_upload(upload_id: str) -> dict:
             raise
 
     async def run_analysis_async():
-        return await loop.run_in_executor(None, run_analysis)
+        task = asyncio.create_task(loop.run_in_executor(None, run_analysis))
+        try:
+            return await asyncio.wait_for(task, timeout=300)
+        except asyncio.TimeoutError:
+            sample_status[upload_id] = {"status": "error", "sample_id": None, "error": "pipeline timed out"}
+            raise
 
     asyncio.create_task(run_analysis_async())
     upload["status"] = "queued"

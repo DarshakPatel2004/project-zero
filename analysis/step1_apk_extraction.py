@@ -8,6 +8,7 @@ when available via Git Bash or Sysinternals), and generates metadata.
 
 import hashlib
 import json
+import logging
 import os
 import re
 import shutil
@@ -17,6 +18,8 @@ from typing import Optional
 
 from backend.config import settings
 from analysis.retry_utils import safe_decompile_apk, DecompilationError
+
+logger = logging.getLogger(__name__)
 
 
 class APKExtractionError(Exception):
@@ -97,7 +100,7 @@ def run_jadx(apk_path: str, output_dir: str) -> dict:
 
 def run_androguard(apk_path: str) -> dict:
     """Extract DEX-level info using Androguard (fast, pure Python)."""
-    result = {"success": False, "class_count": 0, "dex_strings": [], "error": None}
+    result = {"success": False, "class_count": 0, "dex_strings": [], "error": None, "dex_parse_errors": []}
     try:
         from androguard.core.apk import APK
         from androguard.core.dex import DEX
@@ -111,8 +114,9 @@ def run_androguard(apk_path: str) -> dict:
                 for s in dex.get_strings():
                     if s:
                         dex_strings.add(s)
-            except Exception:
-                continue
+            except Exception as dex_err:
+                dex_error_msg = str(dex_err)[:200]
+                result["dex_parse_errors"].append(dex_error_msg)
         result["success"] = True
         result["class_count"] = class_count
         result["dex_strings"] = sorted(dex_strings)
@@ -221,11 +225,11 @@ def extract_native_strings(apk_dir: str) -> list:
     return strings
 
 
-def extract_package_name(apk_dir: str) -> Optional[str]:
+def extract_package_name(apk_dir: str) -> str:
     """Extract package name from AndroidManifest.xml."""
     manifest_path = Path(apk_dir) / "AndroidManifest.xml"
     if not manifest_path.exists():
-        return None
+        return "unknown"
     try:
         with open(manifest_path, "r", encoding="utf-8", errors="ignore") as f:
             content = f.read()
@@ -234,8 +238,8 @@ def extract_package_name(apk_dir: str) -> Optional[str]:
             if m:
                 return m.group(1)
     except Exception:
-        pass
-    return None
+        logger.warning("Failed to parse package name from manifest: %s", manifest_path)
+    return "unknown"
 
 
 def extract_manifest_info(apk_dir: str) -> dict:
@@ -270,7 +274,7 @@ def extract_manifest_info(apk_dir: str) -> dict:
         for m in re.finditer(r'<uses-permission[^>]*android:name="([^"]+)"', content):
             info["uses_permissions"].append(m.group(1))
     except Exception:
-        pass
+        logger.warning("Failed to parse manifest info from: %s", manifest_path)
     return info
 
 

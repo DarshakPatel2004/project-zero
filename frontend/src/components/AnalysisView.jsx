@@ -3,11 +3,17 @@ import './AnalysisView.css'
 import ObfuscationView from './ObfuscationView'
 import ManifestView from './ManifestView'
 import FamilySignalsCard from './FamilySignalsCard'
+import ThreatSynthesisPanel from './ThreatSynthesisPanel'
 
 /**
  * Format seconds into human-readable duration.
  * e.g., 65 -> "1m 5s", 3661 -> "1h 1m 1s"
  */
+export function riskLevelBadgeClass(level) {
+  const map = { critical: 'rose', high: 'rose', medium: 'amber', low: 'emerald', none: 'slate', unknown: 'slate' }
+  return `badge-${map[level] || 'slate'}`
+}
+
 function formatDuration(seconds) {
   if (seconds === null || seconds === undefined) return '—'
   if (seconds === 0) return '0s'
@@ -265,6 +271,21 @@ const ResultView = memo(({ analysisState, apiUrl, sample }) => {
             <span className="metric-label">Analysis Time</span>
             <span className="metric-value">{formatDuration(verdict?.totalDuration)}</span>
           </div>
+          {fullResult?.threat_synthesis && (
+            <div className="metric">
+              <span className="metric-label">Zero-Day Risk</span>
+              <span className="metric-value">
+                {fullResult.threat_synthesis.zero_day_risk_score ?? 0}
+                {' '}
+                <span
+                  className={`badge ${riskLevelBadgeClass(fullResult.threat_synthesis.risk_level)}`}
+                  style={{ fontSize: '0.65rem', verticalAlign: 'middle' }}
+                >
+                  {fullResult.threat_synthesis.risk_level?.toUpperCase() || 'NONE'}
+                </span>
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -277,6 +298,7 @@ const ResultView = memo(({ analysisState, apiUrl, sample }) => {
           { id: 'dissection-summary', label: 'Dissection Summary' },
           { id: 'obfuscation', label: 'Obfuscation' },
           { id: 'chains', label: 'Threat Chains' },
+          { id: 'synthesis', label: 'Threat Synthesis' },
           { id: 'manifest', label: 'Manifest' },
         ].map(tab => (
           <button
@@ -304,7 +326,10 @@ const ResultView = memo(({ analysisState, apiUrl, sample }) => {
           <DissectionSummaryTab sampleId={effectiveSampleId} apiUrl={apiUrl} />
         )}
         {activeResultTab === 'obfuscation' && (
-          <ObfuscationView sample={sample} apiUrl={apiUrl} />
+          <ObfuscationView sample={sample} apiUrl={apiUrl} result={fullResult} />
+        )}
+        {activeResultTab === 'synthesis' && (
+          <ThreatSynthesisPanel synthesis={fullResult?.threat_synthesis} />
         )}
         {activeResultTab === 'chains' && (
           <ChainsTab result={fullResult} apiUrl={apiUrl} sampleId={effectiveSampleId} />

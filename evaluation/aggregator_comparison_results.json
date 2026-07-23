@@ -1,0 +1,776 @@
+[
+  {
+    "value": "1.0.0.0",
+    "type": "ip",
+    "sample_count": 3,
+    "samples": [
+      "00112bb0b3a4ca8ae3cae96ff750bf5279e5d80825d4abfff63a8a6381586f37",
+      "001cc622ba7c1133efe45ef4802094caaa95bbbbfb3e81201d48b22a6c9ff146",
+      "0036056c6216c1e1c0a75c3193bc4b59c226943817ec20368a2584143782a849"
+    ],
+    "families": [
+      "Unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "1.1.1.1",
+    "type": "ip",
+    "sample_count": 2,
+    "samples": [
+      "a2cc8d04db010cf1d80ebc84da8ffe6d9a38f2a2ac055addd1c615d942f4386c",
+      "bc714dc65572aa7bc57654f3253fef4f436446c816ddb9e786e7a10ed89d4a27"
+    ],
+    "families": [
+      "Unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "1.101.3.4",
+    "type": "ip",
+    "sample_count": 2,
+    "samples": [
+      "004c786b9d6cfb80313226a0039d906ec627529d70edea2ab23c0f689af835df",
+      "62545321423f75c0f4774c868a1677087399353adda0fb361cd3884d2680dcc2"
+    ],
+    "families": [
+      "Unknown",
+      "unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "1.2.0.4",
+    "type": "ip",
+    "sample_count": 3,
+    "samples": [
+      "002488fdb00d46766e7fdedb370e47c910070406d790ad46d8848838d37e9734",
+      "002c8f78aef3807f7dda37ca500d2aac3d546d6820f40fc704938503071bed6c",
+      "0038b79fdde84271bbe784ee90f305e3ed68e7e89bb35c17d74c36b813503041"
+    ],
+    "families": [
+      "Unknown",
+      "unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "1.2.10.27",
+    "type": "ip",
+    "sample_count": 1,
+    "samples": [
+      "004c786b9d6cfb80313226a0039d906ec627529d70edea2ab23c0f689af835df"
+    ],
+    "families": [
+      "Unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "1.2.9.26",
+    "type": "ip",
+    "sample_count": 1,
+    "samples": [
+      "0039db66711d02ddc1a55668b78c54434964b3d0941ade3669128bc5c50fb7c3"
+    ],
+    "families": [
+      "unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "1.214.93.144",
+    "type": "ip",
+    "sample_count": 12,
+    "samples": [
+      "0045b08c351866d5a8e45511455d9e0b2b184157e1ce9e81b063adabd2db0166"
+    ],
+    "families": [
+      "Unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "1.3.5.7",
+    "type": "ip",
+    "sample_count": 1,
+    "samples": [
+      "00142796a7de7a8fa2fcfe59e41d021d53e98ff14670d89503a9631654b228d4"
+    ],
+    "families": [
+      "Unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "1.3.6.1",
+    "type": "ip",
+    "sample_count": 2,
+    "samples": [
+      "004c786b9d6cfb80313226a0039d906ec627529d70edea2ab23c0f689af835df",
+      "62545321423f75c0f4774c868a1677087399353adda0fb361cd3884d2680dcc2"
+    ],
+    "families": [
+      "Unknown",
+      "unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "1.4.2.25",
+    "type": "ip",
+    "sample_count": 1,
+    "samples": [
+      "0039db66711d02ddc1a55668b78c54434964b3d0941ade3669128bc5c50fb7c3"
+    ],
+    "families": [
+      "unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "1.4.7.32",
+    "type": "ip",
+    "sample_count": 1,
+    "samples": [
+      "004c786b9d6cfb80313226a0039d906ec627529d70edea2ab23c0f689af835df"
+    ],
+    "families": [
+      "Unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "100.69.205.47",
+    "type": "ip",
+    "sample_count": 1,
+    "samples": [
+      "a959108ec8f93ee4c71e588236788d17372f9d61b8f71a509a776f097889f36b"
+    ],
+    "families": [
+      "unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "100.84.44.65",
+    "type": "ip",
+    "sample_count": 2,
+    "samples": [
+      "a778818cc08d213d1f66db5fa8b34aabc862569ecb99fd1aea37ff6ccab48400"
+    ],
+    "families": [
+      "unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "103.139.1.202",
+    "type": "ip",
+    "sample_count": 1,
+    "samples": [
+      "7a4238fc6f5d3c7731c2eb33911298eaa36986040858af56e76628c5dc83e265"
+    ],
+    "families": [
+      "unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "109.169.26.216",
+    "type": "ip",
+    "sample_count": 2,
+    "samples": [
+      "004c786b9d6cfb80313226a0039d906ec627529d70edea2ab23c0f689af835df"
+    ],
+    "families": [
+      "Unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "117.78.27.103",
+    "type": "ip",
+    "sample_count": 2,
+    "samples": [
+      "ddabe5999dbc9ffbc8b804a7ea6bb61415bc88e346b2d2c0d53bfff9dcc88d32"
+    ],
+    "families": [
+      "unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "120.77.216.242",
+    "type": "ip",
+    "sample_count": 2,
+    "samples": [
+      "001df5ba2b2a3ba905ecf79017185f4ca2d83b8aac15bb638e21d6dd6a4e3b56"
+    ],
+    "families": [
+      "Unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "122.112.239.32",
+    "type": "ip",
+    "sample_count": 3,
+    "samples": [
+      "ddabe5999dbc9ffbc8b804a7ea6bb61415bc88e346b2d2c0d53bfff9dcc88d32"
+    ],
+    "families": [
+      "unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "123.37.24.147",
+    "type": "ip",
+    "sample_count": 12,
+    "samples": [
+      "0045b08c351866d5a8e45511455d9e0b2b184157e1ce9e81b063adabd2db0166"
+    ],
+    "families": [
+      "Unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "184.82.135.71",
+    "type": "ip",
+    "sample_count": 2,
+    "samples": [
+      "004c786b9d6cfb80313226a0039d906ec627529d70edea2ab23c0f689af835df"
+    ],
+    "families": [
+      "Unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "192.240.102.131",
+    "type": "ip",
+    "sample_count": 3,
+    "samples": [
+      "004c786b9d6cfb80313226a0039d906ec627529d70edea2ab23c0f689af835df"
+    ],
+    "families": [
+      "Unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "197.234.144.42",
+    "type": "ip",
+    "sample_count": 2,
+    "samples": [
+      "004c786b9d6cfb80313226a0039d906ec627529d70edea2ab23c0f689af835df"
+    ],
+    "families": [
+      "Unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "199.189.111.149",
+    "type": "ip",
+    "sample_count": 2,
+    "samples": [
+      "004c786b9d6cfb80313226a0039d906ec627529d70edea2ab23c0f689af835df"
+    ],
+    "families": [
+      "Unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "2.0.0.0",
+    "type": "ip",
+    "sample_count": 8,
+    "samples": [
+      "00112bb0b3a4ca8ae3cae96ff750bf5279e5d80825d4abfff63a8a6381586f37",
+      "001cc622ba7c1133efe45ef4802094caaa95bbbbfb3e81201d48b22a6c9ff146",
+      "0032fd3dd6142d41164923f864f10641e19986b9dbbaa860ce2f028d50e3ec4b",
+      "0036056c6216c1e1c0a75c3193bc4b59c226943817ec20368a2584143782a849",
+      "0039db66711d02ddc1a55668b78c54434964b3d0941ade3669128bc5c50fb7c3",
+      "003c9726585222bce93805918a06e08ffb715f7775004047de402317521d7305",
+      "0041690db92fe11f864977fd0a83230acb4c210a347d2eca3120f9bccb4eac75",
+      "004d68ceb44647febf8473fd49ae636abcd8ffe458a1a656e3232aedbedca084"
+    ],
+    "families": [
+      "Unknown",
+      "unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "2.0.5.0",
+    "type": "ip",
+    "sample_count": 6,
+    "samples": [
+      "00112bb0b3a4ca8ae3cae96ff750bf5279e5d80825d4abfff63a8a6381586f37",
+      "001cc622ba7c1133efe45ef4802094caaa95bbbbfb3e81201d48b22a6c9ff146",
+      "0032fd3dd6142d41164923f864f10641e19986b9dbbaa860ce2f028d50e3ec4b",
+      "0039db66711d02ddc1a55668b78c54434964b3d0941ade3669128bc5c50fb7c3",
+      "003c9726585222bce93805918a06e08ffb715f7775004047de402317521d7305",
+      "004d68ceb44647febf8473fd49ae636abcd8ffe458a1a656e3232aedbedca084"
+    ],
+    "families": [
+      "Unknown",
+      "unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "2.0.61.0",
+    "type": "ip",
+    "sample_count": 1,
+    "samples": [
+      "004763ea6fd738deff31dee58e597b5026555f5c7e90013fb61434f89349230e"
+    ],
+    "families": [
+      "Unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "2.0.76.4",
+    "type": "ip",
+    "sample_count": 1,
+    "samples": [
+      "002c8f78aef3807f7dda37ca500d2aac3d546d6820f40fc704938503071bed6c"
+    ],
+    "families": [
+      "unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "2.10.1.34",
+    "type": "ip",
+    "sample_count": 1,
+    "samples": [
+      "004c786b9d6cfb80313226a0039d906ec627529d70edea2ab23c0f689af835df"
+    ],
+    "families": [
+      "Unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "2.2.0.2",
+    "type": "ip",
+    "sample_count": 1,
+    "samples": [
+      "00142796a7de7a8fa2fcfe59e41d021d53e98ff14670d89503a9631654b228d4"
+    ],
+    "families": [
+      "Unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "2.6.3.25",
+    "type": "ip",
+    "sample_count": 1,
+    "samples": [
+      "0039db66711d02ddc1a55668b78c54434964b3d0941ade3669128bc5c50fb7c3"
+    ],
+    "families": [
+      "unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "2.7.0.33",
+    "type": "ip",
+    "sample_count": 1,
+    "samples": [
+      "004c786b9d6cfb80313226a0039d906ec627529d70edea2ab23c0f689af835df"
+    ],
+    "families": [
+      "Unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "2.9.4.26",
+    "type": "ip",
+    "sample_count": 1,
+    "samples": [
+      "0039db66711d02ddc1a55668b78c54434964b3d0941ade3669128bc5c50fb7c3"
+    ],
+    "families": [
+      "unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "200.9.154.125",
+    "type": "ip",
+    "sample_count": 4,
+    "samples": [
+      "557c02b5e9ca8103e6ad5413df1b447fae5c9ce086a0b5330bf9c79a578585df",
+      "8e39fb18e8acb2e4fc4bcd7db2efc320f5ec84100e8ba870fd24dd13a6584277"
+    ],
+    "families": [
+      "unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "223.5.5.5",
+    "type": "ip",
+    "sample_count": 3,
+    "samples": [
+      "987a9b7add6947ac93b3f4b8c5cce6e623616ee8ca49a863461f7c97d836be56",
+      "dbc432f803c1eb429c400f9a02a14e5727adc3e012e2032468b7eef0c7026877",
+      "dcc47bd6aebe13a34128808578b731569bcd1ea24d0fa40255f57a724c6c43ac"
+    ],
+    "families": [
+      "Unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "223.6.254.203",
+    "type": "ip",
+    "sample_count": 2,
+    "samples": [
+      "47bb7f855cdf116c62499240089fa1b7a69585e8b7f639e192b9d038da4094cd"
+    ],
+    "families": [
+      "unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "3.0.0.0",
+    "type": "ip",
+    "sample_count": 5,
+    "samples": [
+      "0032fd3dd6142d41164923f864f10641e19986b9dbbaa860ce2f028d50e3ec4b",
+      "0039db66711d02ddc1a55668b78c54434964b3d0941ade3669128bc5c50fb7c3",
+      "003c9726585222bce93805918a06e08ffb715f7775004047de402317521d7305",
+      "0041690db92fe11f864977fd0a83230acb4c210a347d2eca3120f9bccb4eac75",
+      "004d68ceb44647febf8473fd49ae636abcd8ffe458a1a656e3232aedbedca084"
+    ],
+    "families": [
+      "Unknown",
+      "unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "3.0.1.0",
+    "type": "ip",
+    "sample_count": 1,
+    "samples": [
+      "001d70e9bfc1b7ce1922924357da7e0338afad283c9ff8d2befb1f74a384e9be"
+    ],
+    "families": [
+      "Unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "3.4.2.0",
+    "type": "ip",
+    "sample_count": 1,
+    "samples": [
+      "0036056c6216c1e1c0a75c3193bc4b59c226943817ec20368a2584143782a849"
+    ],
+    "families": [
+      "Unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "3.5.0.0",
+    "type": "ip",
+    "sample_count": 2,
+    "samples": [
+      "0036056c6216c1e1c0a75c3193bc4b59c226943817ec20368a2584143782a849",
+      "0041690db92fe11f864977fd0a83230acb4c210a347d2eca3120f9bccb4eac75"
+    ],
+    "families": [
+      "Unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "4.0.0.0",
+    "type": "ip",
+    "sample_count": 2,
+    "samples": [
+      "00112bb0b3a4ca8ae3cae96ff750bf5279e5d80825d4abfff63a8a6381586f37",
+      "001cc622ba7c1133efe45ef4802094caaa95bbbbfb3e81201d48b22a6c9ff146"
+    ],
+    "families": [
+      "Unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "4.1.188.7",
+    "type": "ip",
+    "sample_count": 2,
+    "samples": [
+      "004c786b9d6cfb80313226a0039d906ec627529d70edea2ab23c0f689af835df",
+      "62545321423f75c0f4774c868a1677087399353adda0fb361cd3884d2680dcc2"
+    ],
+    "families": [
+      "Unknown",
+      "unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "42.99.34.129",
+    "type": "ip",
+    "sample_count": 2,
+    "samples": [
+      "ddabe5999dbc9ffbc8b804a7ea6bb61415bc88e346b2d2c0d53bfff9dcc88d32"
+    ],
+    "families": [
+      "unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "47.112.113.131",
+    "type": "ip",
+    "sample_count": 3,
+    "samples": [
+      "a959108ec8f93ee4c71e588236788d17372f9d61b8f71a509a776f097889f36b",
+      "ddabe5999dbc9ffbc8b804a7ea6bb61415bc88e346b2d2c0d53bfff9dcc88d32"
+    ],
+    "families": [
+      "unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "5.3.3.3",
+    "type": "ip",
+    "sample_count": 1,
+    "samples": [
+      "0039db66711d02ddc1a55668b78c54434964b3d0941ade3669128bc5c50fb7c3"
+    ],
+    "families": [
+      "unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "50.2.1.1",
+    "type": "ip",
+    "sample_count": 1,
+    "samples": [
+      "0038b79fdde84271bbe784ee90f305e3ed68e7e89bb35c17d74c36b813503041"
+    ],
+    "families": [
+      "Unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "65.19.150.172",
+    "type": "ip",
+    "sample_count": 2,
+    "samples": [
+      "004c786b9d6cfb80313226a0039d906ec627529d70edea2ab23c0f689af835df"
+    ],
+    "families": [
+      "Unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "7.0.3.1",
+    "type": "ip",
+    "sample_count": 1,
+    "samples": [
+      "002c8f78aef3807f7dda37ca500d2aac3d546d6820f40fc704938503071bed6c"
+    ],
+    "families": [
+      "unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "8.8.8.8",
+    "type": "ip",
+    "sample_count": 3,
+    "samples": [
+      "987a9b7add6947ac93b3f4b8c5cce6e623616ee8ca49a863461f7c97d836be56",
+      "dbc432f803c1eb429c400f9a02a14e5727adc3e012e2032468b7eef0c7026877",
+      "dcc47bd6aebe13a34128808578b731569bcd1ea24d0fa40255f57a724c6c43ac"
+    ],
+    "families": [
+      "Unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  },
+  {
+    "value": "83.221.146.11",
+    "type": "ip",
+    "sample_count": 1,
+    "samples": [
+      "0041690db92fe11f864977fd0a83230acb4c210a347d2eca3120f9bccb4eac75"
+    ],
+    "families": [
+      "Unknown"
+    ],
+    "vt": null,
+    "otx": null,
+    "shodan": null,
+    "any_detected": false
+  }
+]
