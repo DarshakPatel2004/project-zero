@@ -24,11 +24,15 @@ def client():
 
 
 class TestCIRCLClientInit:
-    def test_missing_username(self):
+    def test_missing_username(self, monkeypatch):
+        monkeypatch.delenv("CIRCL_USERNAME", raising=False)
+        monkeypatch.delenv("CIRCL_PASSWORD", raising=False)
         with pytest.raises(CIRCLAuthError):
             CIRCLClient(username=None, password="pass")
 
-    def test_missing_password(self):
+    def test_missing_password(self, monkeypatch):
+        monkeypatch.delenv("CIRCL_USERNAME", raising=False)
+        monkeypatch.delenv("CIRCL_PASSWORD", raising=False)
         with pytest.raises(CIRCLAuthError):
             CIRCLClient(username="user", password=None)
 
@@ -182,7 +186,9 @@ class TestErrors:
 
 
 class TestModuleFunctions:
-    def test_enrich_c2s_without_env_vars(self):
+    def test_enrich_c2s_without_env_vars(self, monkeypatch):
+        monkeypatch.delenv("CIRCL_USERNAME", raising=False)
+        monkeypatch.delenv("CIRCL_PASSWORD", raising=False)
         # Should raise because no credentials in environment
         with pytest.raises(CIRCLAuthError):
             enrich_c2s([{"ip": "8.8.8.8"}])

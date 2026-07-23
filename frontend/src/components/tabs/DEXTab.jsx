@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts'
 
 export default function DEXTab({ sampleId, apiUrl }) {
   const [data, setData] = useState(null)
@@ -24,6 +25,13 @@ export default function DEXTab({ sampleId, apiUrl }) {
     { label: 'Is Multidex', value: data.is_multidex !== undefined ? (data.is_multidex ? 'Yes' : 'No') : 'N/A' },
   ]
 
+  const entropy = typeof data.entropy === 'number' ? data.entropy : null
+  const entropyColor = entropy > 7 ? '#f43f5e' : entropy > 5 ? '#f59e0b' : '#10b981'
+  const entropyPie = entropy !== null ? [
+    { name: 'Entropy', value: entropy },
+    { name: 'Remaining', value: 8 - entropy },
+  ] : []
+
   return (
     <div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 20 }}>
@@ -37,28 +45,41 @@ export default function DEXTab({ sampleId, apiUrl }) {
         ))}
       </div>
 
-      {typeof data.entropy === 'number' && (
+      {entropy !== null && (
         <div className="card" style={{ padding: 16 }}>
           <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 10 }}>
             DEX Entropy
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <div style={{
-              width: 60, height: 60, borderRadius: '50%', display: 'flex',
-              alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 18,
-              fontFamily: "'JetBrains Mono', monospace",
-              background: data.entropy > 7 ? 'rgba(244,63,94,0.15)' : data.entropy > 5 ? 'rgba(245,158,11,0.15)' : 'rgba(16,185,129,0.15)',
-              color: data.entropy > 7 ? 'var(--accent-rose)' : data.entropy > 5 ? 'var(--accent-amber)' : 'var(--accent-emerald)',
-            }}>
-              {data.entropy.toFixed(1)}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+            <div style={{ width: 100, height: 100 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={entropyPie}
+                    cx="50%" cy="50%"
+                    innerRadius={30}
+                    outerRadius={45}
+                    startAngle={180}
+                    endAngle={0}
+                    dataKey="value"
+                  >
+                    {entropyPie.map((entry, idx) => (
+                      <Cell key={idx} fill={idx === 0 ? entropyColor : 'rgba(148,163,184,0.1)'} />
+                    ))}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
             </div>
             <div>
+              <div style={{ fontSize: 28, fontWeight: 800, fontFamily: "'JetBrains Mono', monospace", color: entropyColor }}>
+                {entropy.toFixed(2)}
+              </div>
               <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
                 Shannon entropy of DEX contents
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                {data.entropy > 7 ? 'High entropy — possible packing/obfuscation' :
-                 data.entropy > 5 ? 'Moderate entropy' : 'Normal entropy range'}
+                {entropy > 7 ? 'High entropy — possible packing/obfuscation' :
+                 entropy > 5 ? 'Moderate entropy' : 'Normal entropy range'}
               </div>
             </div>
           </div>

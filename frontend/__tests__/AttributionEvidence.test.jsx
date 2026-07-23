@@ -45,8 +45,8 @@ describe('AttributionEvidence', () => {
     render(<AttributionEvidence sampleId="test-001" apiUrl="http://localhost:8000" />)
 
     await waitFor(() => {
-      expect(screen.getByText('XHelper')).toBeTruthy()
       expect(screen.getByText('95% confidence')).toBeTruthy()
+      expect(screen.getAllByText('XHelper').length).toBeGreaterThanOrEqual(1)
     })
   })
 

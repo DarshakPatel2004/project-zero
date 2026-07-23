@@ -47,7 +47,7 @@ def test_hex_detection():
             "string_literals": [
                 {
                     "value": original,
-                    "entropy": 3.2,
+                    "entropy": 5.5,
                     "source": "com\\malware\\decoder\\PayloadDecoder.smali:20",
                 }
             ],
@@ -207,7 +207,7 @@ def test_is_likely_obfuscated_payload_logic():
     assert is_likely_obfuscated_payload(
         "setHomeAsUpIndicator", "garbage", "android\\support\\v7\\app\\X.smali:1", 4.0
     ) is False
-    # Suspicious source without meaningful decode -> keep
+    # Suspicious source alone -> keep (even without meaningful content or high entropy)
     assert is_likely_obfuscated_payload(
         "AAAA", "garbage", "com\\evil\\loader\\Decoder.smali:1", 4.0
     ) is True

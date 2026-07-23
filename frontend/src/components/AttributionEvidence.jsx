@@ -121,6 +121,23 @@ export default function AttributionEvidence({ sampleId, apiUrl }) {
           </div>
         </div>
       )}
+
+      <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border-color)' }}>
+        <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 10 }}>
+          Recommended Actions
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div className="action">
+            <b>1.</b> Block package name <span className="text-mono" style={{ color: 'var(--accent-rose)' }}>{data.family || 'this family'}</span> on app stores
+          </div>
+          <div className="action">
+            <b>2.</b> Sinkhole C2 domains identified in threat intelligence
+          </div>
+          <div className="action">
+            <b>3.</b> Alert users with <span className="text-mono">{data.family || 'matching'}</span> signature installed
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

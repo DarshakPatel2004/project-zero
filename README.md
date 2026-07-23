@@ -84,11 +84,11 @@ Open three terminals:
 .\run_frontend.bat
 ```
 
-Submit an APK:
+Submit an APK via the dashboard at `http://localhost:5173` (drag-and-drop), or via CLI:
 
 ```powershell
-curl -X POST http://localhost:8000/analyze `
-  -H "Content-Type: application/json" `
+curl -X POST http://localhost:8000/analyze \
+  -H "Content-Type: application/json" \
   -d '{"apk_path": "samples\\malware\\example.apk"}'
 ```
 
@@ -102,6 +102,33 @@ Output written to `analysis/work/<sha256>/pipeline_result.json`.
 
 ---
 
+## Dashboard
+
+The React dashboard provides four levels of analysis for each sample:
+
+- **Glance (Level 1):** Threat summary with score, family, red flags
+- **Family Attribution:** Collapsible FamilySignalsCard with primary match, confidence breakdown bars (permissions, C2 overlap, obfuscation, code similarity), method badge, candidates, and related samples
+- **Triage (Level 2):** MAFIA attribution evidence with confidence breakdown, supporting signals, related samples
+- **Investigation (Level 3):** Dissection tabs — Manifest, Permissions, Components, Code (with syntax highlighting), Strings, DEX (with entropy chart), Native Libs
+- **Threat Chains:** Interactive threat chain viewer with client-side decoder (Base64, hex, URL, XOR, custom JS) for each decoding step
+
+### Frontend Setup
+
+```powershell
+cd frontend
+npm install
+npm run dev      # serves on http://localhost:5173
+```
+
+### Frontend Tests
+
+```powershell
+cd frontend
+npm run test     # vitest — 248 tests across 38 test files
+```
+
+---
+
 ## API Endpoints
 
 | Method | Path | Description |
@@ -109,9 +136,15 @@ Output written to `analysis/work/<sha256>/pipeline_result.json`.
 | GET | `/` | Health check |
 | GET | `/api/samples` | List analyzed samples |
 | GET | `/api/sample/{sample_id}` | Full analysis report |
+| GET | `/api/sample/{sample_id}/attribution` | MAFIA attribution evidence |
+| GET | `/api/sample/{sample_id}/threat-summary` | Threat summary (glance) |
+| GET | `/api/sample/{sample_id}/dissection` | Full dissection data |
+| GET | `/api/sample/{sample_id}/dissection/{section}` | Per-tab dissection data |
+| GET | `/api/sample/{sample_id}/code-analysis/{class}` | Method-level code analysis |
 | GET | `/api/graph/{sample_id}` | 3D graph data |
 | GET | `/api/clusters` | Clustering data |
 | GET | `/api/timeline/{sample_id}` | Attack-chain timeline |
+| POST | `/api/upload` | Upload APK for analysis |
 | POST | `/analyze` | Trigger APK analysis |
 | WS | `/ws` | Real-time analysis events |
 
@@ -142,16 +175,25 @@ Full metadata in `sample_metadata.csv`.
 | Decompilation | AndroGuard, JADX, APKTool |
 | Threat Intel | VirusTotal, AlienVault OTX, Shodan, Censys, AbuseIPDB |
 | Geolocation | MaxMind GeoLite2 |
-| Frontend | React, Leaflet, WebSocket |
+| Frontend | React, Leaflet, WebSocket, highlight.js, Recharts |
 | Hardware | Lenovo LOQ 15 (Ryzen 7435HS, RTX 4050 6GB, 24GB RAM) |
 
 ---
 
 ## Testing
 
+### Backend (Python)
+
 ```powershell
 .\venv\Scripts\Activate.ps1
 pytest tests\
+```
+
+### Frontend (React)
+
+```powershell
+cd frontend
+npm run test     # 248 tests across 38 test files — all pass
 ```
 
 ---
@@ -160,13 +202,15 @@ pytest tests\
 
 ```
 backend/          — FastAPI server, threat intel, pipeline logic
-frontend/         — React dashboard, Leaflet C2 maps
-analysis/         — Pipeline steps (extraction, decoding, correlation)
+frontend/         — React dashboard, Leaflet C2 maps, FamilySignalsCard
+analysis/         — 9-step pipeline (extraction → decoding → correlation → report)
 scripts/          — Batch analysis, data collection utilities
 article_assets/   — LinkedIn article screenshots and assets
 samples/          — APK sample storage (malware + legitimate)
 data/             — GeoIP databases, YARA rules
 evaluation/       — Validation metrics, ground truth, FP analysis
+tests/            — Python backend tests (pytest)
+docs/             — Dashboard guide, codebase reference, superpower plans
 ```
 
 ---

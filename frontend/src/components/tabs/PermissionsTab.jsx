@@ -1,10 +1,5 @@
 import { useState, useEffect } from 'react'
-
-const PERM_RISK = {
-  dangerous: { color: 'var(--accent-rose)', bg: 'rgba(244,63,94,0.1)' },
-  signature: { color: 'var(--accent-amber)', bg: 'rgba(245,158,11,0.1)' },
-  normal: { color: 'var(--accent-emerald)', bg: 'rgba(16,185,129,0.1)' },
-}
+import PermissionCard from '../PermissionCard'
 
 export default function PermissionsTab({ sampleId, apiUrl }) {
   const [data, setData] = useState(null)
@@ -50,23 +45,15 @@ export default function PermissionsTab({ sampleId, apiUrl }) {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {filtered.map((p, i) => {
-          const style = PERM_RISK[p.protection_level] || PERM_RISK.normal
-          return (
-            <div key={i} className="card" style={{
-              padding: '10px 14px', display: 'flex', alignItems: 'center',
-              justifyContent: 'space-between', gap: 12,
-            }}>
-              <div>
-                <div className="text-mono" style={{ fontSize: 13 }}>{p.name}</div>
-                {p.label && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{p.label}</div>}
-              </div>
-              <span className="badge" style={{ background: style.bg, color: style.color }}>
-                {p.protection_level || 'normal'}
-              </span>
-            </div>
-          )
-        })}
+        {filtered.map((p, i) => (
+          <PermissionCard
+            key={i}
+            name={p.name}
+            label={p.label}
+            protectionLevel={p.protection_level}
+            description={p.description}
+          />
+        ))}
       </div>
     </div>
   )

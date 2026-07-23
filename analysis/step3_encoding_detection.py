@@ -211,8 +211,14 @@ def is_likely_obfuscated_payload(value: str, decoded: str, source: str,
     if meaningful:
         return True
 
-    # Rule 2: suspicious source only counts if the content or entropy backs it up.
+    # Rule 2a: suspicious source with high entropy or meaningful content → keep.
     if suspicious and (high_entropy or meaningful):
+        return True
+
+    # Rule 2b: suspicious source alone (even without meaningful content/high entropy)
+    # keeps the payload for further analysis — avoids false negatives on
+    # multi-stage payloads where the decoded content is an intermediate stage.
+    if suspicious:
         return True
 
     # Rule 3a: benign framework / library code → reject.

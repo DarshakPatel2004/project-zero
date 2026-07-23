@@ -265,7 +265,11 @@ def transform_clusters(results: List[Dict[str, Any]]) -> Dict[str, Any]:
         # X: encoding complexity
         encodings = result.get("encodings", [])
         if encodings:
-            avg_entropy = sum(e.get("entropy", 0) for e in encodings) / len(encodings)
+            entropies = [
+                e.get("entropy", 0) if isinstance(e, dict) else 0
+                for e in encodings
+            ]
+            avg_entropy = sum(entropies) / len(encodings)
             encoding_count = len(encodings)
         else:
             avg_entropy = 0.0

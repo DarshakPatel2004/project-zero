@@ -1,13 +1,18 @@
 import { useState, useEffect, useCallback, useRef, useReducer, lazy, Suspense } from 'react'
+import { Routes, Route, useNavigate, useParams } from 'react-router-dom'
 import './App.css'
 import { ToastProvider, useToast } from './components/Toast'
 import UploadPanel from './components/UploadPanel'
-import AnalysisView from './components/AnalysisView'
+const AnalysisView = lazy(() => import('./components/AnalysisView'))
 import { ErrorBoundary } from './components/ErrorBoundary'
-import DissectionPage from './components/DissectionPage'
-import RawCodeView from './components/RawCodeView'
-import SampleDetail from './pages/SampleDetail'
+import SampleSearch from './components/SampleSearch'
+import LoadingSpinner from './components/LoadingSpinner'
+import ThreatBadge from './components/ThreatBadge'
+import { useSampleData } from './hooks/useSampleData'
 
+const DissectionPage = lazy(() => import('./components/DissectionPage'))
+const RawCodeView = lazy(() => import('./components/RawCodeView'))
+const SampleDetail = lazy(() => import('./pages/SampleDetail'))
 const ThreatIntelView = lazy(() => import('./components/ThreatIntelView'))
 
 /* eslint-disable react-hooks/set-state-in-effect */
@@ -185,15 +190,34 @@ const RETRY_STATE = {
   EXHAUSTED: 'exhausted',
 }
 
-function App() {
+function SampleRoutePage() {
+  const { id } = useParams()
+  const { data } = useSampleData(id, `${API_URL}/api/sample/${id}`, { cached: false })
+
+  if (!data) return <LoadingSpinner message="Loading sample..." />
+
   return (
     <ToastProvider>
-      <AppInner />
+      <SampleDetail
+        sample={{ sampleId: id, sha256: id, fileName: id?.substring(0, 16), ...data }}
+        apiUrl={API_URL}
+        onSelectSample={(s) => window.location.href = `/sample/${s?.sample_id || s?.sha256 || s}`}
+      />
     </ToastProvider>
   )
 }
 
+function App() {
+  return (
+    <Routes>
+      <Route path="/sample/:id" element={<SampleRoutePage />} />
+      <Route path="*" element={<ToastProvider><AppInner /></ToastProvider>} />
+    </Routes>
+  )
+}
+
 function AppInner() {
+  const navigate = useNavigate()
   const { addToast } = useToast()
   const [activeTab, setActiveTab] = useState('upload')
   const [samples, setSamples] = useState([])
@@ -381,6 +405,14 @@ function AppInner() {
       console.error('Analysis failed:', error)
       dispatch({ type: 'ERROR', payload: { error_message: error.message } })
     }
+  }, [])
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setSidebarOpen(false)
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
   const retryAnalysis = useCallback(() => {
@@ -608,9 +640,11 @@ function AppInner() {
   }, [retryState, executeUpload, startRetryLoop, addToast])
 
   const handleSelectSample = (sample) => {
-    setSelectedSample(sample)
+    const sid = sample?.sampleId || sample?.sha256 || sample?.uploadId || sample
+    setSelectedSample(typeof sample === 'string' ? { sampleId: sample, sha256: sample } : sample)
     setActiveTab('analysis')
     setSidebarOpen(false)
+    if (sid) navigate(`/sample/${sid}`, { replace: true })
 
     const sampleId = sample?.sampleId || sample?.sha256 || sample?.uploadId
     const isAnalyzed = sample?.status === 'analyzed' || sample?.status === 'completed'
@@ -637,23 +671,26 @@ function AppInner() {
 
   return (
     <div className="app-shell">
-      <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
-        <div className="brand">
-          <span className="brand-mark">D</span>
-          <span>DROID<span>FORENSIX</span></span>
-        </div>
-        <div className="nav-scroll">
-          <div className="nav-caption">WORKSPACE</div>
-          {NAV_ITEMS.map(item => (
-            <button
-              key={item.id}
-              className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
-              onClick={() => {
-                setActiveTab(item.id)
-                setSidebarOpen(false)
-              }}
-              disabled={item.id !== 'upload' && !selectedSample}
-            >
+        <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`} role="navigation" aria-label="Main navigation">
+          <div className="brand">
+            <span className="brand-mark" aria-hidden="true">D</span>
+            <span>DROID<span>FORENSIX</span></span>
+          </div>
+          <div className="nav-scroll">
+            <div className="nav-caption">WORKSPACE</div>
+            {NAV_ITEMS.map(item => (
+              <button
+                key={item.id}
+                className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
+                onClick={() => {
+                  setActiveTab(item.id)
+                  setSidebarOpen(false)
+                }}
+                disabled={item.id !== 'upload' && !selectedSample}
+                aria-label={item.label}
+                aria-current={activeTab === item.id ? 'page' : undefined}
+                onKeyDown={e => { if (e.key === 'Escape') setSidebarOpen(false) }}
+              >
               <b>{item.icon}</b>{item.label}
             </button>
           ))}
@@ -664,7 +701,7 @@ function AppInner() {
             <strong>{selectedSample?.fileName || 'No sample selected'}</strong>
             <span>
               <i className={`pulse ${backendReady ? '' : 'offline'}`} />
-              {' '}{backendReady ? (severity ? `${severity.toUpperCase()} · ${riskScore || 0}/100` : 'SCANNER ONLINE') : 'OFFLINE'}
+              {' '}{backendReady ? (severity ? <ThreatBadge level={severity} label={`${riskScore || 0}/100`} size="sm" /> : 'SCANNER ONLINE') : 'OFFLINE'}
             </span>
           </div>
           <button className="help" onClick={() => window.open('https://github.com/DarshakPatel2004/DroidForensix', '_blank')}>? &nbsp; Documentation</button>
@@ -676,39 +713,53 @@ function AppInner() {
           <button className="menu" onClick={() => setSidebarOpen(o => !o)}>☰</button>
           <div className="crumb">CASE / <strong>{activeLabel.toUpperCase()}</strong></div>
           <div className="top-actions">
-            <button className="selector">{selectedSample?.fileName || 'droidforensix.apk'} <span>⌄</span></button>
-            <span className={`online ${!backendReady ? 'offline' : ''}`}>
-              <i />{backendReady ? 'SCANNER ONLINE' : 'OFFLINE'}
+            <button className="selector" aria-label="Current sample">{selectedSample?.fileName || 'droidforensix.apk'} <span aria-hidden="true">⌄</span></button>
+            <span className={`online ${!backendReady ? 'offline' : ''}`} role="status" aria-label={backendReady ? 'Backend connected' : 'Backend offline'}>
+              <i aria-hidden="true" />{backendReady ? 'SCANNER ONLINE' : 'OFFLINE'}
             </span>
-            <button className="avatar">DF</button>
+            <button className="avatar" aria-label="User profile">DF</button>
           </div>
         </header>
 
-        <section className="content">
+        <section className="content" role="main" aria-label={`${activeLabel} view`}>
           {activeTab === 'upload' && (
             <div className="view-wrapper">
-              <UploadPanel
-                onUpload={handleUpload}
-                samples={samples}
-                onSelectSample={handleSelectSample}
-                retryState={retryState}
-                retryAttempt={retryAttempt}
-                retryEta={retryEta}
-                cancelRetry={cancelRetry}
-                backendOnline={httpStatus === 'connected'}
-              />
+              <div className="upload-grid">
+                <UploadPanel
+                  onUpload={handleUpload}
+                  samples={samples}
+                  onSelectSample={handleSelectSample}
+                  retryState={retryState}
+                  retryAttempt={retryAttempt}
+                  retryEta={retryEta}
+                  cancelRetry={cancelRetry}
+                  backendOnline={httpStatus === 'connected'}
+                />
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 12 }}>
+                    Sample Search
+                  </div>
+                  <SampleSearch
+                    apiUrl={API_URL}
+                    samples={samples}
+                    onSelect={handleSelectSample}
+                  />
+                </div>
+              </div>
             </div>
           )}
 
           {activeTab === 'analysis' && selectedSample && (
             <div className="view-wrapper">
               <ErrorBoundary>
-                <AnalysisView
-                  sample={selectedSample}
-                  analysisState={analysisState}
-                  apiUrl={API_URL}
-                  onRetry={retryAnalysis}
-                />
+                <Suspense fallback={<LoadingSpinner message="Loading analysis..." />}>
+                  <AnalysisView
+                    sample={selectedSample}
+                    analysisState={analysisState}
+                    apiUrl={API_URL}
+                    onRetry={retryAnalysis}
+                  />
+                </Suspense>
               </ErrorBoundary>
             </div>
           )}
@@ -716,11 +767,13 @@ function AppInner() {
           {activeTab === 'attribution' && selectedSample && (
             <div className="view-wrapper">
               <ErrorBoundary>
-                <SampleDetail
-                  sample={selectedSample}
-                  apiUrl={API_URL}
-                  onSelectSample={handleSelectSample}
-                />
+                <Suspense fallback={<LoadingSpinner message="Loading attribution..." />}>
+                  <SampleDetail
+                    sample={selectedSample}
+                    apiUrl={API_URL}
+                    onSelectSample={handleSelectSample}
+                  />
+                </Suspense>
               </ErrorBoundary>
             </div>
           )}
@@ -728,10 +781,12 @@ function AppInner() {
           {activeTab === 'dissection' && selectedSample && (
             <div className="view-wrapper">
               <ErrorBoundary>
-                <DissectionPage
-                  sample={selectedSample}
-                  apiUrl={API_URL}
-                />
+                <Suspense fallback={<LoadingSpinner message="Loading dissection..." />}>
+                  <DissectionPage
+                    sample={selectedSample}
+                    apiUrl={API_URL}
+                  />
+                </Suspense>
               </ErrorBoundary>
             </div>
           )}
@@ -739,17 +794,19 @@ function AppInner() {
           {activeTab === 'raw-code' && selectedSample && (
             <div className="view-wrapper">
               <ErrorBoundary>
-                <RawCodeView
-                  sample={selectedSample}
-                  apiUrl={API_URL}
-                />
+                <Suspense fallback={<LoadingSpinner message="Loading code viewer..." />}>
+                  <RawCodeView
+                    sample={selectedSample}
+                    apiUrl={API_URL}
+                  />
+                </Suspense>
               </ErrorBoundary>
             </div>
           )}
 
           {activeTab === 'threat-intel' && selectedSample && (
             <div className="view-wrapper">
-              <Suspense fallback={<div className="empty-state">Loading threat intelligence...</div>}>
+              <Suspense fallback={<LoadingSpinner message="Loading threat intelligence..." />}>
                 <ThreatIntelView
                   sample={selectedSample}
                   apiUrl={API_URL}

@@ -65,6 +65,8 @@ logger = logging.getLogger(__name__)
 
 def ensure_ollama_running():
     """Start Ollama via LLMVerifier. Blocks until ready or timeout."""
+    if os.environ.get("DROIDFORENSIX_TESTING"):
+        return
     verifier = LLMVerifier(
         enabled=True,
         model=os.environ.get("OLLAMA_MODEL", settings.OLLAMA_MODEL),

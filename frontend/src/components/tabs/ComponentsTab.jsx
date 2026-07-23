@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import ComponentCard from '../ComponentCard'
 
 const COMPONENT_TYPES = ['activities', 'services', 'receivers', 'providers']
 const COMPONENT_LABELS = { activities: 'Activity', services: 'Service', receivers: 'Broadcast Receiver', providers: 'Content Provider' }
@@ -44,23 +45,13 @@ export default function ComponentsTab({ sampleId, apiUrl }) {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {items.map((comp, i) => (
-            <div key={i} className="card" style={{ padding: '10px 14px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-                <div className="text-mono" style={{ fontSize: 13, flex: 1 }}>{comp.name}</div>
-                {comp.exported !== undefined && (
-                  <span className={`badge ${comp.exported ? 'amber' : 'emerald'}`}>
-                    {comp.exported ? 'Exported' : 'Not Exported'}
-                  </span>
-                )}
-              </div>
-              {comp.intent_filters?.length > 0 && (
-                <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                  {comp.intent_filters.map((f, j) => (
-                    <span key={j} className="badge neutral" style={{ fontSize: 10 }}>{f}</span>
-                  ))}
-                </div>
-              )}
-            </div>
+            <ComponentCard
+              key={i}
+              name={comp.name}
+              exported={comp.exported}
+              intentFilters={comp.intent_filters}
+              type={COMPONENT_LABELS[activeType]}
+            />
           ))}
         </div>
       )}

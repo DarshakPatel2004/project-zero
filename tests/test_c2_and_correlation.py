@@ -146,7 +146,7 @@ BENIGN_URLS = [
 
 MALICIOUS_URLS = [
     "https://47.116.192.150:444/cBYFilXD/HNbfYsYd8Shi2GHLBHyb-gDN9Hwbd6Itpm3jtM4fQpWreFMkgGdQyEmayxRNMBKyMfb6kZsi71hMzOxV8VpPRQrcsurLqQCsGxh7PvRmdUTTbgDb/",
-    "https://evil-c2.example.com/beacon",
+    "https://evil-c2.malicious-test.com/beacon",
 ]
 
 
@@ -310,11 +310,28 @@ def test_threat_intel_ip_helpers():
 
 def test_build_threat_intel_liveness_enrichment(tmp_path, monkeypatch):
     import json
-    from backend.threat_intel import build_threat_intel
+    import socket
+    import backend.threat_intel
     from backend.config import settings
     
     # Mock settings.WORK_DIR to use our temp path
     monkeypatch.setattr(settings, "WORK_DIR", tmp_path)
+    
+    # Mock DNS resolution to avoid hanging on slow/no network
+    def _mock_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+        if host == "localhost.localdomain":
+            raise socket.gaierror("Mock: no address")
+        return [((2, 1, 0, '', (host, port)))]
+    monkeypatch.setattr(socket, "getaddrinfo", _mock_getaddrinfo)
+    
+    # Mock network-dependent enrichment functions
+    monkeypatch.setattr(backend.threat_intel, "_enrich_isp", lambda ip: {"isp": "", "org": "", "as": ""})
+    monkeypatch.setattr(backend.threat_intel, "_geo_lookup", lambda ip: None)
+    monkeypatch.setattr(backend.threat_intel, "_censys_enrich", lambda ip: None)
+    monkeypatch.setattr(backend.threat_intel, "identify_family", lambda *a, **kw: {
+        "family": "unknown", "confidence": 0.0, "method": "none",
+        "reasoning": "", "candidates": [],
+    })
     
     # Prepare dummy pipeline result and directories
     sample_id = "test_sample_123"
@@ -352,7 +369,7 @@ def test_build_threat_intel_liveness_enrichment(tmp_path, monkeypatch):
         json.dump({"c2_infrastructure": pipeline_result["c2_infrastructure"]}, f)
         
     # Run build_threat_intel which triggers on-the-fly resolution
-    data = build_threat_intel(pipeline_result, sample_id)
+    data = backend.threat_intel.build_threat_intel(pipeline_result, sample_id)
     
     # Verify returning structured fields
     assert "c2s" in data, f"Keys in data: {list(data.keys())}. Data: {data}"
@@ -376,7 +393,7 @@ def test_build_threat_intel_liveness_enrichment(tmp_path, monkeypatch):
     assert any(g["ip"] == "8.8.8.8" for g in geo_ips)
     pub_geo = next(g for g in geo_ips if g["ip"] == "8.8.8.8")
     assert pub_geo["country"] == "Unknown"
-
+    
     # Check that disk caches were updated
     with open(pipeline_path, "r", encoding="utf-8") as f:
         saved_result = json.load(f)

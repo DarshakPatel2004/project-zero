@@ -233,6 +233,15 @@ def sanity_check(assessment: dict, chains_result: dict, c2_result: dict, obfusca
             assessment["risk_score"] = max(risk_score, 65)
             assessment["narrative"] += " [SANITY CHECK: elevated due to multiple high-severity hardcoded secrets.]"
 
+    # If significant obfuscation exists but severity is low, raise it
+    if severity == "low" and obf_score > 50:
+        if len(dangerous_perms) > 0 or obf_score > 70:
+            assessment["severity"] = "medium"
+            assessment["risk_score"] = max(risk_score, 30)
+            assessment["narrative"] += " [SANITY CHECK: elevated due to obfuscation indicators (score {:.0f}).]".format(obf_score)
+            severity = "medium"
+            risk_score = assessment["risk_score"]
+
     # If active C2 exists but severity is low, raise it
     if c2_count > 0 and severity == "low":
         assessment["severity"] = "medium"

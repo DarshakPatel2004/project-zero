@@ -55,3 +55,10 @@
 .source-code code {
   font-family: inherit;
 }
+
+.source-highlight {
+  background: rgba(245, 158, 11, 0.3);
+  border-bottom: 2px solid var(--accent-amber);
+  border-radius: 2px;
+  padding: 0 2px;
+}

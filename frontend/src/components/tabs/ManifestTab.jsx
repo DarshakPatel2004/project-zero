@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+/* eslint-disable react-hooks/set-state-in-effect */
 
 function safeStr(v) {
   if (v === null || v === undefined) return '—'

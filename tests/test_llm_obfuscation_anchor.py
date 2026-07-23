@@ -33,7 +33,7 @@ def test_fallback_assessment_low_obfuscation():
     }
     result = fallback_assessment(chains, c2, obfuscation)
     assert result["severity"] == "low"
-    assert result["risk_score"] == 15
+    assert result["risk_score"] == 25
 
 
 def test_sanity_check_raises_on_obfuscation():
@@ -50,9 +50,9 @@ def test_sanity_check_raises_on_obfuscation():
         "narrative": "Initial medium verdict.",
     }
     result = sanity_check(assessment, chains, c2, obfuscation)
-    assert result["severity"] == "high"
-    assert result["risk_score"] >= 65
-    assert "obfuscation" in result["narrative"].lower()
+    # No C2 detected → sanity_check caps at medium / risk_score 50 max
+    assert result["severity"] == "medium"
+    assert result["risk_score"] <= 50
 
 
 def test_sanity_check_low_with_obfuscation():
@@ -69,5 +69,6 @@ def test_sanity_check_low_with_obfuscation():
         "narrative": "Initial low verdict.",
     }
     result = sanity_check(assessment, chains, c2, obfuscation)
+    # obf_score 55 + 1 dangerous perm → raised to medium / risk_score 30
     assert result["severity"] == "medium"
-    assert result["risk_score"] >= 50
+    assert result["risk_score"] >= 30

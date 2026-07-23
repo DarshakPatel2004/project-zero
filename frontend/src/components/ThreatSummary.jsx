@@ -1,12 +1,7 @@
 import { useState, useEffect } from 'react'
 /* eslint-disable react-hooks/set-state-in-effect */
-
-const SEVERITY_STYLES = {
-  CRITICAL: { color: '#f43f5e', bg: 'rgba(244,63,94,0.15)', label: 'CRITICAL' },
-  HIGH: { color: '#f59e0b', bg: 'rgba(245,158,11,0.15)', label: 'HIGH' },
-  MEDIUM: { color: '#06b6d4', bg: 'rgba(6,182,212,0.15)', label: 'MEDIUM' },
-  LOW: { color: '#10b981', bg: 'rgba(16,185,129,0.15)', label: 'LOW' },
-}
+import ThreatBadge from './ThreatBadge'
+import LoadingSpinner from './LoadingSpinner'
 
 export default function ThreatSummary({ sampleId, apiUrl }) {
   const [data, setData] = useState(null)
@@ -22,12 +17,11 @@ export default function ThreatSummary({ sampleId, apiUrl }) {
       .catch(e => { setError(e); setLoading(false) })
   }, [sampleId, apiUrl])
 
-  if (loading) return <div className="card" style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>Loading threat summary...</div>
+  if (loading) return <div className="card" style={{ padding: 24 }}><LoadingSpinner message="Loading threat summary..." /></div>
   if (error) return <div className="card" style={{ padding: 24, color: 'var(--accent-rose)' }}>Failed to load: {error}</div>
   if (!data) return null
 
   const severity = data.threat_level || 'LOW'
-  const style = SEVERITY_STYLES[severity] || SEVERITY_STYLES.LOW
   const flags = data.red_flags || []
 
   return (
@@ -44,13 +38,7 @@ export default function ThreatSummary({ sampleId, apiUrl }) {
             )}
           </div>
           <div style={{ textAlign: 'right' }}>
-            <div style={{
-              padding: '6px 14px', borderRadius: 8,
-              background: style.bg, color: style.color,
-              fontWeight: 700, fontSize: 15,
-            }}>
-              {style.label} ({data.threat_score}/100)
-            </div>
+            <ThreatBadge level={severity} label={`${severity} (${data.threat_score}/100)`} size="lg" />
           </div>
         </div>
       </div>
@@ -58,14 +46,9 @@ export default function ThreatSummary({ sampleId, apiUrl }) {
       <div style={{ padding: '16px 24px', display: 'flex', gap: 40, flexWrap: 'wrap' }}>
         <div>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Family</div>
-          <div style={{ fontWeight: 600, fontSize: 14 }}>
+          <div style={{ fontWeight: 600, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
             {data.family !== 'unknown' ? data.family : 'Unidentified'}
-            <span style={{
-              marginLeft: 8, fontSize: 11, fontWeight: 600,
-              color: data.confidence >= 0.7 ? 'var(--accent-emerald)' : 'var(--text-muted)',
-            }}>
-              {Math.round(data.confidence * 100)}% confidence
-            </span>
+            <ThreatBadge level={data.confidence >= 0.9 ? 'CRITICAL' : data.confidence >= 0.7 ? 'HIGH' : 'MEDIUM'} label={`${Math.round(data.confidence * 100)}% confidence`} size="sm" />
           </div>
         </div>
         <div>
@@ -109,6 +92,18 @@ export default function ThreatSummary({ sampleId, apiUrl }) {
             <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>No significant red flags detected</div>
           )}
         </div>
+      </div>
+
+      <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border-color)', display: 'flex', gap: 10 }}>
+        <button className="primary" onClick={() => window.open(`#`, '_blank')} style={{ padding: '8px 18px', fontSize: 12 }}>
+          Investigate
+        </button>
+        <button className="secondary" onClick={() => {}} style={{ padding: '8px 18px', fontSize: 12 }}>
+          Block
+        </button>
+        <button className="secondary" onClick={() => {}} style={{ padding: '8px 18px', fontSize: 12 }}>
+          Watchlist
+        </button>
       </div>
     </div>
   )

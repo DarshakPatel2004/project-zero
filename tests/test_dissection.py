@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 from backend.config import settings
 from backend.main import app
 from backend.dissection import APKDissector, SampleAPKCache, load_dissection, _class_cache_locks, _class_cache_locks_lock
-from backend.transformers import load_all_results
+
 
 
 @pytest.fixture
@@ -36,20 +36,30 @@ def test_apk_path() -> Path:
 @pytest.fixture(scope="module")
 def existing_sample_id() -> str:
     """Return an existing analyzed sample id whose APK is still on disk."""
-    results = load_all_results()
-    for result in results:
-        sample_id = result["sample_id"]
-        sample_name = result.get("metadata", {}).get("sample_name")
-        if not sample_name:
+    work_dir = settings.WORK_DIR
+    if not work_dir.exists():
+        pytest.skip("No work dir — no samples exist")
+    for sample_dir in work_dir.iterdir():
+        result_path = sample_dir / "pipeline_result.json"
+        if not result_path.exists():
             continue
-        # Check whether the APK is locatable
-        candidates = [
-            settings.SAMPLES_DIR / "malware" / "androzoo_drebin" / sample_name,
-            settings.SAMPLES_DIR / "malware" / sample_name,
-        ]
-        for candidate in candidates:
-            if candidate.exists():
-                return sample_id
+        try:
+            import json
+            with open(result_path, "r", encoding="utf-8") as f:
+                result = json.load(f)
+            sample_id = result.get("sample_id", sample_dir.name)
+            sample_name = result.get("metadata", {}).get("sample_name")
+            if not sample_name:
+                continue
+            candidates = [
+                settings.SAMPLES_DIR / "malware" / "androzoo_drebin" / sample_name,
+                settings.SAMPLES_DIR / "malware" / sample_name,
+            ]
+            for candidate in candidates:
+                if candidate.exists():
+                    return sample_id
+        except Exception:
+            continue
     pytest.skip("No existing analyzed sample with APK on disk")
 
 
@@ -433,8 +443,10 @@ class TestLLMSummary:
         result = _condense_dissection(dissection)
         assert len(result) <= 14100  # Some margin for the truncation message
 
-    def test_summarize_dissection_fallback_on_no_ollama(self):
+    def test_summarize_dissection_fallback_on_no_ollama(self, monkeypatch):
         """summarize_dissection should return fallback when Ollama is unavailable."""
+        monkeypatch.delenv("NVIDIA_NIM_API_KEY", raising=False)
+        monkeypatch.setenv("LLM_PROVIDER", "ollama")
         from analysis.step7_llm_assessment import summarize_dissection
         dissection = {
             "metadata": {"package_name": "com.test"},

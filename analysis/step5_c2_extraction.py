@@ -1167,7 +1167,11 @@ def extract_c2_infrastructure(payloads_result: dict, strings_result: dict) -> di
                 continue
             source_location = item.get("source", "unknown")
 
-            for url in URL_RE.findall(value):
+            # Pre-collect all URLs in this value to avoid double-counting
+            # bare domains/IPs that appear inside an already-extracted URL.
+            value_urls = set(URL_RE.findall(value))
+
+            for url in value_urls:
                 if url in seen_urls:
                     continue
                 seen_urls.add(url)
@@ -1209,6 +1213,9 @@ def extract_c2_infrastructure(payloads_result: dict, strings_result: dict) -> di
 
             # Also scan for bare domains and IPs (no http:// prefix)
             for domain in DOMAIN_RE.findall(value):
+                # Skip if this bare domain/IP is already part of an extracted URL
+                if any(domain in extracted_url for extracted_url in value_urls):
+                    continue
                 # Filter out code package/class references (check original case first!)
                 if _is_code_reference(domain):
                     continue
@@ -1253,6 +1260,9 @@ def extract_c2_infrastructure(payloads_result: dict, strings_result: dict) -> di
 
             for ip_match in IP_RE.findall(value):
                 if ip_match in seen_ips:
+                    continue
+                # Skip if this bare IP is already part of an extracted URL
+                if any(ip_match in extracted_url for extracted_url in value_urls):
                     continue
                 if _is_private_ip(ip_match):
                     continue

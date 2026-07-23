@@ -1,12 +1,39 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import hljs from 'highlight.js/lib/core'
+import java from 'highlight.js/lib/languages/java'
+import xml from 'highlight.js/lib/languages/xml'
 import '../styles/ClassSourceViewer.css'
+import 'highlight.js/styles/github-dark.min.css'
 
-export default function ClassSourceViewer({ sampleId, className, apiUrl }) {
+hljs.registerLanguage('java', java)
+hljs.registerLanguage('xml', xml)
+
+export default function ClassSourceViewer({ sampleId, className, apiUrl, highlight }) {
   const [source, setSource] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const codeRef = useRef(null)
 
   const API_URL = apiUrl || 'http://localhost:8000'
+
+  useEffect(() => {
+    const el = codeRef.current
+    if (!el || !source) return
+
+    if (el.dataset._raw) {
+      el.innerHTML = el.dataset._raw
+    }
+    hljs.highlightElement(el)
+
+    const raw = el.innerHTML
+    el.dataset._raw = raw
+
+    if (highlight) {
+      const escaped = highlight.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const regex = new RegExp(`(${escaped})`, 'gi')
+      el.innerHTML = el.innerHTML.replace(regex, '<mark class="source-highlight">$1</mark>')
+    }
+  }, [source, highlight])
 
   useEffect(() => {
     if (!sampleId || !className) {
@@ -61,7 +88,7 @@ export default function ClassSourceViewer({ sampleId, className, apiUrl }) {
       {error && <div className="source-error">Error loading source: {error}</div>}
       {!loading && !error && source !== null && (
         <pre className="source-code">
-          <code>{source}</code>
+          <code ref={codeRef} className="language-java">{source}</code>
         </pre>
       )}
     </div>

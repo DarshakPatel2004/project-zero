@@ -382,25 +382,6 @@ export default function UploadPanel({
               </div>
             ))}
           </div>
-
-          <div className="validation-banner">
-            <div className="validation-stat">
-              <span className="validation-value">92%</span>
-              <span className="validation-label">Accuracy</span>
-            </div>
-            <div className="validation-stat">
-              <span className="validation-value">100%</span>
-              <span className="validation-label">Precision</span>
-            </div>
-            <div className="validation-stat">
-              <span className="validation-value">84%</span>
-              <span className="validation-label">Recall</span>
-            </div>
-            <div className="validation-stat">
-              <span className="validation-value">100</span>
-              <span className="validation-label">Test Samples</span>
-            </div>
-          </div>
         </div>
       </section>
     </div>
