@@ -1201,3 +1201,295 @@
     font-size: 1.2rem;
   }
 }
+
+/* Interactive Decoder inside Threat Chain steps */
+.chain-step-decoder {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  border-left: 3px solid var(--accent-amber);
+}
+
+.decoder-title {
+  margin: 0 0 0.6rem 0;
+  font-size: 0.85rem;
+  color: var(--accent-amber);
+}
+
+.decoder-input-row,
+.decoder-output-row,
+.decoder-custom-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.6rem;
+}
+
+.decoder-textarea {
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-mono, monospace);
+  font-size: 0.8rem;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.decoder-textarea-code {
+  min-height: 80px;
+}
+
+.decoder-controls {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin-bottom: 0.6rem;
+}
+
+.decoder-method-group,
+.decoder-key-group,
+.decoder-decode-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.decoder-select,
+.decoder-input {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 0.8rem;
+}
+
+.decoder-decode-btn {
+  padding: 0.35rem 1rem;
+  background: var(--accent-amber);
+  color: #000;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.decoder-decode-btn:hover {
+  opacity: 0.85;
+}
+
+.decoder-output {
+  padding: 0.5rem;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.8rem;
+  color: var(--accent-cyan);
+  word-break: break-all;
+  white-space: pre-wrap;
+  min-height: 1.5rem;
+}
+
+/* Family Signals Card */
+.family-signals-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 0;
+  margin-bottom: 1.5rem;
+}
+
+.family-signals-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.family-signals-header h4 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.family-signals-toggle {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  transition: color 0.2s ease;
+}
+
+.family-signals-header:hover .family-signals-toggle {
+  color: var(--text-primary);
+}
+
+.family-signals-preview {
+  padding: 0 1.25rem 1rem;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.family-signals-preview-conf {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.family-signals-none {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.family-signals-body {
+  padding: 1rem 1.25rem;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* Primary Family */
+.family-signals-primary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.family-signals-primary-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.family-signals-primary-name {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.family-signals-primary-conf {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--accent-emerald);
+  background: var(--accent-emerald)11;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+}
+
+/* Method Badge */
+.family-signals-method-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid;
+  border-radius: 0.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.family-signals-method-badge-sm {
+  font-size: 0.65rem;
+  padding: 0.25rem 0.5rem;
+}
+
+/* Reasoning */
+.family-signals-reasoning {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-style: italic;
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* Signal Breakdown */
+.family-signals-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.family-signals-breakdown-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0 0 0.25rem 0;
+}
+
+/* Candidates */
+.family-signals-candidates {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.family-signals-candidates-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0 0 0.5rem 0;
+}
+
+.family-signals-candidate-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem;
+  background: var(--bg-primary);
+  border-radius: 0.25rem;
+  flex-wrap: wrap;
+}
+
+.family-signals-candidate-name {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  min-width: 100px;
+}
+
+.family-signals-candidate-conf {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+/* Related Samples */
+.family-signals-related {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  background: var(--bg-primary);
+  padding: 0.75rem;
+  border-radius: 0.25rem;
+  border-left: 3px solid var(--accent-cyan);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .family-signals-primary-head {
+    gap: 0.5rem;
+  }
+
+  .family-signals-candidate-row {
+    gap: 0.5rem;
+  }
+
+  .family-signals-method-badge {
+    font-size: 0.65rem;
+    padding: 0.3rem 0.5rem;
+  }
+}

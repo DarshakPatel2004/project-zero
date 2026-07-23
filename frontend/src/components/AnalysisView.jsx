@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback, memo } from 'react'
 import './AnalysisView.css'
 import ObfuscationView from './ObfuscationView'
 import ManifestView from './ManifestView'
+import FamilySignalsCard from './FamilySignalsCard'
 
 /**
  * Format seconds into human-readable duration.
@@ -291,7 +292,7 @@ const ResultView = memo(({ analysisState, apiUrl, sample }) => {
       {/* Tab Content */}
       <div className="tab-content">
         {activeResultTab === 'overview' && (
-          <OverviewTab result={fullResult} />
+          <OverviewTab result={fullResult} sampleId={effectiveSampleId} apiUrl={apiUrl} />
         )}
         {activeResultTab === 'secrets' && (
           <SecretsTab result={fullResult} />
@@ -321,7 +322,7 @@ ResultView.displayName = 'ResultView'
 /**
  * Overview Tab Content
  */
-const OverviewTab = memo(({ result }) => (
+const OverviewTab = memo(({ result, sampleId, apiUrl }) => (
   <div className="tab-panel">
     <div className="card">
       <h3>Assessment Summary</h3>
@@ -336,6 +337,8 @@ const OverviewTab = memo(({ result }) => (
         ))}
       </ul>
     </div>
+
+    <FamilySignalsCard sampleId={sampleId} apiUrl={apiUrl} />
 
     <div className="metrics-grid">
       <div className="card">
@@ -732,11 +735,42 @@ const STEP_DESCRIPTIONS = {
   c2_infrastructure: 'The command-and-control server or endpoint contacted by the decoded payload.',
 }
 
+function tryDecode(input, method, key, customFnBody) {
+  try {
+    switch (method) {
+      case 'base64':
+        return atob(input)
+      case 'hex':
+        return input.replace(/\s+/g, '').replace(/([0-9A-Fa-f]{2})/g, (_, h) => String.fromCharCode(parseInt(h, 16)))
+      case 'url':
+        return decodeURIComponent(input)
+      case 'xor': {
+        const k = key || 'K'
+        return Array.from(input, (c, i) => String.fromCharCode(c.charCodeAt(0) ^ k.charCodeAt(i % k.length))).join('')
+      }
+      case 'custom': {
+        const fn = new Function('input', customFnBody || 'return input')
+        return fn(input)
+      }
+      default:
+        return input
+    }
+  } catch (e) {
+    return `Error: ${e.message}`
+  }
+}
+
 function ChainCard({ chain, sampleId, apiUrl }) {
   const [expanded, setExpanded] = useState(false)
   const [selectedStep, setSelectedStep] = useState(null)
   const [llmResult, setLlmResult] = useState(null)
   const [llmLoading, setLlmLoading] = useState(false)
+  const [decoderInput, setDecoderInput] = useState('')
+  const [decoderMethod, setDecoderMethod] = useState('base64')
+  const [xorKey, setXorKey] = useState('')
+  const [customFn, setCustomFn] = useState('// return decoded string\nreturn input.split("").reverse().join("")')
+  const [decodedOutput, setDecodedOutput] = useState('')
+  const [decodeError, setDecodeError] = useState('')
   const sevMeta = SEVERITY_META[chain.severity] || SEVERITY_META.medium
 
   // Fetch LLM explanation when first expanded
@@ -795,10 +829,30 @@ function ChainCard({ chain, sampleId, apiUrl }) {
                   </div>
                   <div
                     className="chain-step-content chain-step-clickable"
-                    onClick={() => setSelectedStep(isSelected ? null : idx)}
+                    onClick={() => {
+                      const newSelected = isSelected ? null : idx
+                      setSelectedStep(newSelected)
+                      if (newSelected !== null && step.type === 'decoding_function') {
+                        const prevStep = chain.steps[Math.max(0, idx - 1)]
+                        const enc = prevStep?.artifact || prevStep?.original_string || step.original_string || step.artifact || ''
+                        setDecoderInput(enc)
+                        setDecodedOutput('')
+                        setDecodeError('')
+                      }
+                    }}
                     role="button"
                     tabIndex={0}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelectedStep(isSelected ? null : idx) }}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') {
+                      const newSelected = isSelected ? null : idx
+                      setSelectedStep(newSelected)
+                      if (newSelected !== null && step.type === 'decoding_function') {
+                        const prevStep = chain.steps[Math.max(0, idx - 1)]
+                        const enc = prevStep?.artifact || prevStep?.original_string || step.original_string || step.artifact || ''
+                        setDecoderInput(enc)
+                        setDecodedOutput('')
+                        setDecodeError('')
+                      }
+                    } }}
                   >
                     <div className="chain-step-header">
                       <span className="chain-step-icon">{STEP_TYPE_ICONS[step.type] || '❓'}</span>
@@ -873,6 +927,77 @@ function ChainCard({ chain, sampleId, apiUrl }) {
                             </div>
                           )}
                         </div>
+
+                        {step.type === 'decoding_function' && (
+                          <div className="chain-step-decoder">
+                            <h5 className="decoder-title">⚙️ Interactive Decoder</h5>
+                            <div className="decoder-input-row">
+                              <label className="detail-label">Encoded Input</label>
+                              <textarea
+                                className="decoder-textarea"
+                                rows={2}
+                                value={decoderInput}
+                                onChange={(e) => setDecoderInput(e.target.value)}
+                                placeholder="Paste or edit the encoded string..."
+                              />
+                            </div>
+                            <div className="decoder-controls">
+                              <div className="decoder-method-group">
+                                <label className="detail-label">Method</label>
+                                <select
+                                  className="decoder-select"
+                                  value={decoderMethod}
+                                  onChange={(e) => setDecoderMethod(e.target.value)}
+                                >
+                                  <option value="base64">Base64</option>
+                                  <option value="hex">Hex</option>
+                                  <option value="url">URL Decode</option>
+                                  <option value="xor">XOR</option>
+                                  <option value="custom">Custom JS</option>
+                                </select>
+                              </div>
+                              {decoderMethod === 'xor' && (
+                                <div className="decoder-key-group">
+                                  <label className="detail-label">XOR Key</label>
+                                  <input
+                                    className="decoder-input"
+                                    type="text"
+                                    value={xorKey}
+                                    onChange={(e) => setXorKey(e.target.value)}
+                                    placeholder="Key"
+                                  />
+                                </div>
+                              )}
+                              <div className="decoder-decode-group">
+                                <button
+                                  className="decoder-decode-btn"
+                                  onClick={() => {
+                                    setDecodeError('')
+                                    setDecodedOutput(tryDecode(decoderInput, decoderMethod, xorKey, customFn))
+                                  }}
+                                >
+                                  Decode
+                                </button>
+                              </div>
+                            </div>
+                            {decoderMethod === 'custom' && (
+                              <div className="decoder-custom-group">
+                                <label className="detail-label">Custom Decode Function</label>
+                                <textarea
+                                  className="decoder-textarea decoder-textarea-code"
+                                  rows={4}
+                                  value={customFn}
+                                  onChange={(e) => setCustomFn(e.target.value)}
+                                  placeholder="Write a JavaScript function body. Use 'input' variable."
+                                />
+                              </div>
+                            )}
+                            <div className="decoder-output-row">
+                              <label className="detail-label">Decoded Output</label>
+                              <div className="decoder-output">{decodedOutput || 'Click Decode to see the result.'}</div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
 
