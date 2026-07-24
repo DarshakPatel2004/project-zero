@@ -44,5 +44,3 @@ geoip2
 # Encrypted / AES-ZIP extraction (MalwareBazaar passworded samples)
 pyzipper
 
-# Dynamic analysis (Frida runtime instrumentation)
-frida
