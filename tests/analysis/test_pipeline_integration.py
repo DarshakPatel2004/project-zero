@@ -538,9 +538,9 @@ class TestPipelineResultStructure:
 
 
 class TestStepNames:
-    def test_all_19_steps_defined(self):
-        assert TOTAL_STEPS == 19
-        for i in range(1, 20):
+    def test_all_steps_defined(self):
+        assert TOTAL_STEPS == 18
+        for i in range(1, TOTAL_STEPS + 1):
             assert i in STEP_NAMES, f"Step {i} missing from STEP_NAMES"
 
     def test_step_names_are_descriptive(self):

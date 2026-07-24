@@ -62,13 +62,39 @@ def run_apktool(apk_path: str, output_dir: str) -> dict:
         if proc.returncode == 0:
             result["success"] = True
         else:
-            result["error"] = f"apktool exit {proc.returncode}: {proc.stderr}"
+            result["error"] = (
+                f"apktool exit code {proc.returncode}.\n"
+                f"stderr: {proc.stderr[:500]}\n\n"
+                f"Possible causes:\n"
+                f"  1. APK is corrupted or not a valid ZIP: re-download the sample\n"
+                f"  2. APK uses unsupported compression: try a different sample\n"
+                f"  3. apktool version too old: update from https://apktool.org"
+            )
     except subprocess.TimeoutExpired:
-        result["error"] = "apktool timed out after 120s"
+        result["error"] = (
+            f"apktool timed out after 120s on {apk_path}.\n\n"
+            f"Options:\n"
+            f"  1. Increase APKTOOL_TIMEOUT in config.py (default 120s)\n"
+            f"  2. APK is very large or obfuscated — try running apktool manually:\n"
+            f"     apktool d -f -o {output_dir} {apk_path}\n"
+            f"  3. Use --use-androguard-only to skip apktool entirely"
+        )
     except FileNotFoundError:
-        result["error"] = "apktool not found; check APKTOOL_PATH in backend/config.py"
+        result["error"] = (
+            f"apktool not found.\n"
+            f"Expected location: {settings.APKTOOL_PATH}\n\n"
+            f"Fix:\n"
+            f"  1. Download from: https://apktool.org (latest release)\n"
+            f"  2. Place the jar at: tools/apktool/apktool.jar\n"
+            f"  3. Or set APKTOOL_PATH in backend/config.py to your installation\n"
+            f"  4. Then retry: python -m analysis.pipeline {apk_path}"
+        )
     except Exception as e:
-        result["error"] = str(e)
+        result["error"] = (
+            f"apktool unexpected error: {type(e).__name__}: {e}\n\n"
+            f"If this persists, try running apktool manually:\n"
+            f"  apktool d -f -o {output_dir} {apk_path}"
+        )
     return result
 
 
@@ -88,21 +114,50 @@ def run_jadx(apk_path: str, output_dir: str) -> dict:
         if proc.returncode == 0:
             result["success"] = True
         else:
-            result["error"] = f"jadx exit {proc.returncode}: {proc.stderr}"
+            result["error"] = (
+                f"jadx exit code {proc.returncode}.\n"
+                f"stderr: {proc.stderr[:500]}\n\n"
+                f"Possible causes:\n"
+                f"  1. APK is corrupted or uses unsupported DEX format\n"
+                f"  2. JADX ran out of memory (try increasing -Xmx in jadx script)\n"
+                f"  3. APK requires a newer JADX version: download from https://github.com/skylot/jadx/releases"
+            )
     except subprocess.TimeoutExpired:
-        result["error"] = "jadx timed out after 300s"
+        result["error"] = (
+            f"jadx timed out after 300s on {apk_path}.\n\n"
+            f"Options:\n"
+            f"  1. Increase JADX_TIMEOUT in config.py (default 300s)\n"
+            f"  2. APK is very large >50MB — run with --use-androguard-only to skip JADX\n"
+            f"  3. Run jadx manually to diagnose:\n"
+            f"     jadx -d {output_dir} {apk_path}"
+        )
     except FileNotFoundError:
-        result["error"] = "jadx not found; check JADX_PATH in backend/config.py"
+        result["error"] = (
+            f"jadx not found.\n"
+            f"Expected location: {settings.JADX_PATH}\n\n"
+            f"Fix:\n"
+            f"  1. Download from: https://github.com/skylot/jadx/releases\n"
+            f"  2. Extract to: tools/jadx/\n"
+            f"  3. Or set JADX_PATH in backend/config.py to your jadx executable\n"
+            f"  4. Then retry: python -m analysis.pipeline {apk_path}"
+        )
     except Exception as e:
-        result["error"] = str(e)
+        result["error"] = (
+            f"jadx unexpected error: {type(e).__name__}: {e}\n\n"
+            f"If this persists, try running jadx manually:\n"
+            f"  jadx -d {output_dir} {apk_path}"
+        )
     return result
 
 
 def run_androguard(apk_path: str) -> dict:
     """Extract DEX-level info using Androguard (fast, pure Python)."""
-    result = {"success": False, "class_count": 0, "dex_strings": [], "error": None, "dex_parse_errors": []}
+    result = {
+        "success": False, "class_count": 0, "dex_strings": [],
+        "error": None, "dex_parse_errors": [],
+    }
     try:
-        from androguard.core.apk import APK
+        from androguard.core.apk import APK, APKError
         from androguard.core.dex import DEX
         apk = APK(str(apk_path))
         dex_strings = set()
@@ -116,12 +171,36 @@ def run_androguard(apk_path: str) -> dict:
                         dex_strings.add(s)
             except Exception as dex_err:
                 dex_error_msg = str(dex_err)[:200]
-                result["dex_parse_errors"].append(dex_error_msg)
+                result["dex_parse_errors"].append(
+                    f"DEX section error (truncated): {dex_error_msg}"
+                )
         result["success"] = True
         result["class_count"] = class_count
         result["dex_strings"] = sorted(dex_strings)
+    except APKError as e:
+        result["error"] = (
+            f"APK parsing failed: Androguard rejected the APK format.\n"
+            f"Details: {e}\n\n"
+            f"Possible causes:\n"
+            f"  1. File is not a valid APK/ZIP archive\n"
+            f"  2. APK header is corrupted\n"
+            f"  3. File is a duplicate or zero-byte file\n\n"
+            f"Verify with: python -c \"from androguard.core.apk import APK; APK('{apk_path}')\""
+        )
+    except ImportError:
+        result["error"] = (
+            "Androguard not installed or missing dependencies.\n\n"
+            "Fix:\n"
+            "  1. Install: pip install androguard\n"
+            "  2. Verify: python -c \"from androguard.core.apk import APK; print('OK')\"\n"
+            "  3. If on Windows, you may need: pip install androguard[lxml]"
+        )
     except Exception as e:
-        result["error"] = str(e)
+        result["error"] = (
+            f"Androguard unexpected error: {type(e).__name__}: {e}\n\n"
+            f"This usually indicates a corrupt or malformed APK.\n"
+            f"Try verifying the file: python -c \"import zipfile; z = zipfile.ZipFile('{apk_path}'); print(len(z.namelist()), 'entries OK')\""
+        )
     return result
 
 
@@ -220,8 +299,14 @@ def extract_native_strings(apk_dir: str) -> list:
                     "value": line,
                     "source": so_file.relative_to(apk_dir).as_posix(),
                 })
-        except Exception:
-            continue
+        except subprocess.TimeoutExpired:
+            logger.warning("Native string extraction timed out for: %s", so_file)
+        except PermissionError:
+            logger.warning("Permission denied reading native lib: %s", so_file)
+        except OSError as e:
+            logger.warning("I/O error reading native lib %s: %s", so_file, e)
+        except Exception as e:
+            logger.debug("Failed to extract strings from %s: %s: %s", so_file, type(e).__name__, e)
     return strings
 
 
@@ -233,12 +318,11 @@ def extract_package_name(apk_dir: str) -> str:
     try:
         with open(manifest_path, "r", encoding="utf-8", errors="ignore") as f:
             content = f.read()
-            import re
             m = re.search(r'package="([^"]+)"', content)
             if m:
                 return m.group(1)
-    except Exception:
-        logger.warning("Failed to parse package name from manifest: %s", manifest_path)
+    except Exception as e:
+        logger.warning("Failed to parse package name from manifest: %s (%s: %s)", manifest_path, type(e).__name__, e)
     return "unknown"
 
 
@@ -273,8 +357,8 @@ def extract_manifest_info(apk_dir: str) -> dict:
         # Match uses-permission names
         for m in re.finditer(r'<uses-permission[^>]*android:name="([^"]+)"', content):
             info["uses_permissions"].append(m.group(1))
-    except Exception:
-        logger.warning("Failed to parse manifest info from: %s", manifest_path)
+    except Exception as e:
+        logger.warning("Failed to parse manifest info from %s (%s: %s)", manifest_path, type(e).__name__, e)
     return info
 
 
@@ -336,7 +420,13 @@ def extract_apk(apk_path: str, work_dir: Optional[str] = None) -> dict:
         except DecompilationError as e:
             jadx_result["error"] = e.to_dict()["message"]
         except Exception as e:
-            jadx_result["error"] = str(e)
+            jadx_result["error"] = (
+                f"JADX decompilation failed with unexpected error: {type(e).__name__}: {e}\n\n"
+                f"Options:\n"
+                f"  1. Run with --use-androguard-only to bypass JADX\n"
+                f"  2. Check jadx binary at {settings.JADX_PATH} is executable\n"
+                f"  3. Run jadx manually: jadx -d {jadx_dir} {apk_path}"
+            )
 
     # Extract native strings
     native_strings = []

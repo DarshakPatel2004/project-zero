@@ -60,10 +60,6 @@ class Settings(BaseSettings):
     # Androguard fails. Set True to always run JADX (decompiled Java for analysis).
     USE_JADX: bool = False
 
-    # Dynamic analysis (Frida + AVD). Disabled by default.
-    # Enable with: ENABLE_DYNAMIC=true in .env or environment.
-    ENABLE_DYNAMIC: bool = False
-
     # Web server
     BACKEND_HOST: str = "0.0.0.0"
     BACKEND_PORT: int = 8000

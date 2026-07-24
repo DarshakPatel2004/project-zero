@@ -42,7 +42,6 @@ from analysis.step15_reflective_permission_correlation import correlate_reflecti
 from analysis.step16_certificate_analysis import analyze_certificate
 from analysis.step17_family_clustering import cluster_family
 from analysis.step18_threat_synthesis import synthesize_threat_profile
-from analysis.dynamic.dynamic_validation import validate_with_dynamic, DynamicValidationError
 from backend.family_id import identify_family
 from backend.dissection import APKDissector
 
@@ -57,7 +56,7 @@ EventEmitter = Optional[Callable[[str, dict], None]]
 
 logger = logging.getLogger(__name__)
 
-TOTAL_STEPS = 19
+TOTAL_STEPS = 18
 
 STEP_NAMES = {
     1: "APK Extraction",
@@ -78,14 +77,13 @@ STEP_NAMES = {
     16: "Certificate Analysis",
     17: "Family Clustering",
     18: "Threat Synthesis",
-    19: "Dynamic Validation",
 }
 
 STEP_TIMEOUTS = {
     1: 120, 2: 120, 3: 120, 4: 60, 5: 120,
     6: 60, 7: 60, 8: 30, 9: 30,
     10: 60, 11: 60, 12: 60, 13: 60, 14: 60,
-    15: 30, 16: 30, 17: 30, 18: 30, 19: 180,
+    15: 30, 16: 30, 17: 30, 18: 30,
 }
 
 
@@ -177,19 +175,31 @@ def _run_step(step_num: int, sample_id: str, apk_size: int,
             "sample_id": sample_id,
             "step_number": step_num,
             "step_name": step_name,
-            "error_message": f"Step {step_num} timed out after {timeout}s",
+            "error_message": f"Step {step_num} ({step_name}) timed out after {timeout}s",
             "severity": "high",
         })
-        raise PipelineError(f"Step {step_num} timed out after {timeout}s")
+        raise PipelineError(
+            f"Step {step_num} ({step_name}) timed out after {timeout}s.\n\n"
+            f"Options:\n"
+            f"  1. Increase timeout for this step in STEP_TIMEOUTS (analysis/pipeline.py)\n"
+            f"  2. If step {step_num} repeatedly times out, the APK may be too large or obfuscated\n"
+            f"  3. Re-run with --skip-step={step_num} if this step is optional"
+        )
     except Exception as e:
         _emit(emitter, "error", {
             "sample_id": sample_id,
             "step_number": step_num,
             "step_name": step_name,
-            "error_message": str(e),
+            "error_message": f"Step {step_num} ({step_name}): {e}",
             "severity": "high",
         })
-        raise PipelineError(f"Step {step_num} failed: {e}")
+        raise PipelineError(
+            f"Step {step_num} ({step_name}) failed: {type(e).__name__}: {e}\n\n"
+            f"Check:\n"
+            f"  1. Is the APK valid? Try: python -m analysis.pipeline <apk> --skip-step={step_num}\n"
+            f"  2. Is there enough disk space? Pipeline requires ~500MB temporary space\n"
+            f"  3. For configuration issues, check backend/config.py"
+        )
 
     step_duration = time.time() - step_start
     elapsed = time.time() - global_start
@@ -251,10 +261,17 @@ def run_pipeline(apk_path: str, work_dir: Optional[str] = None,
             "sample_id": None,
             "step_number": step_num,
             "step_name": step_name,
-            "error_message": str(e),
+            "error_message": f"Step 1 (APK Extraction): {e}",
             "severity": "high",
         })
-        raise PipelineError(f"Step {step_num} failed: {e}")
+        raise PipelineError(
+            f"Step 1 (APK Extraction) failed: {type(e).__name__}: {e}\n\n"
+            f"Common fixes:\n"
+            f"  1. Verify the file exists and is a valid APK: ls -la {apk_path}\n"
+            f"  2. Check required tools: jadx, apktool, androguard\n"
+            f"  3. Ensure WORK_DIR in backend/config.py is writable\n"
+            f"  4. Try with --use-androguard-only to skip external tools"
+        )
 
     step_duration = time.time() - step_start
     timeline["step1"] = round(step_duration, 3)
@@ -291,8 +308,15 @@ def run_pipeline(apk_path: str, work_dir: Optional[str] = None,
         "step_context": step_num,
     })
 
-    if time.time() - global_start > pipeline_timeout:
-        raise PipelineError(f"Pipeline timed out after {time.time() - global_start:.0f}s (limit: {pipeline_timeout}s)")
+    elapsed = time.time() - global_start
+    if elapsed > pipeline_timeout:
+        raise PipelineError(
+            f"Pipeline timed out after {elapsed:.0f}s (limit: {pipeline_timeout}s).\n\n"
+            f"Options:\n"
+            f"  1. Increase pipeline_timeout (default 600s) in run_pipeline() call\n"
+            f"  2. APK is very large — consider running individual steps manually\n"
+            f"  3. APK is very large — consider running individual steps manually"
+        )
 
     _validate_step_input("Step 2 input", extraction, ["sample_id", "package_name", "jadx_output_dir", "apktool_output_dir"])
 
@@ -309,7 +333,13 @@ def run_pipeline(apk_path: str, work_dir: Optional[str] = None,
     })
 
     if time.time() - global_start > pipeline_timeout:
-        raise PipelineError(f"Pipeline timed out after {time.time() - global_start:.0f}s (limit: {pipeline_timeout}s)")
+        raise PipelineError(
+            f"Pipeline timed out after {time.time() - global_start:.0f}s (limit: {pipeline_timeout}s).\n\n"
+            f"Options:\n"
+            f"  1. Increase pipeline_timeout (default 600s) in run_pipeline() call\n"
+            f"  2. APK is very large — run individual steps instead\n"
+            f"  3. APK is very large — run individual steps instead"
+        )
 
     _validate_step_input("Step 3 input", strings_result, ["total_strings", "categories"])
 
@@ -337,7 +367,13 @@ def run_pipeline(apk_path: str, work_dir: Optional[str] = None,
     })
 
     if time.time() - global_start > pipeline_timeout:
-        raise PipelineError(f"Pipeline timed out after {time.time() - global_start:.0f}s (limit: {pipeline_timeout}s)")
+        raise PipelineError(
+            f"Pipeline timed out after {time.time() - global_start:.0f}s (limit: {pipeline_timeout}s).\n\n"
+            f"Options:\n"
+            f"  1. Increase pipeline_timeout (default 600s) in run_pipeline() call\n"
+            f"  2. APK is very large — run individual steps instead\n"
+            f"  3. APK is very large — run individual steps instead"
+        )
 
     _validate_step_input("Step 4 input", encodings_result, ["encodings"])
 
@@ -354,7 +390,13 @@ def run_pipeline(apk_path: str, work_dir: Optional[str] = None,
     })
 
     if time.time() - global_start > pipeline_timeout:
-        raise PipelineError(f"Pipeline timed out after {time.time() - global_start:.0f}s (limit: {pipeline_timeout}s)")
+        raise PipelineError(
+            f"Pipeline timed out after {time.time() - global_start:.0f}s (limit: {pipeline_timeout}s).\n\n"
+            f"Options:\n"
+            f"  1. Increase pipeline_timeout (default 600s) in run_pipeline() call\n"
+            f"  2. APK is very large — run individual steps instead\n"
+            f"  3. APK is very large — run individual steps instead"
+        )
 
     _validate_step_input("Step 5 input", payloads_result, ["payloads"])
 
@@ -371,7 +413,13 @@ def run_pipeline(apk_path: str, work_dir: Optional[str] = None,
     })
 
     if time.time() - global_start > pipeline_timeout:
-        raise PipelineError(f"Pipeline timed out after {time.time() - global_start:.0f}s (limit: {pipeline_timeout}s)")
+        raise PipelineError(
+            f"Pipeline timed out after {time.time() - global_start:.0f}s (limit: {pipeline_timeout}s).\n\n"
+            f"Options:\n"
+            f"  1. Increase pipeline_timeout (default 600s) in run_pipeline() call\n"
+            f"  2. APK is very large — run individual steps instead\n"
+            f"  3. APK is very large — run individual steps instead"
+        )
 
     _validate_step_input("Step 6 input", c2_result, ["c2_infrastructure"])
 
@@ -388,7 +436,13 @@ def run_pipeline(apk_path: str, work_dir: Optional[str] = None,
     })
 
     if time.time() - global_start > pipeline_timeout:
-        raise PipelineError(f"Pipeline timed out after {time.time() - global_start:.0f}s (limit: {pipeline_timeout}s)")
+        raise PipelineError(
+            f"Pipeline timed out after {time.time() - global_start:.0f}s (limit: {pipeline_timeout}s).\n\n"
+            f"Options:\n"
+            f"  1. Increase pipeline_timeout (default 600s) in run_pipeline() call\n"
+            f"  2. APK is very large — run individual steps instead\n"
+            f"  3. APK is very large — run individual steps instead"
+        )
 
     _validate_step_input("Step 7 input", chains_result, ["threat_chains"])
 
@@ -396,6 +450,26 @@ def run_pipeline(apk_path: str, work_dir: Optional[str] = None,
     def obfuscation_with_fallback():
         try:
             return analyze_obfuscation(apk_path, work_dir, sample_id=sample_id)
+        except FileNotFoundError as e:
+            return {
+                "sample_id": sample_id,
+                "obfuscation_score": 0.0,
+                "obfuscation_level": "low",
+                "indicators": {},
+                "dex_entropy": [],
+                "native_library_artifacts": [],
+                "notes": [f"Obfuscation analysis skipped: {e} (file not found)"],
+            }
+        except ImportError as e:
+            return {
+                "sample_id": sample_id,
+                "obfuscation_score": 0.0,
+                "obfuscation_level": "low",
+                "indicators": {},
+                "dex_entropy": [],
+                "native_library_artifacts": [],
+                "notes": [f"Obfuscation analysis skipped: missing dependency ({e.name}). Install: pip install {e.name}"],
+            }
         except Exception as e:
             return {
                 "sample_id": sample_id,
@@ -404,7 +478,7 @@ def run_pipeline(apk_path: str, work_dir: Optional[str] = None,
                 "indicators": {},
                 "dex_entropy": [],
                 "native_library_artifacts": [],
-                "notes": [f"Obfuscation analysis failed: {e}"],
+                "notes": [f"Obfuscation analysis failed: {type(e).__name__}: {e}"],
             }
 
     obfuscation_result, timeline["step7"] = _run_step(
@@ -422,13 +496,30 @@ def run_pipeline(apk_path: str, work_dir: Optional[str] = None,
     def llm_with_fallback():
         try:
             return assess_with_llm(chains_result, c2_result, obfuscation_result, secrets_result)
+        except (ConnectionError, TimeoutError) as e:
+            llm_error = (
+                f"LLM connection failed: {e}\n\n"
+                f"Options:\n"
+                f"  1. Check Ollama is running: ollama list\n"
+                f"  2. Start Ollama: ollama serve\n"
+                f"  3. Set OLLAMA_HOST if running remotely\n"
+                f"  4. Re-run with --heuristic-only to skip LLM"
+            )
+            return {
+                "severity": "low",
+                "risk_score": 0,
+                "narrative": llm_error,
+                "primary_threat": "other",
+                "recommended_actions": ["Start Ollama and retry", "Or re-run with --heuristic-only"],
+                "confidence": 0.0,
+            }
         except Exception as e:
             return {
                 "severity": "low",
                 "risk_score": 0,
-                "narrative": f"LLM assessment failed: {e}",
+                "narrative": f"LLM assessment failed: {type(e).__name__}: {e}",
                 "primary_threat": "other",
-                "recommended_actions": ["Check Ollama connection", "Retry analysis"],
+                "recommended_actions": ["Check Ollama connection", "Re-run with --heuristic-only"],
                 "confidence": 0.0,
             }
 
@@ -580,39 +671,6 @@ def run_pipeline(apk_path: str, work_dir: Optional[str] = None,
         synthesize_threat_profile, synthesis_context
     )
 
-    # Step 19: Dynamic Validation (optional, driven by config)
-    if settings.ENABLE_DYNAMIC:
-        def dynamic_with_fallback():
-            try:
-                return validate_with_dynamic(
-                    apk_path=apk_path,
-                    package_name=extraction.get("package_name"),
-                    work_dir=work_dir,
-                    pipeline_result=result,
-                )
-            except Exception as e:
-                return {
-                    "status": "error",
-                    "reason": f"Dynamic validation failed: {e}",
-                    "events": {},
-                    "correlation": {},
-                    "errors": [str(e)],
-                }
-
-        dynamic_result, timeline["step19"] = _run_step(
-            19, sample_id, apk_size, global_start, event_emitter, work_dir,
-            dynamic_with_fallback
-        )
-        _emit(event_emitter, "metric_updated", {
-            "sample_id": sample_id,
-            "metric_name": "dynamic_events",
-            "metric_value": dynamic_result.get("events", {}).get("total_events", 0),
-            "step_context": 19,
-        })
-    else:
-        dynamic_result = None
-        timeline["step19"] = 0.0
-
     # Save structural APK dissection (fast, cached for dashboard)
     try:
         dissector = APKDissector(apk_path, work_dir=work_dir)
@@ -632,7 +690,7 @@ def run_pipeline(apk_path: str, work_dir: Optional[str] = None,
     duration = round(time.time() - global_start, 3)
     timeline["total"] = duration
 
-    # Merge step 10-19 results
+    # Merge step 10-18 results
     result.update({
         "binary_packing": packing_result,
         "string_clustering": string_cluster_result,
@@ -644,8 +702,6 @@ def run_pipeline(apk_path: str, work_dir: Optional[str] = None,
         "family_clustering": family_cluster_result,
         "threat_synthesis": synthesis_result,
     })
-    if dynamic_result is not None:
-        result["dynamic_validation"] = dynamic_result
 
     # Save full result (strip lone surrogates so Pydantic serialization never fails)
     from backend.transformers import _strip_surrogates
@@ -678,7 +734,6 @@ def run_pipeline(apk_path: str, work_dir: Optional[str] = None,
             "step16_certificate": timeline.get("step16", 0),
             "step17_clustering": timeline.get("step17", 0),
             "step18_synthesis": timeline.get("step18", 0),
-            "step19_dynamic": timeline.get("step19", 0),
         },
         "final_verdict": result.get("llm_assessment", {}).get("severity", "unknown"),
         "risk_score": result.get("llm_assessment", {}).get("risk_score", 0),
@@ -689,15 +744,11 @@ def run_pipeline(apk_path: str, work_dir: Optional[str] = None,
 
 if __name__ == "__main__":
     import sys
-    import os
     if len(sys.argv) < 2:
-        print("Usage: python pipeline.py <apk_path> [work_dir] [--dynamic]")
+        print("Usage: python pipeline.py <apk_path> [work_dir]")
         sys.exit(1)
     apk = sys.argv[1]
-    work = sys.argv[2] if len(sys.argv) > 2 and not sys.argv[2].startswith("--") else str(settings.WORK_DIR)
-    if "--dynamic" in sys.argv:
-        os.environ["ENABLE_DYNAMIC"] = "true"
-        settings.ENABLE_DYNAMIC = True
+    work = sys.argv[2] if len(sys.argv) > 2 else str(settings.WORK_DIR)
 
     def print_event(event_type, data):
         print(f"[EVENT] {event_type}: {json.dumps(data, default=str)[:150]}")

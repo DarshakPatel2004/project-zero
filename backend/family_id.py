@@ -51,7 +51,11 @@ def _ground_truth_map() -> Dict[str, str]:
         try:
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-        except Exception:
+        except FileNotFoundError:
+            logger.debug("Ground truth file not found: %s", path)
+            continue
+        except json.JSONDecodeError as e:
+            logger.warning("Ground truth file %s is corrupted (invalid JSON: %s)", path, e)
             continue
         entries = data if isinstance(data, list) else data.values()
         for entry in entries:
@@ -599,6 +603,11 @@ def _llm_family(result: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             from analysis.step7_llm_assessment import _ollama_available, _normalize_ollama_host
             host = _normalize_ollama_host(os.environ.get("OLLAMA_HOST", settings.OLLAMA_HOST))
             if not _ollama_available(host):
+                logger.warning(
+                    "LLM family ID skipped: Ollama unreachable at %s.\n"
+                    "  Fix: ollama serve (start server) or ollama list (check status)",
+                    host
+                )
                 return None
             import ollama
             client = ollama.Client(host=host, timeout=120)
@@ -609,7 +618,19 @@ def _llm_family(result: Dict[str, Any]) -> Optional[Dict[str, Any]]:
                 options={"num_ctx": 8192, "temperature": 0.1},
             )
             raw = resp.get("response", "")
-    except Exception:
+    except (ConnectionError, requests.exceptions.ConnectionError) as e:
+        logger.warning(
+            "LLM family ID: cannot reach provider (%s).\n"
+            "  Fix: check OLLAMA_HOST / NVIDIA_NIM_API_KEY, or set LLM_PROVIDER=none",
+            e
+        )
+        return None
+    except Exception as e:
+        logger.warning(
+            "LLM family ID failed: %s: %s.\n"
+            "  Check: ollama list, NVIDIA_NIM_API_KEY, or re-run with --heuristic-only",
+            type(e).__name__, str(e)[:200]
+        )
         return None
 
     parsed = parse_llm_json(raw) if raw else None

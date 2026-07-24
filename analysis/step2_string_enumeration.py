@@ -143,7 +143,8 @@ def extract_java_strings(source_dir: str) -> List[Dict[str, Any]]:
                         "entropy": 0.0,
                         "source": f"{prefix}:{line_no}",
                     })
-        except Exception:
+        except OSError as e:
+            logger.debug("Error reading Java file %s: %s", java_file, e)
             continue
 
     return results
@@ -172,7 +173,8 @@ def extract_smali_strings(apktool_dir: str) -> List[Dict[str, Any]]:
                         "entropy": round(entropy_of_string(value), 4),
                         "source": f"{smali_file.relative_to(smali_path)}:{line_no}",
                     })
-        except Exception:
+        except (OSError, UnicodeDecodeError) as e:
+            logger.debug("Error reading smali file %s: %s", smali_file, e)
             continue
 
     return results

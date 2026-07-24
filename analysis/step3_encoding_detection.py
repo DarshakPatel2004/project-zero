@@ -314,7 +314,7 @@ def xor_brute_force(data: bytes) -> List[Tuple[int, str, float]]:
                 if _has_strong_meaningful_content(text):
                     score += 0.30
                 candidates.append((key, text, score))
-            except Exception:
+            except UnicodeDecodeError:
                 pass
     # Sort by score descending, return top 3
     candidates.sort(key=lambda x: x[2], reverse=True)
@@ -481,8 +481,8 @@ def detect_encoding(strings_result: dict) -> dict:
                         })
                         encoding_id += 1
                         continue
-            except Exception:
-                pass
+            except (UnicodeEncodeError, LookupError) as e:
+                logger.debug("XOR skip %s: %s", clean[:30], e)
 
         # Custom encoding flag for very high entropy failures.
         # Require a suspicious source context; otherwise this is just noise.

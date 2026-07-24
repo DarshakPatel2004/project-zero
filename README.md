@@ -43,30 +43,12 @@ APK Input → Decompile → Analyze → Extract → Correlate → Geolocate → 
 8. **Score** confidence based on method call frequency + contextual evidence
 9. **Report** structured JSON + PDF with per-phase timing
 
-### Dynamic Validation (Step 19 — Infrastructure Complete)
+### Planned: Dynamic Validation (Post-Publication)
 
-**Status:** Framework built and validated; disabled by default (`ENABLE_DYNAMIC=false`).
-
-**What's Implemented:**
-- Frida-based runtime instrumentation on headless Android emulator
-- 5 hook targets: Method.invoke, URL.openConnection, String decoding, Cipher operations, ClassLoader
-- Capture engine (line-by-line JSON parsing, 10MB cap, 30s idle timeout)
-- Correlator: matches runtime-observed C2 to static candidates, computes confidence deltas (×1.3 validated, ×0.7 contradicted)
-- Integration: optional Step 19 in pipeline, graceful fallback if AVD unavailable
-
-**Why Disabled:**
-Static analysis on bytecode recovers 95% of actionable indicators across 277 samples. Runtime validation would require malware self-activation in a 60-120s window — a constraint that doesn't hold for real APKs in isolation. The framework is ready for future work with explicit triggers (custom launchers, Frida's spawn mode).
-
-**For Future Work:**
-- Phase 2: String decryption correlation — extract Cipher.doFinal() output, match decoded strings against static C2 candidates
-- Expected recovery: Additional 5-10% on reflection-based C2 construction patterns
-- Timeline: Post-publication (Q2 2027+)
-
-**To Enable (for development):**
-```
-ENABLE_DYNAMIC=true in .env
-python -m analysis.pipeline sample.apk --dynamic
-```
+A Frida-based runtime validation framework exists in the commit history for future work:
+- String decryption correlation (Cipher.doFinal) — expected +5-10% recall
+- Runtime C2 validation against static candidates
+- Timeline: Q2 2027+ (separate publication)
 
 ---
 

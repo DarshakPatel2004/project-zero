@@ -644,15 +644,35 @@ def _call_nvidia_nim(context: str, model: str, base_url: str, api_key: str, max_
                 response_format={"type": "json_object"},
             )
             return response.choices[0].message.content
-        except Exception as e:
-            last_error = str(e)
-            # NVIDIA NIM free tier: 40 RPM. Back off on 429.
-            if "429" in last_error:
+        except requests.exceptions.Timeout:
+            last_error = f"NVIDIA NIM request timed out (>{max_retries * 2}s total). Check network connectivity and NIM endpoint."
+            sleep_time = 5 + attempt * 3
+            print(f"  [!] NIM timeout, retrying in {sleep_time}s...")
+            time.sleep(sleep_time)
+        except requests.exceptions.ConnectionError as e:
+            last_error = f"NVIDIA NIM unreachable: {e}"
+            print(f"  [!] NIM connection error (check NVIDIA_NIM_BASE_URL and API key)")
+            time.sleep(2)
+        except requests.exceptions.HTTPError as e:
+            status = e.response.status_code if e.response is not None else 0
+            last_error = f"NVIDIA NIM HTTP {status}"
+            if status == 401:
+                print(f"  [!] NIM auth failed — check NVIDIA_NIM_API_KEY")
+            elif status == 429:
                 sleep_time = 15 + attempt * 5
-                print(f"  [!] Rate limited (429). Sleeping {sleep_time}s...")
+                print(f"  [!] NIM rate limited (429). Sleeping {sleep_time}s...")
+                time.sleep(sleep_time)
+            elif status >= 500:
+                sleep_time = 10 + attempt * 5
+                print(f"  [!] NIM server error {status}, retrying in {sleep_time}s...")
                 time.sleep(sleep_time)
             else:
-                time.sleep(2)
+                print(f"  [!] NIM HTTP {status} (not retryable)")
+                return last_error
+        except Exception as e:
+            last_error = str(e)
+            print(f"  [!] NIM unexpected error: {type(e).__name__}")
+            time.sleep(2)
 
     return last_error
 
@@ -754,7 +774,16 @@ class OllamaClient:
                 if attempt < self.max_retries - 1:
                     time.sleep(2 ** attempt)
 
-        print(f"  [Ollama] All {self.max_retries} retries exhausted ({last_error})")
+        guidance = (
+            f"  [Ollama] All {self.max_retries} retries exhausted ({last_error}).\n"
+            f"  Fix:\n"
+            f"    1. Verify Ollama is running: ollama list\n"
+            f"    2. Start Ollama: ollama serve\n"
+            f"    3. Check model: ollama pull {self.model}\n"
+            f"    4. Test connection: curl {self.base_url}/api/tags\n"
+            f"    5. Re-run with --heuristic-only to skip LLM"
+        )
+        print(guidance)
         return None
 
 
@@ -891,7 +920,14 @@ def assess_with_llm(chains_result: dict, c2_result: dict, obfuscation_result: Op
     except Exception as e:
         # Last-resort fallback: never let LLM assessment crash the pipeline.
         assessment = fallback_assessment(chains_result, c2_result, obfuscation_result)
-        assessment["raw_llm_output"] = f"LLM assessment error: {e}"[:2000]
+        assessment["raw_llm_output"] = (
+            f"LLM assessment error: {type(e).__name__}: {e}\n\n"
+            f"Options:\n"
+            f"  1. Check LLM_PROVIDER env var (nvidia, openrouter, or auto)\n"
+            f"  2. For Ollama: verify 'ollama serve' is running\n"
+            f"  3. For NVIDIA NIM: verify NVIDIA_NIM_API_KEY is set\n"
+            f"  4. Re-run with --heuristic-only to skip LLM"
+        )[:2000]
         return assessment
 
 
