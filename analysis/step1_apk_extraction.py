@@ -157,7 +157,7 @@ def run_androguard(apk_path: str) -> dict:
         "error": None, "dex_parse_errors": [],
     }
     try:
-        from androguard.core.apk import APK, APKError
+        from androguard.core.apk import APK
         from androguard.core.dex import DEX
         apk = APK(str(apk_path))
         dex_strings = set()
@@ -177,16 +177,6 @@ def run_androguard(apk_path: str) -> dict:
         result["success"] = True
         result["class_count"] = class_count
         result["dex_strings"] = sorted(dex_strings)
-    except APKError as e:
-        result["error"] = (
-            f"APK parsing failed: Androguard rejected the APK format.\n"
-            f"Details: {e}\n\n"
-            f"Possible causes:\n"
-            f"  1. File is not a valid APK/ZIP archive\n"
-            f"  2. APK header is corrupted\n"
-            f"  3. File is a duplicate or zero-byte file\n\n"
-            f"Verify with: python -c \"from androguard.core.apk import APK; APK('{apk_path}')\""
-        )
     except ImportError:
         result["error"] = (
             "Androguard not installed or missing dependencies.\n\n"
@@ -196,11 +186,23 @@ def run_androguard(apk_path: str) -> dict:
             "  3. If on Windows, you may need: pip install androguard[lxml]"
         )
     except Exception as e:
-        result["error"] = (
-            f"Androguard unexpected error: {type(e).__name__}: {e}\n\n"
-            f"This usually indicates a corrupt or malformed APK.\n"
-            f"Try verifying the file: python -c \"import zipfile; z = zipfile.ZipFile('{apk_path}'); print(len(z.namelist()), 'entries OK')\""
-        )
+        err_name = type(e).__name__
+        if "APK" in err_name:
+            result["error"] = (
+                f"APK parsing failed: Androguard rejected the APK format.\n"
+                f"Details: {e}\n\n"
+                f"Possible causes:\n"
+                f"  1. File is not a valid APK/ZIP archive\n"
+                f"  2. APK header is corrupted\n"
+                f"  3. File is a duplicate or zero-byte file\n\n"
+                f"Verify with: python -c \"from androguard.core.apk import APK; APK('{apk_path}')\""
+            )
+        else:
+            result["error"] = (
+                f"Androguard unexpected error: {err_name}: {e}\n\n"
+                f"This usually indicates a corrupt or malformed APK.\n"
+                f"Try verifying the file: python -c \"import zipfile; z = zipfile.ZipFile('{apk_path}'); print(len(z.namelist()), 'entries OK')\""
+            )
     return result
 
 

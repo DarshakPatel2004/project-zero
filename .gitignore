@@ -150,6 +150,15 @@ article_assets/
 # Uploaded APKs
 uploads/
 
+# Generated pipeline output dirs (long paths, generated artifacts)
+analysis/ground_truth_phase1/
+analysis/work_empty/
+evaluation/validation_359/
+evaluation/validation_359_full/
+evaluation/validation_359_smoke/
+evaluation/validation_359_smoke2/
+evaluation/validation_359_smoke3/
+
 # Runtime logs
 analysis/logs/
 backend/analysis/logs/
