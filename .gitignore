@@ -153,6 +153,9 @@ article_assets/
 # Uploaded APKs
 uploads/
 
+# Unused YARA rules (20K+ lines, dead file)
+analysis/yara_rules.yar
+
 # Generated pipeline output dirs (long paths, generated artifacts)
 analysis/ground_truth_phase1/
 analysis/work_empty/
