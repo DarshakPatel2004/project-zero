@@ -501,7 +501,7 @@ class ELFBreaker:
         results = []
         seen_deob = set()
 
-        candidates = self._find_obfuscated_arrays()
+        candidates = self._find_obfuscated_arrays()[:50]
 
         for offset, data in candidates:
             for key in range(1, 256):
@@ -525,7 +525,7 @@ class ELFBreaker:
                             'score': round(score, 3),
                         })
 
-        extracted_keys = self._extract_xor_keys()
+        extracted_keys = self._extract_xor_keys()[:10]
         for offset, data in candidates:
             for key_bytes in extracted_keys:
                 if not key_bytes:
@@ -634,7 +634,7 @@ class ELFBreaker:
                 pass
 
         for win_size in (24, 32, 48):
-            step = max(win_size // 4, 8)
+            step = max(win_size * 2, 128)
             for i in range(0, len(self.content) - win_size, step):
                 chunk = self.content[i:i + win_size]
                 ascii_ratio = sum(1 for b in chunk if 0x20 <= b <= 0x7e) / len(chunk)
@@ -644,7 +644,8 @@ class ELFBreaker:
                     if 3.5 <= ent <= 7.8:
                         candidates.append((i, chunk))
 
-        return candidates
+        # Limit candidates to avoid excessive deobfuscation time
+        return candidates[:100]
 
     _ENGLISH_DIGRAPHS = {
         'th', 'he', 'in', 'er', 'an', 're', 'nd', 'on', 'en', 'at',

@@ -620,14 +620,19 @@ def heuristic_fallback(chains_result: dict, c2_result: dict, obfuscation_result:
 fallback_assessment = heuristic_fallback
 
 
-def _call_nvidia_nim(context: str, model: str, base_url: str, api_key: str, max_retries: int = 3) -> Optional[str]:
+def _call_nvidia_nim(context: str, model: str, base_url: str, api_key: str, max_retries: int = 2) -> Optional[str]:
     """Call NVIDIA NIM chat completions endpoint and return raw response text."""
     try:
         from openai import OpenAI
     except ImportError as e:
         raise LLMAssessmentError(f"openai package not installed: {e}")
 
-    client = OpenAI(base_url=base_url, api_key=api_key)
+    # OpenRouter requires HTTP-Referer and X-Title headers
+    default_headers = {
+        "HTTP-Referer": "https://github.com/anomalyco/DroidForensix",
+        "X-Title": "DroidForensix",
+    }
+    client = OpenAI(base_url=base_url, api_key=api_key, timeout=60, default_headers=default_headers)
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": f"THREAT CHAINS:\n{context}\n\nASSESSMENT:"},
@@ -641,11 +646,10 @@ def _call_nvidia_nim(context: str, model: str, base_url: str, api_key: str, max_
                 messages=messages,
                 temperature=0.1,
                 max_tokens=512,
-                response_format={"type": "json_object"},
             )
             return response.choices[0].message.content
         except requests.exceptions.Timeout:
-            last_error = f"NVIDIA NIM request timed out (>{max_retries * 2}s total). Check network connectivity and NIM endpoint."
+            last_error = "NVIDIA NIM request timed out. Check network connectivity and NIM endpoint."
             sleep_time = 5 + attempt * 3
             print(f"  [!] NIM timeout, retrying in {sleep_time}s...")
             time.sleep(sleep_time)
@@ -667,14 +671,24 @@ def _call_nvidia_nim(context: str, model: str, base_url: str, api_key: str, max_
                 print(f"  [!] NIM server error {status}, retrying in {sleep_time}s...")
                 time.sleep(sleep_time)
             else:
-                print(f"  [!] NIM HTTP {status} (not retryable)")
-                return last_error
+                print(f"  [!] Provider returned HTTP {status} (not retryable)")
+                return None
         except Exception as e:
-            last_error = str(e)
-            print(f"  [!] NIM unexpected error: {type(e).__name__}")
-            time.sleep(2)
+            # Catch OpenAI API errors (NotFoundError, RateLimitError, etc.)
+            err_name = type(e).__name__
+            status = getattr(e, 'status_code', 0) or (e.response.status_code if hasattr(e, 'response') and e.response else 0)
+            if status == 404:
+                print(f"  [!] Model not found (404) — check model name or provider endpoint")
+                return None
+            elif status == 429:
+                print(f"  [!] Rate limited (429). Sleeping 15s...")
+                time.sleep(15)
+            else:
+                last_error = str(e)
+                print(f"  [!] LLM API error: {err_name}")
+                time.sleep(2)
 
-    return last_error
+    return None
 
 
 def _normalize_ollama_host(host: str) -> str:
@@ -830,7 +844,7 @@ def assess_with_llm(chains_result: dict, c2_result: dict, obfuscation_result: Op
         context = format_threat_context(chains_result, c2_result, obfuscation_result, secrets_result)
         assessment = None
         raw_output = ""
-        max_retries = 3
+        max_retries = 2
 
         # Determine provider: explicit setting overrides auto-detection.
         provider = (os.environ.get("LLM_PROVIDER") or settings.LLM_PROVIDER or "auto").lower()
@@ -846,7 +860,7 @@ def assess_with_llm(chains_result: dict, c2_result: dict, obfuscation_result: Op
             print(f"  [*] Using NVIDIA NIM model: {nim_model}")
 
             for attempt in range(max_retries):
-                raw_output = _call_nvidia_nim(context, nim_model, nim_base_url, nim_api_key, max_retries=3)
+                raw_output = _call_nvidia_nim(context, nim_model, nim_base_url, nim_api_key, max_retries=2)
                 parsed = parse_llm_json(raw_output) if raw_output else None
                 if parsed and validate_assessment(parsed):
                     assessment = sanity_check(parsed, chains_result, c2_result, obfuscation_result, secrets_result)
@@ -860,12 +874,12 @@ def assess_with_llm(chains_result: dict, c2_result: dict, obfuscation_result: Op
                     time.sleep(wait)
         elif use_openrouter:
             # OpenRouter path (OpenAI-compatible API)
-            or_model = os.environ.get("OPENROUTER_MODEL", settings.OPENROUTER_MODEL or "qwen/qwq-32b:free")
+            or_model = os.environ.get("OPENROUTER_MODEL", settings.OPENROUTER_MODEL or "google/gemma-4-31b-it:free")
             or_base_url = os.environ.get("OPENROUTER_BASE_URL", settings.OPENROUTER_HOST or "https://openrouter.ai/api/v1")
             print(f"  [*] Using OpenRouter model: {or_model}")
 
             for attempt in range(max_retries):
-                raw_output = _call_nvidia_nim(context, or_model, or_base_url, or_api_key, max_retries=3)
+                raw_output = _call_nvidia_nim(context, or_model, or_base_url, or_api_key, max_retries=2)
                 parsed = parse_llm_json(raw_output) if raw_output else None
                 if parsed and validate_assessment(parsed):
                     assessment = sanity_check(parsed, chains_result, c2_result, obfuscation_result, secrets_result)

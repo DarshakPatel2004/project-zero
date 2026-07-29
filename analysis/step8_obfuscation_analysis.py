@@ -482,8 +482,15 @@ def analyze_native_libraries(apk_path: Path) -> Dict[str, Any]:
 
                     # Full ELF break down using ELFBreaker
                     lib_name = name.split('/')[-1]
-                    breaker = ELFBreaker(lib_name, data)
-                    elf_result = breaker.analyze()
+                    if len(data) > 1_000_000:
+                        elf_result = {
+                            "name": lib_name,
+                            "size_bytes": len(data),
+                            "note": "skipped: file too large (>1MB)",
+                        }
+                    else:
+                        breaker = ELFBreaker(lib_name, data)
+                        elf_result = breaker.analyze()
                     output["elf_analysis"][name] = elf_result
 
                     # Heuristic 1: undersized .so (< 16 KB = likely loader stub)

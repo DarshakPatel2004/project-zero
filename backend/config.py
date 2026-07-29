@@ -45,7 +45,7 @@ class Settings(BaseSettings):
 
     # OpenRouter (optional, OpenAI-compatible, supports many models)
     OPENROUTER_HOST: str = "https://openrouter.ai/api/v1"
-    OPENROUTER_MODEL: str = "qwen/qwq-32b:free"
+    OPENROUTER_MODEL: str = "google/gemma-4-31b-it:free"
 
     # LLM provider selection: "auto" (default), "nvidia", "openrouter", or "ollama".
     # "auto" prefers NVIDIA NIM > OpenRouter > Ollama, depending on which API keys are set.
