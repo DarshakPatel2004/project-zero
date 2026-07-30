@@ -237,48 +237,6 @@
   font-family: var(--font-mono);
 }
 
-/* === Badges === */
-
-.badge {
-  display: inline-block;
-  padding: 0.5rem 0.75rem;
-  border-radius: 4px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.badge-cyan {
-  background: rgba(6, 182, 212, 0.15);
-  color: var(--accent-cyan);
-}
-
-.badge-slate {
-  background: rgba(148, 163, 184, 0.15);
-  color: var(--text-secondary);
-}
-
-.badge-rose {
-  background: rgba(244, 63, 94, 0.15);
-  color: var(--accent-rose);
-}
-
-.badge-emerald {
-  background: rgba(16, 185, 129, 0.15);
-  color: var(--accent-emerald);
-}
-
-.badge-amber {
-  background: rgba(245, 158, 11, 0.15);
-  color: var(--accent-amber);
-}
-
-.badge-violet {
-  background: rgba(139, 92, 246, 0.15);
-  color: var(--accent-violet);
-}
-
 /* === Tabs === */
 
 .result-tabs {
@@ -380,41 +338,6 @@
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
-}
-
-/* === Cards === */
-
-.card {
-  background: var(--bg-surface);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  padding: 1.5rem;
-}
-
-.card:hover {
-  border-color: var(--border-strong);
-}
-
-.card h3,
-.card h4 {
-  margin: 0 0 1rem 0;
-  color: var(--text-primary);
-}
-
-.card p {
-  margin: 0 0 0.5rem 0;
-  color: var(--text-secondary);
-  line-height: 1.6;
-}
-
-.card ul {
-  margin: 0;
-  padding-left: 1.5rem;
-}
-
-.card li {
-  margin: 0.5rem 0;
-  color: var(--text-secondary);
 }
 
 /* === Overview Tab === */
@@ -1478,7 +1401,241 @@
   border-left: 3px solid var(--accent-cyan);
 }
 
-/* Responsive */
+/* === Dissection Summary / LLM component classes === */
+
+.threat-badge {
+  display: inline-block;
+  padding: 0.35rem 1.2rem;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  line-height: 1.4;
+  color: #fff;
+}
+
+.threat-badge-bg-critical { background: var(--accent-rose); }
+.threat-badge-bg-high    { background: #f97316; }
+.threat-badge-bg-medium  { background: var(--accent-amber); }
+.threat-badge-bg-low     { background: var(--accent-emerald); }
+.threat-badge-bg-unknown { background: var(--text-muted); }
+
+.narrative-text {
+  line-height: 1.7;
+  color: var(--text-secondary);
+}
+
+.detail-list {
+  padding-left: 1.25rem;
+}
+
+.detail-list li {
+  margin-bottom: var(--space-sm);
+  line-height: 1.5;
+}
+
+.code-block {
+  padding: 0.6rem 0.75rem;
+  margin-bottom: 0.35rem;
+  background: var(--bg-secondary);
+  border-left: 3px solid var(--accent-rose);
+  border-radius: 4px;
+  font-size: var(--text-sm);
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+.narrative-block {
+  padding: var(--space-md);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-sm);
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.code-block-header {
+  font-weight: 500;
+}
+
+.code-block-detail {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin-top: 0.25rem;
+}
+
+.c2-indicator {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: var(--text-sm);
+  color: var(--accent-rose);
+  margin-bottom: 0.35rem;
+}
+
+.more-link {
+  margin-top: var(--space-sm);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+/* === Badge size variants === */
+
+.badge-xs {
+  font-size: 0.7rem;
+  padding: 0.15rem 0.4rem;
+}
+
+/* === Scroll container === */
+
+.scroll-400 {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+/* === Card empty state === */
+
+.card-empty {
+  text-align: center;
+  padding: var(--space-xl);
+}
+
+/* === Secrets header bar === */
+
+.secrets-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-md);
+  padding: var(--space-md);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+}
+
+.secrets-header-right {
+  display: flex;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.secrets-header-total {
+  display: block;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.secrets-label {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.secrets-metric {
+  text-align: center;
+}
+
+.secrets-metric-value {
+  font-size: 1.125rem;
+  font-weight: 800;
+}
+
+.secrets-btn {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 9px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.secrets-risk-value {
+  display: block;
+  font-size: 1.375rem;
+  font-weight: 700;
+}
+
+/* === Secrets severity bar chart === */
+
+.secrets-bar-chart {
+  display: flex;
+  gap: 4px;
+  margin-bottom: var(--space-md);
+  height: 8px;
+}
+
+.secrets-bar {
+  height: 8px;
+  border-radius: 4px;
+  opacity: 0.7;
+}
+
+/* === Secrets grid of findings === */
+
+.secrets-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 12px;
+}
+
+.secret-item {
+  padding: 14px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.secret-item-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.secret-item-type {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.secret-item-value {
+  margin: 0;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--accent-cyan);
+  word-break: break-all;
+}
+
+.secret-item-decoded {
+  margin: 0;
+  font-size: 12px;
+  color: var(--accent-emerald);
+}
+
+.secret-item-location {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+/* === Severity badges (SecretsTab) === */
+
+.sev-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  line-height: 1.4;
+}
+
+.sev-badge-critical { background: var(--accent-rose-soft); color: var(--accent-rose); }
+.sev-badge-high     { background: var(--accent-rose-soft); color: var(--accent-rose); }
+.sev-badge-medium   { background: var(--accent-amber-soft); color: var(--accent-amber); }
+.sev-badge-low      { background: var(--accent-emerald-soft); color: var(--accent-emerald); }
+.sev-badge-slate    { background: rgba(148,163,184,0.15); color: var(--text-secondary); }
+
 @media (max-width: 768px) {
   .family-signals-primary-head {
     gap: 0.5rem;

@@ -195,10 +195,10 @@ const ResultView = memo(({ analysisState, apiUrl, sample }) => {
 
   if (loading) {
     return (
-      <div className="result-loading" style={{ textAlign: 'center', padding: '40px', fontSize: '16px' }}>
-        <div style={{ marginBottom: '16px' }}>⏳</div>
+      <div className="result-loading text-center p-10 text-lg">
+        <div className="mb-4">⏳</div>
         <p>Loading analysis results...</p>
-        <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '8px' }}>
+        <p className="text-sm text-muted mt-2">
           This may take a moment while the backend processes your analysis.
         </p>
       </div>
@@ -207,22 +207,16 @@ const ResultView = memo(({ analysisState, apiUrl, sample }) => {
 
   if (error) {
     return (
-      <div className="result-error" style={{
-        padding: '32px',
-        backgroundColor: 'var(--bg-secondary)',
-        borderRadius: '8px',
-        border: '1px solid var(--accent-rose)',
-        marginTop: '16px'
-      }}>
-        <div style={{ fontSize: '24px', marginBottom: '12px' }}>⚠️</div>
-        <h3 style={{ marginBottom: '8px' }}>Analysis Results Unavailable</h3>
-        <p style={{ color: 'var(--text-secondary)', marginBottom: '12px' }}>
+      <div className="result-error p-8 bg-secondary rounded-sm border-rose mt-4">
+        <div className="text-3xl mb-3">⚠️</div>
+        <h3 className="heading-sm mb-2">Analysis Results Unavailable</h3>
+        <p className="text-secondary mb-3">
           {error}
         </p>
-        <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+        <p className="text-sm text-muted">
           <strong>Troubleshooting:</strong>
         </p>
-        <ul style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '8px', paddingLeft: '20px' }}>
+        <ul className="text-sm text-muted mt-2" style={{ paddingLeft: '20px' }}>
           <li>Check that the analysis completed successfully (backend logs)</li>
           <li>Verify the backend is running on {apiUrl}</li>
           <li>Ensure pipeline_result.json was generated in the work directory</li>
@@ -279,7 +273,7 @@ const ResultView = memo(({ analysisState, apiUrl, sample }) => {
                 {' '}
                 <span
                   className={`badge ${riskLevelBadgeClass(fullResult.threat_synthesis.risk_level)}`}
-                  style={{ fontSize: '0.65rem', verticalAlign: 'middle' }}
+                  className="badge-xs align-middle">
                 >
                   {fullResult.threat_synthesis.risk_level?.toUpperCase() || 'NONE'}
                 </span>
@@ -350,13 +344,13 @@ ResultView.displayName = 'ResultView'
 const OverviewTab = memo(({ result, sampleId, apiUrl }) => (
   <div className="tab-panel">
     <div className="card">
-      <h3>Assessment Summary</h3>
+      <h3 className="heading-sm">Assessment Summary</h3>
       <p>{result?.llm_assessment?.narrative || 'No narrative available.'}</p>
     </div>
 
     <div className="card">
-      <h3>Recommended Actions</h3>
-      <ul>
+        <h3 className="heading-sm">Recommended Actions</h3>
+      <ul className="detail-list">
         {(result?.llm_assessment?.recommended_actions || []).map((action, i) => (
           <li key={i}>{action}</li>
         ))}
@@ -367,25 +361,25 @@ const OverviewTab = memo(({ result, sampleId, apiUrl }) => (
 
     <div className="metrics-grid">
       <div className="card">
-        <h4>Strings</h4>
+        <h4 className="heading-sm">Strings</h4>
         <p className="metric-value">{result?.extraction?.total_strings_extracted || 0}</p>
       </div>
       <div className="card">
-        <h4>Classes</h4>
+        <h4 className="heading-sm">Classes</h4>
         <p className="metric-value">{result?.extraction?.decompiled_classes || 0}</p>
       </div>
       <div className="card">
-        <h4>C2 Endpoints</h4>
+        <h4 className="heading-sm">C2 Endpoints</h4>
         <p className="metric-value">{(result?.c2_infrastructure || []).length}</p>
       </div>
       <div className="card">
-        <h4>Threat Chains</h4>
+        <h4 className="heading-sm">Threat Chains</h4>
         <p className="metric-value">{(result?.threat_chains || []).length}</p>
       </div>
       <div className="card">
-        <h4>Secrets</h4>
+        <h4 className="heading-sm">Secrets</h4>
         <p className="metric-value">{result?.secret_risk?.total_secrets || 0}</p>
-        <p className="metric-sub" style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+        <p className="metric-sub text-sm text-muted">
           {result?.secret_risk?.severity || 'none'}
         </p>
       </div>
@@ -407,40 +401,24 @@ const LLMSummaryTab = memo(({ result }) => {
   return (
     <div className="tab-panel">
       <div className="card">
-        <h3>LLM Analysis Narrative</h3>
-        <div className="llm-narrative" style={{
-          padding: '16px',
-          backgroundColor: 'var(--bg-secondary)',
-          borderRadius: '8px',
-          lineHeight: '1.6',
-          color: 'var(--text-secondary)'
-        }}>
+        <h3 className="heading-sm">LLM Analysis Narrative</h3>
+        <div className="narrative-block">
           {narrative}
         </div>
       </div>
 
       {methods.length > 0 && (
         <div className="card">
-          <h3>Suspicious Methods ({methods.length})</h3>
-          <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
-            {methods.slice(0, 10).map((method, i) => (
-              <div
-                key={i}
-                style={{
-                  padding: '12px',
-                  marginBottom: '8px',
-                  backgroundColor: 'var(--bg-tertiary)',
-                  borderLeft: '3px solid var(--accent-rose)',
-                  borderRadius: '4px',
-                  fontSize: '13px',
-                  fontFamily: 'monospace'
-                }}
-              >
-                <div style={{ fontWeight: 500, marginBottom: '4px' }}>
+          <h3 className="heading-sm">
+            Suspicious Methods ({methods.length})
+          </h3>
+          <div className="scroll-400">
+              <div key={i} className="code-block">
+                <div className="code-block-header">
                   {method.method_name || method}
                 </div>
                 {method.reason && (
-                  <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                  <div className="code-block-detail">
                     {method.reason}
                   </div>
                 )}
@@ -448,28 +426,24 @@ const LLMSummaryTab = memo(({ result }) => {
             ))}
           </div>
           {methods.length > 10 && (
-            <p style={{ marginTop: '12px', color: 'var(--text-muted)' }}>
-              … and {methods.length - 10} more
-            </p>
+            <p className="more-link">… and {methods.length - 10} more</p>
           )}
         </div>
       )}
 
       {actions.length > 0 && (
         <div className="card">
-          <h3>Recommended Actions</h3>
-          <ul style={{ paddingLeft: '20px' }}>
+      <h3 className="heading-sm">Recommended Actions</h3>
+          <ul className="detail-list">
             {actions.map((action, i) => (
-              <li key={i} style={{ marginBottom: '8px', lineHeight: '1.5' }}>
-                {action}
-              </li>
+              <li key={i}>{action}</li>
             ))}
           </ul>
         </div>
       )}
 
       {methods.length === 0 && actions.length === 0 && !narrative && (
-        <div style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>
+        <div className="empty-state">
           <p>No LLM analysis data available yet.</p>
         </div>
       )}
@@ -543,9 +517,9 @@ const DissectionSummaryTab = memo(({ sampleId, apiUrl }) => {
 
   if (loading) {
     return (
-      <div className="tab-panel" style={{ textAlign: 'center', padding: '40px' }}>
+      <div className="tab-panel text-center p-10">
         <div className="analysis-loading-spinner" />
-        <p style={{ marginTop: '12px', color: 'var(--text-muted)' }}>
+        <p className="mt-3 text-muted">
           Generating LLM threat assessment from dissection data...
         </p>
       </div>
@@ -554,11 +528,10 @@ const DissectionSummaryTab = memo(({ sampleId, apiUrl }) => {
 
   if (error) {
     return (
-      <div className="tab-panel" style={{ textAlign: 'center', padding: '40px', color: 'var(--accent-rose)' }}>
+      <div className="tab-panel text-center p-10 text-rose">
         <p>Failed to load dissection summary: {error}</p>
         <button
-          className="filter-button filter-cyan"
-          style={{ marginTop: '12px' }}
+          className="filter-button filter-cyan mt-3"
           onClick={() => { setError(null); setLoading(true); /* re-trigger effect */ }}
         >
           Retry
@@ -569,47 +542,33 @@ const DissectionSummaryTab = memo(({ sampleId, apiUrl }) => {
 
   if (!summary || summary.status === 'fallback') {
     return (
-      <div className="tab-panel" style={{ textAlign: 'center', padding: '42px', color: 'var(--text-muted)' }}>
+        <div className="tab-panel text-center p-10 text-muted">
         <p>{summary?.summary || 'No dissection summary available.'}</p>
       </div>
     )
   }
 
-  const threatColors = {
-    critical: 'var(--accent-rose)',
-    high: '#f97316',
-    medium: 'var(--accent-amber)',
-    low: 'var(--accent-emerald)',
-    unknown: 'var(--text-muted)',
-  }
-  const threatColor = threatColors[summary.threat_level] || threatColors.unknown
+  const threatColorClass = summary.threat_level
+    ? `threat-badge-bg-${summary.threat_level}`
+    : 'threat-badge-bg-unknown'
 
   return (
     <div className="tab-panel">
       {/* Threat Level Badge + Risk Score */}
-      <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-        <div style={{
-          padding: '8px 20px',
-          borderRadius: '8px',
-          backgroundColor: threatColor,
-          color: '#fff',
-          fontWeight: 700,
-          fontSize: '14px',
-          textTransform: 'uppercase',
-          letterSpacing: '0.5px',
-        }}>
+      <div className="card flex items-center gap-3 flex-wrap">
+        <div className={`threat-badge ${threatColorClass}`}>
           {summary.threat_level}
         </div>
         <div>
-          <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>Risk Score: </span>
-          <span style={{ fontWeight: 600, fontSize: '18px' }}>{summary.risk_score}/100</span>
+          <span className="text-sm text-muted">Risk Score: </span>
+          <span className="heading-md">{summary.risk_score}/100</span>
         </div>
       </div>
 
       {/* Summary Narrative */}
       <div className="card">
-        <h3>Threat Assessment</h3>
-        <p style={{ lineHeight: '1.7', color: 'var(--text-secondary)' }}>
+        <h3 className="heading-sm">Threat Assessment</h3>
+        <p className="narrative-text">
           {summary.summary}
         </p>
       </div>
@@ -617,12 +576,12 @@ const DissectionSummaryTab = memo(({ sampleId, apiUrl }) => {
       {/* Key Behaviors */}
       {summary.key_behaviors?.length > 0 && (
         <div className="card">
-          <h3>Key Behaviors ({summary.key_behaviors.length})</h3>
-          <ul style={{ paddingLeft: '20px' }}>
+          <h3 className="heading-sm">
+            Key Behaviors ({summary.key_behaviors.length})
+          </h3>
+          <ul className="detail-list">
             {summary.key_behaviors.map((b, i) => (
-              <li key={i} style={{ marginBottom: '8px', lineHeight: '1.5' }}>
-                {b}
-              </li>
+              <li key={i}>{b}</li>
             ))}
           </ul>
         </div>
@@ -631,28 +590,19 @@ const DissectionSummaryTab = memo(({ sampleId, apiUrl }) => {
       {/* Suspicious Methods */}
       {summary.suspicious_methods?.length > 0 && (
         <div className="card">
-          <h3>Suspicious Methods ({summary.suspicious_methods.length})</h3>
-          <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+          <h3 className="heading-sm">
+            Suspicious Methods ({summary.suspicious_methods.length})
+          </h3>
+          <div className="scroll-400">
             {summary.suspicious_methods.slice(0, 15).map((m, i) => (
-              <div
-                key={i}
-                style={{
-                  padding: '10px 12px',
-                  marginBottom: '6px',
-                  backgroundColor: 'var(--bg-tertiary)',
-                  borderLeft: '3px solid var(--accent-rose)',
-                  borderRadius: '4px',
-                  fontSize: '13px',
-                  fontFamily: 'monospace',
-                }}
-              >
-                <div style={{ fontWeight: 500 }}>
+              <div key={i} className="code-block">
+                <div className="code-block-header">
                   {typeof m === 'string'
                     ? m
                     : `${m.class || '?'}.${m.method || m.name || '?'}`}
                 </div>
                 {typeof m === 'object' && m && typeof m.reason === 'string' && (
-                  <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  <div className="code-block-detail">
                     {m.reason}
                   </div>
                 )}
@@ -660,9 +610,7 @@ const DissectionSummaryTab = memo(({ sampleId, apiUrl }) => {
             ))}
           </div>
           {summary.suspicious_methods.length > 15 && (
-            <p style={{ marginTop: '8px', color: 'var(--text-muted)' }}>
-              … and {summary.suspicious_methods.length - 15} more
-            </p>
+            <p className="more-link">… and {summary.suspicious_methods.length - 15} more</p>
           )}
         </div>
       )}
@@ -670,15 +618,12 @@ const DissectionSummaryTab = memo(({ sampleId, apiUrl }) => {
       {/* C2 Indicators */}
       {summary.c2_indicators?.length > 0 && (
         <div className="card">
-          <h3>C2 Indicators ({summary.c2_indicators.length})</h3>
-          <ul style={{ paddingLeft: '20px' }}>
+          <h3 className="heading-sm">
+            C2 Indicators ({summary.c2_indicators.length})
+          </h3>
+          <ul className="detail-list">
             {summary.c2_indicators.map((c, i) => (
-              <li key={i} style={{
-                marginBottom: '6px',
-                fontFamily: 'monospace',
-                fontSize: '13px',
-                color: 'var(--accent-rose)',
-              }}>
+              <li key={i} className="c2-indicator">
                 {typeof c === 'string' ? c : String(c)}
               </li>
             ))}
@@ -689,12 +634,12 @@ const DissectionSummaryTab = memo(({ sampleId, apiUrl }) => {
       {/* Recommended Focus */}
       {summary.recommended_focus?.length > 0 && (
         <div className="card">
-          <h3>Recommended Focus</h3>
-          <ul style={{ paddingLeft: '20px' }}>
+          <h3 className="heading-sm">
+            Recommended Focus
+          </h3>
+          <ul className="detail-list">
             {summary.recommended_focus.map((r, i) => (
-              <li key={i} style={{ marginBottom: '6px', lineHeight: '1.5' }}>
-                {typeof r === 'string' ? r : String(r)}
-              </li>
+              <li key={i}>{typeof r === 'string' ? r : String(r)}</li>
             ))}
           </ul>
         </div>
@@ -1058,7 +1003,7 @@ function ChainCard({ chain, sampleId, apiUrl }) {
                   <span className="llm-icon">🧠</span>
                   <span className="llm-label">AI Analysis</span>
                   {threatLabel && (
-                    <span className={`badge badge-${threatColor}`} style={{ fontSize: '0.7rem', padding: '0.15rem 0.4rem' }}>
+                    <span className={`badge badge-${threatColor} badge-xs`}>
                       {threatLabel}
                     </span>
                   )}
@@ -1401,11 +1346,8 @@ const SEVERITY_CONFIG = {
 }
 
 function SevBadge({ severity }) {
-  const cfg = SEVERITY_CONFIG[severity] || { color: 'var(--text-muted)', badge: 'slate' }
-  return <span style={{
-    padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 700,
-    background: cfg.color + '22', color: cfg.color, textTransform: 'uppercase',
-  }}>{severity}</span>
+  const cls = severity ? `sev-badge sev-badge-${severity}` : 'sev-badge sev-badge-slate'
+  return <span className={cls}>{severity}</span>
 }
 
 const SecretsTab = memo(({ result }) => {
@@ -1417,8 +1359,8 @@ const SecretsTab = memo(({ result }) => {
   if (!secrets.length) {
     return (
       <div className="tab-panel">
-        <div className="card" style={{ textAlign: 'center', padding: '3rem' }}>
-          <p style={{ color: 'var(--text-muted)' }}>No hardcoded secrets detected.</p>
+        <div className="card card-empty">
+          <p className="text-muted">No hardcoded secrets detected.</p>
         </div>
       </div>
     )
@@ -1426,54 +1368,50 @@ const SecretsTab = memo(({ result }) => {
 
   return (
     <div className="tab-panel">
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', marginBottom: 16, padding: 16, background: 'var(--bg-surface)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)' }}>
+      <div className="secrets-header">
         <div>
-          <small style={{ fontFamily: 'JetBrains Mono', fontSize: 10, letterSpacing: '.08em', color: 'var(--text-muted)' }}>EXPOSED SECRET POSTURE</small>
-          <strong style={{ display: 'block', fontSize: 20, color: 'var(--text-primary)' }}>{total} findings</strong>
+          <small className="secrets-label">EXPOSED SECRET POSTURE</small>
+          <strong className="secrets-header-total">{total} findings</strong>
         </div>
-        <div style={{ display: 'flex', gap: 12, marginLeft: 'auto' }}>
+        <div className="secrets-header-right">
           {['critical', 'high', 'medium'].map(s => (
-            <div key={s} style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 18, fontWeight: 800, color: SEVERITY_CONFIG[s].color }}>{bySev[s] || 0}</div>
-              <small style={{ fontFamily: 'JetBrains Mono', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)' }}>{s}</small>
+            <div key={s} className="secrets-metric">
+              <div className="secrets-metric-value" style={{ color: SEVERITY_CONFIG[s].color }}>{bySev[s] || 0}</div>
+              <small className="secrets-btn">{s}</small>
             </div>
           ))}
         </div>
-        <div style={{ textAlign: 'right' }}>
-          <small style={{ fontFamily: 'JetBrains Mono', fontSize: 10, color: 'var(--text-muted)' }}>SECRETS RISK</small>
-          <strong style={{ display: 'block', fontSize: 22, color: risk.risk_score > 60 ? 'var(--accent-rose)' : 'var(--accent-amber)' }}>{risk.risk_score || 0}</strong>
+        <div className="text-right">
+          <small className="secrets-label">SECRETS RISK</small>
+          <strong className="secrets-risk-value" style={{ color: risk.risk_score > 60 ? 'var(--accent-rose)' : 'var(--accent-amber)' }}>{risk.risk_score || 0}</strong>
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 4, marginBottom: 16, height: 8 }}>
+      <div className="secrets-bar-chart">
         {['critical', 'high', 'medium', 'low'].map(s => {
           const cfg = SEVERITY_CONFIG[s]
           const count = bySev[s] || 0
           return count > 0 ? (
-            <div key={s} style={{ flex: count, height: 8, borderRadius: 4, background: cfg.color, opacity: 0.7 }} />
+            <div key={s} className="secrets-bar" style={{ flex: count, background: cfg.color }} />
           ) : null
         })}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 12 }}>
+      <div className="secrets-grid">
         {secrets.sort((a, b) => (SEVERITY_CONFIG[a.severity]?.order ?? 9) - (SEVERITY_CONFIG[b.severity]?.order ?? 9)).map((s, i) => {
           const cfg = SEVERITY_CONFIG[s.severity] || { color: 'var(--text-muted)' }
           const loc = s.source || s.source_file || '?'
           return (
-            <article key={i} style={{
-              padding: 14, background: 'var(--bg-surface)', border: '1px solid var(--border-color)',
-              borderTop: `3px solid ${cfg.color}`, borderRadius: 'var(--radius-md)',
-              display: 'flex', flexDirection: 'column', gap: 8,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <article key={i} className="secret-item" style={{ borderTopColor: cfg.color }}>
+              <div className="secret-item-header">
                 <SevBadge severity={s.severity} />
-                <strong style={{ fontSize: 13 }}>{s.secret_type}</strong>
+                <strong className="secret-item-type">{s.secret_type}</strong>
               </div>
-              <p style={{ margin: 0, fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--accent-cyan)', wordBreak: 'break-all' }}>{s.value}</p>
+              <p className="secret-item-value">{s.value}</p>
               {s.decoded && (
-                <p style={{ margin: 0, fontSize: 12, color: 'var(--accent-emerald)' }}>✓ {s.decoded}</p>
+                <p className="secret-item-decoded">✓ {s.decoded}</p>
               )}
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+              <div className="secret-item-location">
                 {loc}{s.occurrence_count > 1 ? ` · ${s.occurrence_count} occurrences` : ''}
               </div>
             </article>
