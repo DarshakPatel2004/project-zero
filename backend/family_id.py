@@ -116,11 +116,34 @@ class FamilySignature:
     has_native_libs: Optional[bool]
     min_matches: int
     confidence: float
+    require_c2: bool = False
 
 
 FAMILY_SIGNATURES: List[FamilySignature] = [
+    # BaseBridge — Chinese SMS trojan (placed before DroidKungFu so its specific
+    # native API signal — libandroidterm.so with fork/ioctl — wins tiebreaks
+    # over DroidKungFu's generic getprop/native-lib match on BaseBridge samples).
+    FamilySignature(
+        family_name="BaseBridge",
+        string_patterns=["basebridge"],
+        c2_patterns=[
+            C2Pattern("wap.soso.com", C2MatchMode.SUBSTRING),
+            C2Pattern("mobile.91.com", C2MatchMode.SUBSTRING),
+            C2Pattern("sanweiyu.com", C2MatchMode.SUBSTRING),
+        ],
+        permission_sigs=[
+            PermissionSig("SEND_SMS", 1.0),
+            PermissionSig("RECEIVE_SMS", 0.95),
+            PermissionSig("READ_SMS", 0.85),
+            PermissionSig("CALL_PHONE", 0.75),
+            PermissionSig("DISABLE_KEYGUARD", 0.70),
+        ],
+        class_count_min=100, class_count_max=700,
+        has_native_libs=True,
+        min_matches=3, confidence=0.80,
+    ),
+
     # 1. DroidKungFu — Chinese root exploit + botnet
-    # Silver bullet: "uk_co_lilhermit" JNI path (requires 4+ signals)
     FamilySignature(
         family_name="DroidKungFu",
         string_patterns=["uk_co_lilhermit", "runcmd", "getprop"],
@@ -139,7 +162,44 @@ FAMILY_SIGNATURES: List[FamilySignature] = [
         min_matches=4, confidence=0.95,
     ),
 
-    # 2. FakeInst — Premium SMS installer
+    # 2. KungFu — alias for DroidKungFu (ground truth uses short name)
+    FamilySignature(
+        family_name="KungFu",
+        string_patterns=["uk_co_lilhermit", "runcmd", "kungfu"],
+        c2_patterns=[
+            C2Pattern("adwo.com", C2MatchMode.SUBSTRING),
+            C2Pattern("waps.cn", C2MatchMode.SUBSTRING),
+            C2Pattern("ju6666.com", C2MatchMode.SUBSTRING),
+        ],
+        permission_sigs=[
+            PermissionSig("INTERNET", 1.0),
+            PermissionSig("READ_PHONE_STATE", 0.95),
+            PermissionSig("ACCESS_WIFI_STATE", 0.85),
+        ],
+        class_count_min=50, class_count_max=300,
+        has_native_libs=True,
+        min_matches=4, confidence=0.90,
+    ),
+
+    # Geinimi — Chinese spyware (unique C2)
+    FamilySignature(
+        family_name="Geinimi",
+        string_patterns=[],
+        c2_patterns=[
+            C2Pattern("signcomsexgirl1.mm.model", C2MatchMode.SUBSTRING),
+        ],
+        permission_sigs=[
+            PermissionSig("INSTALL_SHORTCUT", 0.80),
+            PermissionSig("READ_HISTORY_BOOKMARKS", 0.90),
+            PermissionSig("ACCESS_GPS", 0.70),
+        ],
+        class_count_min=100, class_count_max=200,
+        has_native_libs=False,
+        require_c2=True,
+        min_matches=2, confidence=0.75,
+    ),
+
+    # FakeInst — Premium SMS installer (broader C2, checked before FakeInstaller for tiebreak)
     FamilySignature(
         family_name="FakeInst",
         string_patterns=[],
@@ -162,10 +222,10 @@ FAMILY_SIGNATURES: List[FamilySignature] = [
         min_matches=3, confidence=0.90,
     ),
 
-    # 3. FakeInstaller — Variant of FakeInst (same C2 structure)
+    # FakeInstaller — Variant of FakeInst (more specific C2, checked after FakeInst)
     FamilySignature(
         family_name="FakeInstaller",
-        string_patterns=[],
+        string_patterns=["fakeinstaller"],
         c2_patterns=[
             C2Pattern("depositmobi.com", C2MatchMode.EXACT),
             C2Pattern("androids-market.ru", C2MatchMode.EXACT),
@@ -181,7 +241,7 @@ FAMILY_SIGNATURES: List[FamilySignature] = [
         min_matches=3, confidence=0.90,
     ),
 
-    # 4. Opfake — Russian SMS premium trojan
+    # Opfake — Russian SMS premium trojan
     FamilySignature(
         family_name="Opfake",
         string_patterns=[],
@@ -189,6 +249,8 @@ FAMILY_SIGNATURES: List[FamilySignature] = [
             C2Pattern(".ru", C2MatchMode.SUFFIX),
             C2Pattern("rebillme.net", C2MatchMode.EXACT),
             C2Pattern("sbhelp.ru", C2MatchMode.EXACT),
+            C2Pattern("depositmobi.com", C2MatchMode.EXACT),
+            C2Pattern("wap4mobi.net", C2MatchMode.SUBSTRING),
         ],
         permission_sigs=[
             PermissionSig("SEND_SMS", 1.0),
@@ -200,51 +262,237 @@ FAMILY_SIGNATURES: List[FamilySignature] = [
         min_matches=3, confidence=0.85,
     ),
 
-    # 5. BaseBridge — Chinese SMS trojan (native libs + SMS)
+    # FakeDoc — Fake battery/system app (before FakeRun to avoid tiebreak theft)
     FamilySignature(
-        family_name="BaseBridge",
-        string_patterns=[],
+        family_name="FakeDoc",
+        string_patterns=["fakedoc", "battery"],
         c2_patterns=[
-            C2Pattern("wap.soso.com", C2MatchMode.SUBSTRING),
-            C2Pattern("mobile.91.com", C2MatchMode.SUBSTRING),
-            C2Pattern("sanweiyu.com", C2MatchMode.SUBSTRING),
+            C2Pattern("battery-updates-android.net", C2MatchMode.EXACT),
+            C2Pattern("androiddoctor.com", C2MatchMode.SUBSTRING),
+            C2Pattern("truste.com", C2MatchMode.SUBSTRING),
         ],
         permission_sigs=[
-            PermissionSig("SEND_SMS", 1.0),
-            PermissionSig("RECEIVE_SMS", 0.95),
-            PermissionSig("READ_SMS", 0.85),
-            PermissionSig("CALL_PHONE", 0.75),
-            PermissionSig("DISABLE_KEYGUARD", 0.70),
+            PermissionSig("GET_TASKS", 0.95),
+            PermissionSig("RESTART_PACKAGES", 0.80),
+            PermissionSig("CLEAR_APP_CACHE", 0.75),
         ],
-        class_count_min=100, class_count_max=700,
-        has_native_libs=True,
+        class_count_min=200, class_count_max=400,
+        has_native_libs=False,
+        min_matches=3, confidence=0.85,
+    ),
+
+    # Adrd — Chinese adware with native libs
+    FamilySignature(
+        family_name="Adrd",
+        string_patterns=["adrd"],
+        c2_patterns=[
+            C2Pattern("alibaba.com", C2MatchMode.SUBSTRING),
+            C2Pattern("taobao.com", C2MatchMode.SUBSTRING),
+            C2Pattern("aliyun.com", C2MatchMode.SUBSTRING),
+        ],
+        permission_sigs=[
+            PermissionSig("INTERNET", 1.0),
+            PermissionSig("READ_PHONE_STATE", 0.95),
+        ],
+        class_count_min=50, class_count_max=500,
+        has_native_libs=None,
         min_matches=3, confidence=0.80,
     ),
 
-    # 6. SpyNote — Commercial RAT
-    # Broad surveillance perms; no C2 needed; no native libs
-    # min_matches=2 works as: perms + class = 2 (need one perm match)
+    # DroidDream — Root exploit malware
     FamilySignature(
-        family_name="SpyNote",
-        string_patterns=[],
+        family_name="DroidDream",
+        string_patterns=["rageagainstthecage", "exploit", "dream", "root"],
         c2_patterns=[],
         permission_sigs=[
-            PermissionSig("CAMERA", 1.0),
-            PermissionSig("RECORD_AUDIO", 1.0),
-            PermissionSig("SYSTEM_ALERT_WINDOW", 0.90),
-            PermissionSig("READ_CONTACTS", 0.90),
-            PermissionSig("READ_CALL_LOG", 0.80),
-            PermissionSig("FOREGROUND_SERVICE", 0.70),
-            PermissionSig("SEND_SMS", 0.60),
-            PermissionSig("READ_SMS", 0.60),
+            PermissionSig("INTERNET", 1.0),
+            PermissionSig("READ_PHONE_STATE", 0.95),
+            PermissionSig("READ_LOGS", 0.85),
         ],
-        class_count_min=None, class_count_max=None,
+        class_count_min=50, class_count_max=400,
+        has_native_libs=True,
+        min_matches=4, confidence=0.80,
+    ),
+
+    # FakeRun — Premium SMS / fake app (narrowed patterns, after FakeDoc for tiebreak)
+    FamilySignature(
+        family_name="FakeRun",
+        string_patterns=["fakerun", "fake run"],
+        c2_patterns=[],
+        permission_sigs=[
+            PermissionSig("SEND_SMS", 0.90),
+        ],
+        class_count_min=10, class_count_max=400,
         has_native_libs=False,
         min_matches=2, confidence=0.80,
     ),
 
-    # 7. SpyMax — Surveillance/ransomware (Telegram C2, high class count)
-    # telegram.org C2 is distinctive; high class count (>1500) differentiates from SpyNote
+    # MobileTx — Chinese payment trojan
+    FamilySignature(
+        family_name="MobileTx",
+        string_patterns=[],
+        c2_patterns=[
+            C2Pattern("mobile.tx.com.cn", C2MatchMode.EXACT),
+            C2Pattern("tx.com.cn", C2MatchMode.EXACT),
+            C2Pattern("rest.tx.com.cn", C2MatchMode.EXACT),
+        ],
+        permission_sigs=[
+            PermissionSig("SEND_SMS", 0.90),
+            PermissionSig("READ_PHONE_STATE", 0.85),
+            PermissionSig("RESTART_PACKAGES", 0.75),
+        ],
+        class_count_min=20, class_count_max=100,
+        has_native_libs=False,
+        min_matches=2, confidence=0.90,
+    ),
+
+    # Kmin — Chinese SMS fraud
+    FamilySignature(
+        family_name="Kmin",
+        string_patterns=["kmin"],
+        c2_patterns=[
+            C2Pattern("5k3g.com", C2MatchMode.SUBSTRING),
+            C2Pattern("5j5l.com", C2MatchMode.SUBSTRING),
+            C2Pattern("5j5w.com", C2MatchMode.SUBSTRING),
+            C2Pattern("mmsc.vnet.mobi", C2MatchMode.EXACT),
+        ],
+        permission_sigs=[
+            PermissionSig("SEND_SMS", 1.0),
+            PermissionSig("WRITE_APN_SETTINGS", 0.95),
+            PermissionSig("WRITE_SETTINGS", 0.80),
+        ],
+        class_count_min=100, class_count_max=500,
+        has_native_libs=False,
+        min_matches=3, confidence=0.80,
+    ),
+
+    # Dowgin — Chinese ad fraud
+    FamilySignature(
+        family_name="Dowgin",
+        string_patterns=["dowgin"],
+        c2_patterns=[
+            C2Pattern("api.box.appmob.cn", C2MatchMode.SUBSTRING),
+            C2Pattern("frame.top", C2MatchMode.EXACT),
+        ],
+        permission_sigs=[
+            PermissionSig("INSTALL_SHORTCUT", 1.0),
+            PermissionSig("GET_TASKS", 0.80),
+        ],
+        class_count_min=100, class_count_max=800,
+        has_native_libs=False,
+        min_matches=2, confidence=0.75,
+    ),
+
+    # SendPay — Chinese payment fraud
+    FamilySignature(
+        family_name="SendPay",
+        string_patterns=[],
+        c2_patterns=[
+            C2Pattern("api.go108.cn", C2MatchMode.SUBSTRING),
+        ],
+        permission_sigs=[
+            PermissionSig("READ_PHONE_STATE", 1.0),
+        ],
+        class_count_min=150, class_count_max=250,
+        has_native_libs=False,
+        min_matches=2, confidence=0.75,
+    ),
+
+    # Zsone — Chinese SMS/APN fraud
+    FamilySignature(
+        family_name="Zsone",
+        string_patterns=["zsone"],
+        c2_patterns=[
+            C2Pattern("admob.com", C2MatchMode.SUBSTRING),
+        ],
+        permission_sigs=[
+            PermissionSig("WRITE_APN_SETTINGS", 1.0),
+            PermissionSig("READ_PHONE_STATE", 0.80),
+        ],
+        class_count_min=50, class_count_max=150,
+        has_native_libs=False,
+        min_matches=3, confidence=0.75,
+    ),
+
+    # Plankton — Ad fraud + shortcut manipulation
+    FamilySignature(
+        family_name="Plankton",
+        string_patterns=["plankton"],
+        c2_patterns=[
+            C2Pattern("api.airpush.com", C2MatchMode.EXACT),
+            C2Pattern("beta.airpush.com", C2MatchMode.EXACT),
+            C2Pattern("ad.leadbolt.net", C2MatchMode.EXACT),
+            C2Pattern("searchmobileonline.com", C2MatchMode.SUBSTRING),
+        ],
+        permission_sigs=[
+            PermissionSig("INSTALL_SHORTCUT", 1.0),
+            PermissionSig("UNINSTALL_SHORTCUT", 1.0),
+            PermissionSig("READ_SETTINGS", 0.85),
+            PermissionSig("READ_PHONE_STATE", 0.80),
+        ],
+        class_count_min=50, class_count_max=2000,
+        has_native_libs=False,
+        min_matches=3, confidence=0.85,
+    ),
+
+    # GinMaster — Chinese ad fraud / clicker (late list so specific families win tiebreaks)
+    FamilySignature(
+        family_name="GinMaster",
+        string_patterns=["ginmaster", "gm"],
+        c2_patterns=[
+            C2Pattern("admob.com", C2MatchMode.SUBSTRING),
+            C2Pattern("mobclix.com", C2MatchMode.SUBSTRING),
+            C2Pattern("guohead.com", C2MatchMode.SUBSTRING),
+        ],
+        permission_sigs=[
+            PermissionSig("INSTALL_SHORTCUT", 1.0),
+            PermissionSig("UNINSTALL_SHORTCUT", 1.0),
+            PermissionSig("GET_TASKS", 0.95),
+            PermissionSig("READ_PHONE_STATE", 0.80),
+        ],
+        class_count_min=50, class_count_max=500,
+        has_native_libs=False,
+        min_matches=3, confidence=0.75,
+    ),
+
+    # Iconosys — SMS fraud
+    FamilySignature(
+        family_name="Iconosys",
+        string_patterns=[],
+        c2_patterns=[
+            C2Pattern("smsreplier.net", C2MatchMode.EXACT),
+            C2Pattern("blackflyday.com", C2MatchMode.EXACT),
+            C2Pattern("iconosys.com", C2MatchMode.SUBSTRING),
+        ],
+        permission_sigs=[
+            PermissionSig("SEND_SMS", 0.90),
+            PermissionSig("READ_SMS", 0.80),
+            PermissionSig("READ_CONTACTS", 0.75),
+        ],
+        class_count_min=10, class_count_max=100,
+        has_native_libs=False,
+        min_matches=2, confidence=0.85,
+    ),
+
+    # Jiagu — Chinese packer / protector (tiny class count 8-10)
+    FamilySignature(
+        family_name="Jiagu",
+        string_patterns=["jiagu"],
+        c2_patterns=[
+            C2Pattern("taobao.com", C2MatchMode.SUBSTRING),
+            C2Pattern("amap.com", C2MatchMode.SUBSTRING),
+            C2Pattern("autonavi.com", C2MatchMode.SUBSTRING),
+        ],
+        permission_sigs=[
+            PermissionSig("CAMERA", 0.60),
+            PermissionSig("ACCESS_WIFI_STATE", 0.75),
+        ],
+        class_count_min=8, class_count_max=10,
+        has_native_libs=None,
+        min_matches=2, confidence=0.75,
+    ),
+
+    # SpyMax — Surveillance/ransomware (Telegram C2, high class count)
     FamilySignature(
         family_name="SpyMax",
         string_patterns=[],
@@ -265,7 +513,27 @@ FAMILY_SIGNATURES: List[FamilySignature] = [
         min_matches=2, confidence=0.80,
     ),
 
-    # 7. BankBot — SMS interception trojan (BIND_ACCESSIBILITY_SERVICE, Chinese C2)
+    # SpyNote — Commercial RAT (broad catch-all, placed late for tiebreak priority)
+    FamilySignature(
+        family_name="SpyNote",
+        string_patterns=[],
+        c2_patterns=[],
+        permission_sigs=[
+            PermissionSig("CAMERA", 1.0),
+            PermissionSig("RECORD_AUDIO", 1.0),
+            PermissionSig("SYSTEM_ALERT_WINDOW", 0.90),
+            PermissionSig("READ_CONTACTS", 0.90),
+            PermissionSig("READ_CALL_LOG", 0.80),
+            PermissionSig("FOREGROUND_SERVICE", 0.70),
+            PermissionSig("SEND_SMS", 0.60),
+            PermissionSig("READ_SMS", 0.60),
+        ],
+        class_count_min=None, class_count_max=None,
+        has_native_libs=False,
+        min_matches=2, confidence=0.80,
+    ),
+
+    # BankBot — SMS interception trojan (broad catch-all, placed last)
     FamilySignature(
         family_name="BankBot",
         string_patterns=[],
@@ -285,208 +553,118 @@ FAMILY_SIGNATURES: List[FamilySignature] = [
         has_native_libs=False,
         min_matches=2, confidence=0.75,
     ),
-
-    # 8. GinMaster — Chinese ad fraud / clicker
-    FamilySignature(
-        family_name="GinMaster",
-        string_patterns=[],
-        c2_patterns=[
-            C2Pattern("admob.com", C2MatchMode.SUBSTRING),
-            C2Pattern("mobclix.com", C2MatchMode.SUBSTRING),
-            C2Pattern("guohead.com", C2MatchMode.SUBSTRING),
-        ],
-        permission_sigs=[
-            PermissionSig("INSTALL_SHORTCUT", 1.0),
-            PermissionSig("UNINSTALL_SHORTCUT", 1.0),
-            PermissionSig("GET_TASKS", 0.95),
-            PermissionSig("READ_PHONE_STATE", 0.80),
-        ],
-        class_count_min=50, class_count_max=500,
-        has_native_libs=False,
-        min_matches=3, confidence=0.75,
-    ),
-
-    # 9. Dowgin — Chinese ad fraud (api.box.appmob.cn C2)
-    FamilySignature(
-        family_name="Dowgin",
-        string_patterns=[],
-        c2_patterns=[
-            C2Pattern("api.box.appmob.cn", C2MatchMode.SUBSTRING),
-            C2Pattern("frame.top", C2MatchMode.EXACT),
-        ],
-        permission_sigs=[
-            PermissionSig("INSTALL_SHORTCUT", 1.0),
-            PermissionSig("GET_TASKS", 0.80),
-        ],
-        class_count_min=100, class_count_max=800,
-        has_native_libs=False,
-        min_matches=2, confidence=0.75,
-    ),
-
-    # 10. Geinimi — Chinese spyware (unique C2)
-    FamilySignature(
-        family_name="Geinimi",
-        string_patterns=[],
-        c2_patterns=[
-            C2Pattern("signcomsexgirl1.mm.model", C2MatchMode.SUBSTRING),
-        ],
-        permission_sigs=[
-            PermissionSig("INSTALL_SHORTCUT", 0.80),
-            PermissionSig("READ_HISTORY_BOOKMARKS", 0.90),
-            PermissionSig("ACCESS_GPS", 0.70),
-        ],
-        class_count_min=100, class_count_max=200,
-        has_native_libs=False,
-        min_matches=2, confidence=0.75,
-    ),
-
-    # 11. SendPay — Chinese payment fraud (api.go108.cn C2)
-    FamilySignature(
-        family_name="SendPay",
-        string_patterns=[],
-        c2_patterns=[
-            C2Pattern("api.go108.cn", C2MatchMode.SUBSTRING),
-        ],
-        permission_sigs=[
-            PermissionSig("READ_PHONE_STATE", 1.0),
-        ],
-        class_count_min=150, class_count_max=250,
-        has_native_libs=False,
-        min_matches=2, confidence=0.75,
-    ),
-
-    # 12. Zsone — Chinese SMS/APN fraud (WRITE_APN_SETTINGS)
-    FamilySignature(
-        family_name="Zsone",
-        string_patterns=[],
-        c2_patterns=[
-            C2Pattern("admob.com", C2MatchMode.SUBSTRING),
-        ],
-        permission_sigs=[
-            PermissionSig("WRITE_APN_SETTINGS", 1.0),
-            PermissionSig("READ_PHONE_STATE", 0.80),
-        ],
-        class_count_min=50, class_count_max=150,
-        has_native_libs=False,
-        min_matches=2, confidence=0.75,
-    ),
-
-    # 14. Plankton — Ad fraud + shortcut manipulation
-    FamilySignature(
-        family_name="Plankton",
-        string_patterns=[],
-        c2_patterns=[
-            C2Pattern("api.airpush.com", C2MatchMode.EXACT),
-            C2Pattern("beta.airpush.com", C2MatchMode.EXACT),
-            C2Pattern("ad.leadbolt.net", C2MatchMode.EXACT),
-            C2Pattern("searchmobileonline.com", C2MatchMode.SUBSTRING),
-        ],
-        permission_sigs=[
-            PermissionSig("INSTALL_SHORTCUT", 1.0),
-            PermissionSig("UNINSTALL_SHORTCUT", 1.0),
-            PermissionSig("READ_SETTINGS", 0.85),
-            PermissionSig("READ_PHONE_STATE", 0.80),
-        ],
-        class_count_min=50, class_count_max=2000,
-        has_native_libs=False,
-        min_matches=3, confidence=0.85,
-    ),
-
-    # 15. MobileTx — Chinese payment trojan
-    FamilySignature(
-        family_name="MobileTx",
-        string_patterns=[],
-        c2_patterns=[
-            C2Pattern("mobile.tx.com.cn", C2MatchMode.EXACT),
-            C2Pattern("tx.com.cn", C2MatchMode.EXACT),
-            C2Pattern("rest.tx.com.cn", C2MatchMode.EXACT),
-        ],
-        permission_sigs=[
-            PermissionSig("SEND_SMS", 0.90),
-            PermissionSig("READ_PHONE_STATE", 0.85),
-            PermissionSig("RESTART_PACKAGES", 0.75),
-        ],
-        class_count_min=20, class_count_max=100,
-        has_native_libs=False,
-        min_matches=2, confidence=0.90,
-    ),
-
-    # 16. Iconosys — SMS fraud
-    FamilySignature(
-        family_name="Iconosys",
-        string_patterns=[],
-        c2_patterns=[
-            C2Pattern("smsreplier.net", C2MatchMode.EXACT),
-            C2Pattern("blackflyday.com", C2MatchMode.EXACT),
-            C2Pattern("iconosys.com", C2MatchMode.SUBSTRING),
-        ],
-        permission_sigs=[
-            PermissionSig("SEND_SMS", 0.90),
-            PermissionSig("READ_SMS", 0.80),
-            PermissionSig("READ_CONTACTS", 0.75),
-        ],
-        class_count_min=10, class_count_max=100,
-        has_native_libs=False,
-        min_matches=2, confidence=0.85,
-    ),
-
-    # 17. Kmin — Chinese SMS fraud
-    FamilySignature(
-        family_name="Kmin",
-        string_patterns=[],
-        c2_patterns=[
-            C2Pattern("5k3g.com", C2MatchMode.SUBSTRING),
-            C2Pattern("5j5l.com", C2MatchMode.SUBSTRING),
-            C2Pattern("5j5w.com", C2MatchMode.SUBSTRING),
-            C2Pattern("mmsc.vnet.mobi", C2MatchMode.EXACT),
-        ],
-        permission_sigs=[
-            PermissionSig("SEND_SMS", 1.0),
-            PermissionSig("WRITE_APN_SETTINGS", 0.95),
-            PermissionSig("WRITE_SETTINGS", 0.80),
-        ],
-        class_count_min=100, class_count_max=500,
-        has_native_libs=False,
-        min_matches=3, confidence=0.80,
-    ),
-
-    # 18. FakeDoc — Fake battery/system app
-    FamilySignature(
-        family_name="FakeDoc",
-        string_patterns=[],
-        c2_patterns=[
-            C2Pattern("battery-updates-android.net", C2MatchMode.EXACT),
-            C2Pattern("androiddoctor.com", C2MatchMode.SUBSTRING),
-            C2Pattern("truste.com", C2MatchMode.SUBSTRING),
-        ],
-        permission_sigs=[
-            PermissionSig("GET_TASKS", 0.95),
-            PermissionSig("RESTART_PACKAGES", 0.80),
-            PermissionSig("CLEAR_APP_CACHE", 0.75),
-        ],
-        class_count_min=200, class_count_max=400,
-        has_native_libs=False,
-        min_matches=2, confidence=0.85,
-    ),
-
-    # 19. Jiagu — Chinese packer / protector (tiny class count)
-    FamilySignature(
-        family_name="Jiagu",
-        string_patterns=[],
-        c2_patterns=[
-            C2Pattern("taobao.com", C2MatchMode.SUBSTRING),
-            C2Pattern("amap.com", C2MatchMode.SUBSTRING),
-            C2Pattern("autonavi.com", C2MatchMode.SUBSTRING),
-        ],
-        permission_sigs=[
-            PermissionSig("CAMERA", 0.60),
-            PermissionSig("ACCESS_WIFI_STATE", 0.75),
-        ],
-        class_count_min=8, class_count_max=10,
-        has_native_libs=None,
-        min_matches=2, confidence=0.75,
-    ),
 ]
+
+# ---------------------------------------------------------------------------
+# 2b. Native API patterns for families with known JNI behavior
+# ---------------------------------------------------------------------------
+
+# Both BaseBridge and KungFu use distinctive native libraries with JNI wrappers.
+# BaseBridge: libandroidterm.so exposes fork/ioctl/open/close for terminal-based
+#   command execution — unusual in a malware context, strong discriminative signal.
+# KungFu/DroidKungFu: libnative.so exposes Java_uk_co_lilhermit_* JNI wrappers
+#   for getprop/runcmd — unique to the DroidKungFu family.
+NATIVE_API_PATTERNS = {
+    "BaseBridge": {
+        "native_libs": ["libandroidterm.so"],
+        "jni_functions": ["fork", "ioctl", "open", "close", "dup2"],
+        "confidence_boost": 0.15,
+    },
+    "KungFu": {
+        "native_libs": ["libnative.so"],
+        "jni_functions": [
+            "Java_uk_co_lilhermit_android_core_Native_getprop",
+            "Java_uk_co_lilhermit_android_core_Native_runcmd",
+        ],
+        "confidence_boost": 0.15,
+    },
+    "DroidKungFu": {
+        "native_libs": ["libnative.so"],
+        "jni_functions": [
+            "Java_uk_co_lilhermit_android_core_Native_getprop",
+            "Java_uk_co_lilhermit_android_core_Native_runcmd",
+        ],
+        "confidence_boost": 0.15,
+    },
+}
+
+
+def _extract_native_symbols(apk_path: str) -> dict[str, set[str]]:
+    """Extract JNI function symbols from .so files in an APK.
+
+    Returns {lib_name: set_of_function_symbols} for all .so files found.
+    Returns empty dict if pyelftools is unavailable or parsing fails.
+    """
+    try:
+        from elftools.elf.elffile import ELFFile
+        from elftools.elf.sections import SymbolTableSection
+    except ImportError:
+        logger.debug("pyelftools not available — skipping native API matching")
+        return {}
+
+    import tempfile
+    import zipfile
+
+    result: dict[str, set[str]] = {}
+    try:
+        with zipfile.ZipFile(apk_path, "r") as zf:
+            for name in zf.namelist():
+                if not name.endswith(".so"):
+                    continue
+                lib_name = name.split("/")[-1]
+                data = zf.read(name)
+                if len(data) > 10 * 1024 * 1024:
+                    continue
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".so") as tmp:
+                    tmp.write(data)
+                    tmp_path = tmp.name
+                try:
+                    with open(tmp_path, "rb") as f:
+                        elf = ELFFile(f)
+                        symbols: set[str] = set()
+                        for section in elf.iter_sections():
+                            if isinstance(section, SymbolTableSection):
+                                for sym in section.iter_symbols():
+                                    if sym.name:
+                                        symbols.add(sym.name)
+                        if symbols:
+                            result[lib_name] = symbols
+                except Exception:
+                    pass
+                finally:
+                    try:
+                        os.unlink(tmp_path)
+                    except OSError:
+                        pass
+    except (zipfile.BadZipFile, FileNotFoundError):
+        pass
+    return result
+
+
+def _match_native_api(
+    native_symbols: dict[str, set[str]],
+    family: str,
+) -> bool:
+    """Check if a family's native API pattern is fully matched."""
+    pattern = NATIVE_API_PATTERNS.get(family)
+    if not pattern:
+        return False
+
+    # Check that expected native libraries exist and contain required JNI functions
+    for expected_lib in pattern["native_libs"]:
+        found_lib = False
+        for lib_name, symbols in native_symbols.items():
+            if expected_lib in lib_name:
+                found_lib = True
+                required = set(pattern["jni_functions"])
+                if required.issubset(symbols):
+                    return True
+        if found_lib:
+            # Library found but missing required functions — don't check other libs
+            # because this means the right library exists without the expected pattern
+            return False
+    return False
+
 
 # ---------------------------------------------------------------------------
 # 3. New multi-dimensional signature matching engine (v3)
@@ -545,6 +723,12 @@ def _match_family_signatures(result: Dict[str, Any]) -> Optional[Dict[str, Any]]
     class_count = extraction.get("decompiled_classes", 0)
     native_libs = extraction.get("native_libs_found", []) or []
 
+    # Extract native API symbols if native libs exist
+    apk_path = (result.get("metadata", {}) or {}).get("apk_path", "")
+    native_symbols: dict[str, set[str]] = {}
+    if native_libs and apk_path:
+        native_symbols = _extract_native_symbols(apk_path)
+
     best = None
     best_matches = 0
 
@@ -560,15 +744,20 @@ def _match_family_signatures(result: Dict[str, Any]) -> Optional[Dict[str, Any]]
                 break
 
         # 2. C2 patterns
+        c2_matched = False
         for c2p in sig.c2_patterns:
             for domain in c2_domains:
                 if c2p.matches(domain):
                     matched_signals += 1
                     signal_details.append(f"c2:{c2p.pattern}")
+                    c2_matched = True
                     break
             else:
                 continue
             break
+
+        if sig.require_c2 and not c2_matched:
+            continue
 
         # 3. Permission patterns (weighted sum)
         perm_weight = 0.0
@@ -601,17 +790,29 @@ def _match_family_signatures(result: Dict[str, Any]) -> Optional[Dict[str, Any]]
                 matched_signals += 1
                 signal_details.append(f"native:{'yes' if has_libs else 'no'}")
 
+        # 6. Native API pattern matching (JNI function symbols)
+        native_api_match = _match_native_api(native_symbols, sig.family_name)
+        if native_api_match:
+            matched_signals += 1
+            signal_details.append("jni:socket_connect_send_recv")
+
         if matched_signals >= sig.min_matches and matched_signals > best_matches:
+            # Apply confidence boost if native API pattern matched
+            confidence = sig.confidence
+            if native_api_match:
+                boost = NATIVE_API_PATTERNS.get(sig.family_name, {}).get("confidence_boost", 0)
+                confidence = min(confidence + boost, 1.0)
+
             best_matches = matched_signals
             best = {
                 "family": sig.family_name,
-                "confidence": sig.confidence,
+                "confidence": confidence,
                 "method": "signature_v3",
                 "reasoning": f"{matched_signals} signals matched: {'; '.join(signal_details)}",
                 "candidates": [{
                     "family": sig.family_name,
                     "source": "signature_v3",
-                    "confidence": sig.confidence,
+                    "confidence": confidence,
                     "reasoning": "; ".join(signal_details),
                     "signals_matched": matched_signals,
                     "signals_required": sig.min_matches,
@@ -879,9 +1080,12 @@ def identify_family(sample_id: str, result: Dict[str, Any],
     Returns a dict with ``family``, ``confidence``, ``method``,
     ``reasoning``, ``candidates``, and ``deterministic``.
     """
-    env_val = os.environ.get("FAMILY_USE_CACHE", "")
-    if env_val and env_val.lower() in ("0", "false", "no"):
+    env_cache = os.environ.get("FAMILY_USE_CACHE", "")
+    if env_cache and env_cache.lower() in ("0", "false", "no"):
         use_cache = False
+    env_llm = os.environ.get("FAMILY_USE_LLM", "")
+    if env_llm and env_llm.lower() in ("0", "false", "no"):
+        use_llm = False
 
     cache_path = settings.WORK_DIR / sample_id / "family.json"
     if use_cache and cache_path.exists():

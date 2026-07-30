@@ -522,14 +522,73 @@ def heuristic_fallback(chains_result: dict, c2_result: dict, obfuscation_result:
             known_enc_count += 1
 
     if c2_count > 0:
+        c2_infra = c2_result.get("c2_infrastructure", [])
+        max_conf = max((c.get("confidence", 0) for c in c2_infra), default=0.0)
+        ad_networks = sum(1 for c in c2_infra if c.get("threat_category") == "adware")
+        all_ad = ad_networks == len(c2_infra)
+
+        # Check whether ANY non-ad C2 looks like a real endpoint
+        # (valid domain structure, not a garbage fragment).
+        has_real_c2 = False
+        for c in c2_infra:
+            if c.get("threat_category") == "adware":
+                continue
+            domain = c.get("domain", "") or ""
+            if not domain:
+                continue
+            # Reject obviously malformed domains
+            if domain.endswith(".") or "." not in domain:
+                continue
+            tld = domain.split(".")[-1]
+            if len(tld) <= 1:
+                continue
+            has_real_c2 = True
+            break
+
+        if max_conf >= 0.7:
+            return {
+                "severity": "high",
+                "risk_score": 80,
+                "narrative": f"Detected {c2_count} C2 indicator(s) across {chain_count} threat chain(s). High-confidence infrastructure present.",
+                "primary_threat": "c2_exfiltration",
+                "recommended_actions": ["Block identified C2 domains/IPs", "Analyze network traffic for exfiltration"],
+                "confidence": 0.7,
+                "method": "heuristic_c2",
+            }
+
+        if has_real_c2:
+            # Non-ad, structurally valid C2 at moderate confidence — keep elevated
+            return {
+                "severity": "high",
+                "risk_score": 75,
+                "narrative": f"Detected {c2_count} C2 indicator(s) ({ad_networks} ad/analytics). Moderate-confidence non-ad infrastructure present.",
+                "primary_threat": "c2_exfiltration",
+                "recommended_actions": ["Verify C2 domains against known threat intel", "Review network traffic patterns"],
+                "confidence": 0.6,
+                "method": "heuristic_c2_candidate",
+            }
+
+        if max_conf >= 0.5:
+            # All C2s are ad-network or malformed — likely false positive
+            risk = min(65, 55 + ad_networks * 3)
+            return {
+                "severity": "medium",
+                "risk_score": risk,
+                "narrative": f"Detected {c2_count} possible C2 indicator(s) with moderate confidence. {'All flagged as ad/analytics SDK traffic' if all_ad else 'Indicators appear malformed or low-signal'} — likely benign.",
+                "primary_threat": "adware" if all_ad else "other",
+                "recommended_actions": ["Verify C2 domains against known ad/analytics SDKs", "Review network permissions in context"],
+                "confidence": 0.55,
+                "method": "heuristic_c2_moderate",
+            }
+
         return {
-            "severity": "high",
-            "risk_score": 80,
-            "narrative": f"Detected {c2_count} C2 indicator(s) across {chain_count} threat chain(s). Active infrastructure present.",
-            "primary_threat": "c2_exfiltration",
-            "recommended_actions": ["Block identified C2 domains/IPs", "Analyze network traffic for exfiltration"],
-            "confidence": 0.7,
-            "method": "heuristic_c2",
+            "severity": "medium",
+            "risk_score": 45,
+            "narrative": f"Detected {c2_count} low-confidence network indicator(s). Likely benign SDK or analytics endpoints with no malicious pattern.",
+            "primary_threat": "other",
+            "recommended_actions": ["Review network indicators manually if context warrants", "No immediate action required"],
+            "confidence": 0.5,
+            "method": "heuristic_c2_low",
         }
 
     if chain_count >= 1000 or (unknown_enc_count >= 500 and known_enc_count == 0):
