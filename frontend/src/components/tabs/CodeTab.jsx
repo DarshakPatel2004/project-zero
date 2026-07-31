@@ -519,15 +519,15 @@ export default function CodeTab({ sampleId, apiUrl }) {
               <div style={{ marginTop: 20 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                   <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)' }}>
-                    String References
+                    String References ({Object.keys(analysis.string_references).length})
                   </div>
                   <button
                     onClick={() => copyText(Object.entries(analysis.string_references).map(([s, refs]) => `"${s}" → ${refs.map(r => `${r.method}() L${r.line}`).join(', ')}`).join('\n'))}
                     className="tiny-btn" style={{ fontSize: 9, padding: '2px 6px' }}
                   >copy</button>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  {Object.entries(analysis.string_references).slice(0, 20).map(([str, refs], i) => {
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 480, overflowY: 'auto', paddingRight: 4 }}>
+                  {Object.entries(analysis.string_references).map(([str, refs], i) => {
                     const strKey = `str:${str}`
                     return (
                       <div key={i} style={{

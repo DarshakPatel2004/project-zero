@@ -234,7 +234,7 @@ describe('CodeTab', () => {
     fireEvent.click(screen.getByText(/MainActivity/))
 
     await waitFor(() => {
-      expect(screen.getByText('String References')).toBeTruthy()
+      expect(screen.getByText(/String References \(\d+\)/)).toBeTruthy()
       expect(screen.getByText(/http:\/\/evil\.com\/beacon/)).toBeTruthy()
     })
   })

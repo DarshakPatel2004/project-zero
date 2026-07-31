@@ -40,6 +40,8 @@ export default function RelatedSamples({ sampleId, apiUrl, onSelect }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {samples.map((rel, i) => {
             const style = getSimilarityStyle(rel.similarity)
+            const title = rel.package_name || rel.family || 'unknown'
+            const subtitle = rel.family && rel.family !== rel.package_name ? rel.family : null
             return (
               <div
                 key={i}
@@ -53,11 +55,17 @@ export default function RelatedSamples({ sampleId, apiUrl, onSelect }) {
                 onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface-hover)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-secondary)'}
               >
-                <span className="text-mono" style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                  {rel.sample_id?.substring(0, 20) || 'unknown'}...
-                </span>
+                <div style={{ minWidth: 0 }}>
+                  <div className="text-mono" style={{ fontSize: 13, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {title}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {subtitle && <span>{subtitle}</span>}
+                    <span>{rel.sample_id?.substring(0, 12) || 'unknown'}...</span>
+                  </div>
+                </div>
                 <span style={{
-                  padding: '4px 10px', borderRadius: 4, fontSize: 12, fontWeight: 600,
+                  padding: '4px 10px', borderRadius: 4, fontSize: 12, fontWeight: 600, flexShrink: 0,
                   background: style.bg, color: style.color,
                 }}>
                   {Math.round(rel.similarity * 100)}% · {style.label}

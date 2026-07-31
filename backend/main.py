@@ -48,6 +48,7 @@ from backend import threat_intel as ti
 from backend.family_id import identify_family
 from backend.obfuscation_view import build_obfuscation_view, deobfuscate_text
 from backend.code_analysis import CodeAnalyzer
+from backend.community_intel import get_cached_community_intel
 from backend.core.apk_processor import APKProcessor
 from backend.core.androguard_analyzer import APKAnalyzer
 
@@ -684,7 +685,9 @@ async def api_get_attribution(sample_id: str) -> dict:
     if cache_path.exists():
         try:
             with open(cache_path, "r", encoding="utf-8") as f:
-                return json.load(f)
+                cached = json.load(f)
+            if cached.get("schema_version") == 2:
+                return cached
         except Exception:
             logger.warning("Failed to read attribution cache for %s, recomputing", sample_id)
 
@@ -699,11 +702,13 @@ async def api_get_attribution(sample_id: str) -> dict:
     supporting_signals = _build_supporting_signals(result, family_data, breakdown)
 
     payload = {
+        "schema_version": 2,
         "family": family,
         "confidence": round(confidence, 2),
         "confidence_breakdown": breakdown,
         "supporting_signals": supporting_signals,
         "related_samples": related,
+        "code_references": _build_code_references(result),
     }
 
     try:
@@ -789,58 +794,133 @@ def _build_supporting_signals(result: dict, family_data: dict, breakdown: dict) 
 
 
 def _find_related_samples(sample_id: str, family: str, result: dict) -> List[dict]:
-    """Find other samples in the same family (uses lightweight family index)."""
-    if family.lower() == "unknown":
+    """Find samples related to the current one.
+
+    Two tiers, so matching works even when family identification failed:
+    1. Same-family samples (family identification is the strongest signal).
+    2. Cross-family similarity (permissions, C2, package name, size, native
+       libs) ΓÇö used for unknown families and to surface lookalikes.
+
+    Returns up to 10 samples ranked by similarity, each enriched with its
+    family and package name for display.
+    """
+    from backend.transformers import load_all_results
+
+    others = [o for o in load_all_results() if (o.get("sample_id") or "") != sample_id]
+    if not others:
         return []
 
-    from backend.transformers import load_family_index
-
-    index = load_family_index()
-    matching = [sid for sid, fam in index.items() if fam.lower() == family.lower() and sid != sample_id]
-    if not matching:
-        return []
-
-    related = []
-    for sid in matching:
-        other = load_result(sid)
-        if other is None:
-            continue
+    family_lower = family.lower()
+    same_family = []
+    similar = []
+    for other in others:
+        other_family = (
+            (other.get("family_identification", {}) or {}).get("family", "unknown") or "unknown"
+        ).lower()
         similarity = _compute_similarity(result, other)
-        related.append({
-            "sample_id": sid,
-            "similarity": round(similarity, 2),
-        })
+        entry = {
+            "sample_id": other.get("sample_id", ""),
+            "similarity": similarity,
+            "family": other_family,
+            "package_name": (other.get("metadata", {}) or {}).get("package_name", ""),
+        }
+        if family_lower != "unknown" and other_family == family_lower:
+            # Same family is definitionally related ΓÇö similarity floors at 0.5
+            entry["similarity"] = max(similarity, 0.5)
+            same_family.append(entry)
+        elif similarity >= 0.2:
+            similar.append(entry)
 
-    related.sort(key=lambda r: r["similarity"], reverse=True)
-    return related[:10]
+    merged = sorted(same_family + similar, key=lambda r: r["similarity"], reverse=True)
+    return merged[:10]
 
 
 def _compute_similarity(a: dict, b: dict) -> float:
-    """Compute similarity score between two samples based on shared signals."""
+    """Similarity between two samples across independent signal axes.
+
+    Axes (Jaccard overlap unless noted):
+      - permissions (0.40)
+      - C2 domains (0.30)
+      - identical package name (0.10)
+      - file size ratio (0.10)
+      - native libraries (0.10)
+
+    Returns a score in 0..1. Samples sharing nothing score 0.
+    """
     score = 0.0
-    factors = 0
+    weight_total = 0.0
 
-    # Permission overlap
-    a_perms = set(a.get("metadata", {}).get("permissions", []))
-    b_perms = set(b.get("metadata", {}).get("permissions", []))
-    if a_perms and b_perms:
-        union = a_perms | b_perms
-        if union:
-            score += len(a_perms & b_perms) / len(union)
-            factors += 1
+    def jaccard(x: Set[str], y: Set[str]) -> float:
+        if not x or not y:
+            return 0.0
+        union = x | y
+        return len(x & y) / len(union) if union else 0.0
 
-    # C2 domain overlap
+    a_perms = set((a.get("metadata", {}) or {}).get("permissions", []))
+    b_perms = set((b.get("metadata", {}) or {}).get("permissions", []))
+    score += jaccard(a_perms, b_perms) * 0.40
+    weight_total += 0.40
+
     a_c2 = {c.get("domain", "") for c in a.get("c2_infrastructure", []) if c.get("domain")}
     b_c2 = {c.get("domain", "") for c in b.get("c2_infrastructure", []) if c.get("domain")}
-    if a_c2 and b_c2:
-        union = a_c2 | b_c2
-        if union:
-            score += len(a_c2 & b_c2) / len(union)
-            factors += 1
+    score += jaccard(a_c2, b_c2) * 0.30
+    weight_total += 0.30
 
-    if factors == 0:
+    a_pkg = (a.get("metadata", {}) or {}).get("package_name", "")
+    b_pkg = (b.get("metadata", {}) or {}).get("package_name", "")
+    if a_pkg and b_pkg and a_pkg == b_pkg:
+        score += 0.10
+    weight_total += 0.10
+
+    a_size = (a.get("metadata", {}) or {}).get("file_size_bytes", 0) or 1
+    b_size = (b.get("metadata", {}) or {}).get("file_size_bytes", 0) or 1
+    score += (min(a_size, b_size) / max(a_size, b_size)) * 0.10
+    weight_total += 0.10
+
+    a_libs = set((a.get("extraction", {}) or {}).get("native_libs_found", []) or [])
+    b_libs = set((b.get("extraction", {}) or {}).get("native_libs_found", []) or [])
+    score += jaccard(a_libs, b_libs) * 0.10
+    weight_total += 0.10
+
+    if weight_total == 0:
         return 0.0
-    return score / factors
+    return round(score / weight_total, 2)
+
+
+def _build_code_references(result: dict) -> dict:
+    """Notable strings + category counts for the attribution panel.
+
+    Bounded to the 100 highest-entropy printable strings to keep the payload
+    small even for APKs with tens of thousands of strings.
+    """
+    strings = result.get("strings", {}) or {}
+    literals = strings.get("string_literals", []) or []
+
+    categories: Dict[str, int] = {}
+    by_value: Dict[str, dict] = {}
+    for item in literals:
+        value = item.get("value") if isinstance(item, dict) else item
+        if not isinstance(value, str):
+            continue
+        category = (item.get("category") if isinstance(item, dict) else None) or "string_literal"
+        categories[category] = categories.get(category, 0) + 1
+        if len(value) < 4 or any(ord(c) < 32 for c in value):
+            continue
+        entropy = round((item.get("entropy") if isinstance(item, dict) else 0.0) or 0.0, 2)
+        existing = by_value.get(value)
+        if existing is None or entropy > existing["entropy"]:
+            by_value[value] = {
+                "value": value[:200],
+                "entropy": entropy,
+                "category": category,
+            }
+
+    ranked = sorted(by_value.values(), key=lambda e: -e["entropy"])
+    return {
+        "total_strings": len(literals),
+        "by_category": dict(sorted(categories.items(), key=lambda kv: -kv[1])),
+        "notable_strings": ranked[:100],
+    }
 
 
 @app.get("/api/sample/{sample_id}/threat-summary")
@@ -920,6 +1000,32 @@ def _count_similar(family: str, exclude_id: str) -> int:
         if of == family:
             count += 1
     return count
+
+
+@app.get("/api/sample/{sample_id}/community-intel")
+async def api_get_community_intel(sample_id: str) -> dict:
+    """Search online forums/communities for gossip about the APK or its family.
+
+    Sources: Reddit, Hacker News, DuckDuckGo (all free, no API keys).
+    Results are cached in memory for 10 minutes.
+    """
+    result = load_result(sample_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Sample not found")
+
+    package_name = (result.get("metadata", {}) or {}).get("package_name", "")
+    family_data = identify_family(sample_id, result)
+    family = family_data.get("family", "unknown")
+
+    loop = asyncio.get_event_loop()
+    try:
+        payload = await loop.run_in_executor(
+            None, get_cached_community_intel, sample_id, package_name, family
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Community intel search failed: {e}")
+
+    return payload
 
 
 class ExplainChainRequest(BaseModel):

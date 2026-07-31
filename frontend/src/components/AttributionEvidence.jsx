@@ -25,6 +25,7 @@ export default function AttributionEvidence({ sampleId, apiUrl }) {
   const signals = Array.isArray(rawSignals) ? rawSignals : []
   const rawRelated = data.related_samples
   const related = Array.isArray(rawRelated) ? rawRelated : []
+  const codeRefs = data.code_references || null
 
   const confidence = typeof data.confidence === 'number' ? data.confidence : 0
   const familyColor = confidence >= 0.9 ? 'var(--accent-emerald)'
@@ -98,17 +99,24 @@ export default function AttributionEvidence({ sampleId, apiUrl }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {related.map((rel, i) => {
               const sim = typeof rel?.similarity === 'number' ? rel.similarity : 0
+              const title = rel?.package_name || rel?.family || 'unknown'
               return (
               <div key={i} style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 padding: '8px 12px', borderRadius: 6,
-                background: 'var(--bg-secondary)', fontSize: 13,
+                background: 'var(--bg-secondary)', fontSize: 13, gap: 8,
               }}>
-                <span className="text-mono" style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                  {rel?.sample_id?.substring(0, 16) || 'unknown'}...
-                </span>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {title}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {rel?.family && rel.family !== title && <span>{rel.family}</span>}
+                    <span className="text-mono">{rel?.sample_id?.substring(0, 12) || 'unknown'}...</span>
+                  </div>
+                </div>
                 <span style={{
-                  fontWeight: 600,
+                  fontWeight: 600, flexShrink: 0,
                   color: sim >= 0.9 ? 'var(--accent-emerald)'
                     : sim >= 0.7 ? 'var(--accent-cyan)'
                     : 'var(--text-muted)',
@@ -119,6 +127,44 @@ export default function AttributionEvidence({ sampleId, apiUrl }) {
               )
             })}
           </div>
+        </div>
+      )}
+
+      {codeRefs && codeRefs.total_strings > 0 && (
+        <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border-color)' }}>
+          <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 10 }}>
+            Code References &amp; Strings ({codeRefs.total_strings} total)
+          </div>
+          {Object.keys(codeRefs.by_category || {}).length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+              {Object.entries(codeRefs.by_category).map(([cat, count]) => (
+                <span key={cat} className="badge neutral" style={{ fontSize: 10 }}>
+                  {cat.replace(/_/g, ' ')}: {count}
+                </span>
+              ))}
+            </div>
+          )}
+          {codeRefs.notable_strings?.length > 0 && (
+            <div style={{ maxHeight: 360, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {codeRefs.notable_strings.map((s, i) => (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', gap: 8, fontSize: 12,
+                  padding: '4px 8px', borderRadius: 4, background: 'var(--bg-secondary)',
+                }}>
+                  <span style={{
+                    padding: '1px 5px', borderRadius: 3, fontSize: 9, fontWeight: 600, flexShrink: 0,
+                    background: s.entropy >= 6.5 ? 'rgba(244,63,94,0.1)' : s.entropy >= 4 ? 'rgba(245,158,11,0.1)' : 'rgba(16,185,129,0.1)',
+                    color: s.entropy >= 6.5 ? 'var(--accent-rose)' : s.entropy >= 4 ? 'var(--accent-amber)' : 'var(--accent-emerald)',
+                  }}>
+                    {s.entropy.toFixed(1)}
+                  </span>
+                  <span className="text-mono" style={{ fontSize: 11, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    &quot;{s.value}&quot;
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

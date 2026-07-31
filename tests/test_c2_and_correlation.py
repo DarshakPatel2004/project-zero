@@ -127,7 +127,23 @@ def test_build_threat_chain():
 
 def test_fallback_assessment_with_c2():
     chains_result = {"total_chains": 1}
-    c2_result = {"total_c2s": 2}
+    c2_result = {
+        "total_c2s": 2,
+        "c2_infrastructure": [
+            {
+                "c2_id": "c2_000",
+                "domain": "evil-domain.com",
+                "threat_category": "malware",
+                "confidence": 0.9,
+            },
+            {
+                "c2_id": "c2_001",
+                "domain": "ads.example-analytics.com",
+                "threat_category": "adware",
+                "confidence": 0.6,
+            },
+        ],
+    }
     assessment = fallback_assessment(chains_result, c2_result)
     assert assessment["severity"] == "high"
     assert assessment["primary_threat"] == "c2_exfiltration"

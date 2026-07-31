@@ -24,6 +24,19 @@ from backend.elf_analyzer import ELFBreaker
 
 logger = logging.getLogger(__name__)
 
+
+def _iter_instructions(code: Any):
+    """Iterate a method's Dalvik instructions across androguard versions.
+
+    androguard 4.x moved get_instructions() from DalvikCode to its
+    internal DCode (DalvikCode.code); 3.x exposed it directly.
+    """
+    for obj in (code, getattr(code, "code", None)):
+        getter = getattr(obj, "get_instructions", None)
+        if getter is not None:
+            return getter()
+    raise TypeError(f"Cannot iterate instructions on {type(code).__name__}")
+
 # Per-sample locks for atomic class cache writes
 _class_cache_locks: Dict[str, threading.Lock] = {}
 _class_cache_locks_lock = threading.Lock()
@@ -445,6 +458,7 @@ class APKDissector:
                 "classes": classes,
                 "methods": methods,
                 "strings": strings,
+                "entropy": round(_shannon_entropy(dex_data), 4),
             })
             stats["total_classes"] += classes
             stats["total_methods"] += methods
@@ -654,7 +668,7 @@ class APKDissector:
                             try:
                                 code = method.get_code()
                                 if code:
-                                    for ins in code.get_instructions():
+                                    for ins in _iter_instructions(code):
                                         body_parts.append(f"{ins.get_name()} {ins.get_output()}")
                             except Exception:
                                 logger.debug("Failed to extract method instructions in androguard fallback")
@@ -726,7 +740,7 @@ class APKDissector:
                                 
                                 code = method.get_code()
                                 if code:
-                                    for ins in code.get_instructions():
+                                    for ins in _iter_instructions(code):
                                         output.append(f"        {ins.get_name():<15} {ins.get_output()}")
                                 else:
                                     output.append("        // No code body (abstract/native/empty)")

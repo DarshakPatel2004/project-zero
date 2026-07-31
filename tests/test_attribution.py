@@ -72,6 +72,54 @@ SAMPLE_RESULT = {
         ],
         "matched_c2": ["evil-c2.com"],
     },
+    "strings": {
+        "string_literals": [
+            {"category": "string_literal", "value": "evil-c2.com", "entropy": 3.8, "source": "dex"},
+            {"category": "string_literal", "value": "SMSApp.apk", "entropy": 2.9, "source": "dex"},
+            {"category": "string_literal", "value": "\x00\x01\x00\x01", "entropy": 1.0, "source": "dex"},
+        ],
+        "byte_arrays": [],
+        "numeric_constants": [],
+        "resource_strings": [],
+        "native_strings": [],
+    },
+}
+
+# Second sample sharing the same family + permissions, used to verify
+# related-sample matching.
+OTHER_SAMPLE = {
+    "sample_id": "test_sample_002",
+    "metadata": {
+        "sample_name": "SiblingMalware.apk",
+        "package_name": "com.evil.sibling",
+        "sha256": "fedcba9876543210",
+        "permissions": [
+            "android.permission.SEND_SMS",
+            "android.permission.RECEIVE_SMS",
+            "android.permission.READ_SMS",
+            "android.permission.CALL_PHONE",
+        ],
+        "file_size_bytes": 100000,
+    },
+    "obfuscation_analysis": {"obfuscation_score": 10, "obfuscation_level": "low", "indicators": {}},
+    "c2_infrastructure": [],
+    "heuristic": {"score": 10, "method": "heuristic"},
+    "family_identification": {
+        "family": "XHelper",
+        "confidence": 0.9,
+        "method": "signature_v3",
+        "reasoning": "matching signature",
+        "candidates": [],
+    },
+    "strings": {
+        "string_literals": [
+            {"category": "string_literal", "value": "evil-c2.com", "entropy": 3.7, "source": "dex"},
+        ],
+        "byte_arrays": [],
+        "numeric_constants": [],
+        "resource_strings": [],
+        "native_strings": [],
+    },
 }
 
 
@@ -96,8 +144,41 @@ def mock_deps(monkeypatch):
 
     # Mock transformers.load_all_results for related samples
     def _mock_all():
-        return [SAMPLE_RESULT]
+        return [SAMPLE_RESULT, OTHER_SAMPLE]
     monkeypatch.setattr("backend.transformers.load_all_results", _mock_all)
+
+    # Mock community intel search (no network in tests)
+    monkeypatch.setattr(
+        "backend.main.get_cached_community_intel",
+        lambda sample_id, package_name, family: {
+            "package_name": package_name,
+            "family": family,
+            "queried_at": "2026-07-31T00:00:00",
+            "total_posts": 2,
+            "posts": [
+                {
+                    "source": "Reddit",
+                    "title": "Anyone seen com.evil.malware?",
+                    "url": "https://www.reddit.com/r/android/comments/1",
+                    "snippet": "SMS fraud",
+                    "author": "sleuth",
+                    "score": 12,
+                    "published_at": "2026-07-01T00:00:00",
+                    "subreddit": "android",
+                },
+                {
+                    "source": "Hacker News",
+                    "title": "XHelper trojan analysis",
+                    "url": "https://news.ycombinator.com/item?id=1",
+                    "snippet": "C2 analysis",
+                    "author": "researcher",
+                    "score": 5,
+                    "published_at": "2026-07-02T00:00:00",
+                },
+            ],
+            "sources_failed": ["duckduckgo"],
+        },
+    )
 
     # Mock CodeAnalyzer
     class MockAnalyzer:
@@ -238,6 +319,51 @@ class TestAttribution:
         response = client.get("/api/sample/test_sample_001/attribution")
         data = response.json()
         assert 0.0 <= data["confidence"] <= 1.0
+
+    def test_attribution_related_samples(self, client):
+        response = client.get("/api/sample/test_sample_001/attribution")
+        data = response.json()
+        related = data["related_samples"]
+        assert len(related) == 1
+        assert related[0]["sample_id"] == "test_sample_002"
+        assert related[0]["similarity"] >= 0.5
+        assert "family" in related[0]
+        assert "package_name" in related[0]
+
+    def test_attribution_code_references(self, client):
+        response = client.get("/api/sample/test_sample_001/attribution")
+        data = response.json()
+        refs = data["code_references"]
+        assert refs["total_strings"] == 3
+        assert "by_category" in refs
+        assert refs["by_category"].get("string_literal") == 3
+        values = {s["value"] for s in refs["notable_strings"]}
+        # Binary junk (control chars) is filtered out; printable strings kept
+        assert "evil-c2.com" in values
+        assert "SMSApp.apk" in values
+        assert all("value" in s and "entropy" in s and "category" in s for s in refs["notable_strings"])
+
+
+class TestCommunityIntel:
+
+    def test_community_intel_200(self, client):
+        response = client.get("/api/sample/test_sample_001/community-intel")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["package_name"] == "com.evil.malware"
+        assert data["family"] == "XHelper"
+        assert data["total_posts"] == 2
+        assert len(data["posts"]) == 2
+        sources = {p["source"] for p in data["posts"]}
+        assert "Reddit" in sources
+        assert "Hacker News" in sources
+        for post in data["posts"]:
+            assert post["title"]
+            assert post["url"]
+
+    def test_community_intel_404(self, client):
+        response = client.get("/api/sample/nonexistent/community-intel")
+        assert response.status_code == 404
 
 
 class TestCodeAnalysis:
