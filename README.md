@@ -7,9 +7,9 @@
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 [![Tests](https://github.com/DarshakPatel2004/project-zero/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/DarshakPatel2004/project-zero/actions/workflows/test.yml)
 
-> **63x speedup** over manual analysis (277-sample article run). **1,711 C2 indicators** extracted from **277 malware samples** across 12 countries. **75% concentrated** in Chinese cloud providers. Dataset since grown to 459 APKs.
+> **63x speedup** over manual analysis (277-sample article run). **1,711 C2 indicators** extracted from **277 malware samples** across 12 countries. **75% concentrated** in Chinese cloud providers. Dataset since grown to **527 ground-truth rows (409 malware + 100 benign + 18 pendrive GT-only)**.
 >
-> **Read this before citing headline numbers:** validation shows exact-match family identification at **64.2%** (68.6% on specific families) and only **2.4% of raw extracted indicators confirmed as genuine C2** — see [Evaluation & Validation](#evaluation). Raw counts above reflect extraction coverage, not verified accuracy.
+> **Read this before citing headline numbers:** exact-match family identification is **40.3% overall / 72.0% on specific families** (full 409-malware set, Sep 2026); the dedicated mal/ben classifier scores **90.0% (5-fold CV)**; only **2.4% of raw extracted indicators confirmed as genuine C2** — see [Evaluation](#evaluation). Raw counts above reflect extraction coverage, not verified accuracy.
 
 ---
 
@@ -43,7 +43,7 @@ APK → Decompile (JADX) → Trace Suspicious APIs → Extract Indicators
 
 ### Pipeline
 
-The 18-step pipeline (`analysis/step1_*.py` … `step18_*.py`):
+The 22-step pipeline (`analysis/step1_*.py` … `step22_*.py`, orchestrated by `analysis/pipeline.py:run_pipeline`):
 
 1. **Extract** APK (AndroGuard: manifest, permissions, components)
 2. **Enumerate** Dalvik bytecode strings via JADX
@@ -63,6 +63,12 @@ The 18-step pipeline (`analysis/step1_*.py` … `step18_*.py`):
 16. **Analyze** signing certificates
 17. **Cluster** samples by family
 18. **Synthesize** threat intelligence report
+19. **Repair** containers (Container Repair)
+20. **Crack** payload KDFs (Payload KDF Cracking)
+21. **Deobfuscate** strings (String Deobfuscation)
+22. **Consolidate** dropper IOCs (Dropper IOC Consolidation)
+
+`run_pipeline()` supports `stop_after=N` (stop after step N — `stop_after=6` feeds the mal/ben classifier with no LLM calls) and `skip_steps={...}` (skip e.g. encoding detection on giant APKs). Step 1/2/3 timeouts are 600 s.
 
 Output: structured JSON + PDF with per-phase timing.
 
@@ -70,7 +76,7 @@ Output: structured JSON + PDF with per-phase timing.
 
 ## Key Results
 
-> This table documents the published 277-sample run (see [Publication](#publication)). The dataset has since grown to **459 APKs** (359 malware + 100 benign).
+> This table documents the published 277-sample run (see [Publication](#publication)). The dataset has since grown to **527 ground-truth rows**: 409 malware + 100 benign with APKs on disk, plus 18 pendrive rows (GT-only). Sep 2026 additions below the table.
 
 | Metric | Value |
 |--------|-------|
@@ -85,6 +91,8 @@ Output: structured JSON + PDF with per-phase timing.
 | Speedup vs. manual | **63x** |
 | Recall (after heuristic fix) | **95%** (recovered from 80%) |
 | Family-ID accuracy (exact match, 352 GT) | **64.2%** (226/352); **68.6%** on specific families |
+| Family-ID accuracy (exact match, full 409 GT, Sep 2026) | **40.3%** (165/409); **72.0%** on specific families (131/182) |
+| Mal/ben classifier (RandomForest, Sep 2026) | **90.0%** 5-fold CV accuracy (F1 0.937) on 509 samples; 3–15 s/APK, no LLM |
 | Indicator precision (validated, 380 indicators) | **2.4%** confirmed malicious; **68%** clearly benign |
 
 ### What I Got Wrong (And Fixed)
@@ -94,6 +102,9 @@ This section is intentional — research is iterative, and documenting mistakes 
 - **LLM bottleneck:** Initial pipeline called Ollama per-sample synchronously. Fixed with a heuristic pre-filter that skips the LLM layer for ~40% of benign-looking samples (~2x speedup).
 - **Heuristic over-optimization:** An aggressive string-entropy filter was dropping valid C2 domains. Disabled after validation (3% recall drop → 95% recall recovered).
 - **Threat intel layer design:** Initial design queried feeds sequentially. Rewrote to parallel async requests (5s → 800ms per sample).
+- **LLM as binary classifier (Sep 2026):** `llm_assessment.severity`/`risk_score` capped mal/ben separation at ~65% (malware median risk 50 vs benign mean 46; 111/409 malware scored `low` like benign). Replaced with a dedicated RandomForest on 20 static features from steps 1–6 → 90.0% CV. Forensics and classification are now separate tasks (`analysis/classify_fast.py`).
+- **Pattern-matching C2 without context (Sep 2026):** any non-allowlisted URL scored as C2, so `accounts.snapchat.com` (OAuth) and `ktor.io` (library docs) flagged as C2. Fixed with a Tier-3 allowlist (`analysis/step5_allowlists.py`: OAuth + CDN + library docs) plus Tier-1 VT-tracker / Tier-2 hoster-reputation scaffolding (`analysis/step5_tiers.py`). Residual floods (map-tile/an ad-tracker apps emitting thousands of URLs) are documented, not scored.
+- **Ground-truth filename/hash mismatch (Sep 2026):** three `modern_eval` GT rows keyed files by the wrong hash (one pointed at a duplicate copy; the true 30 MB sample behind `b16abfbd` is corrupt on AndroZoo itself — no ZIP central directory). Fixed paths to byte-verified files; the corrupt sample is kept as a zero-feature anti-analysis case.
 
 ---
 
@@ -257,7 +268,7 @@ graph TD
 
 ## Evaluation
 
-- **459 Android APKs** across 6 sources: AndroZoo-Drebin (149), MalwareBazaar (97), modern_eval (63), AndroZoo (26), abusech (24), benign_eval (100 benign)
+- **527 ground-truth rows** (`ground_truth_all_corrected.csv`): AndroZoo-Drebin (149 malware), abusech (121), F-Droid (100 benign), AndroZoo (76), modern_eval (63), pendrive (18 GT-only, no APKs on disk). 509 samples have APKs and full step-1–6 features.
 - **Top malware families (corrected GT):** FakeInstaller (25), Opfake (21), Plankton (17), DroidKungFu (16), GinMaster (15), NGate (15), SpyNote (14), TeaBot (13), Ermac (12), Hydra (11), FakeTikTok (11), BaseBridge (10)
 - Full metadata in `sample_metadata.csv`
 
@@ -323,6 +334,57 @@ Per source (accuracy on specific families): AndroZoo-Drebin 68.5% (149 specific)
 
 Remaining misses are honest: Opfake/FakeInstaller/FakeChrome leave no observable static signal (opaque obfuscation), and toolkit-shared families (TeaBot↔Hydra↔Ermac↔FluBot) are hard even for human analysts.
 
+### Family-Identification Accuracy (full 409-malware set, Sep 2026)
+
+Re-measured on all 409 malware with fresh step-1–6 features and Tier-3 C2 filtering (`evaluation/metrics_v4/`):
+
+| Metric | Value |
+|--------|-------|
+| Overall | 40.3% (165/409) |
+| Specific families only (non-catch-all) | **72.0%** (131/182) |
+| High-confidence specific labels | 73.1% (114/156) |
+| Unknown-refusal (GT = `unknown`) | 46.0% (34/74) |
+
+Per source (overall / specific): AndroZoo-Drebin 63.8% / 79.8% (149), AndroZoo 44.7% / 83.3% (76), modern_eval 44.4% / 64.3% (63), abusech 6.6% / 34.8% (121).
+
+The overall figure dropped vs the 352-sample 64.2% **because of GT composition, not regression**: the added abusech batch is 81% generic AV catch-all labels (`AndroidOS`, `GenericKD`, `Agent`, …) that exact-match can never score. The meaningful metric — specific-family accuracy — **rose 68.6% → 72.0%**. Scores are bit-identical whether features come from the full pipeline or `stop_after=6`, confirming the fast path loses nothing for family ID.
+
+```bash
+# Re-run family identification on step-1–6 features (needs Ollama running)
+python evaluation/reeval_families.py --output-dir evaluation/metrics_v4
+
+# Compute metrics against the corrected ground truth
+python evaluation/metrics_recompute.py \
+    --gt ground_truth_all_corrected.csv \
+    --predictions evaluation/metrics_v4/predictions.json \
+    --output-dir evaluation/metrics_v4 --verbose
+```
+
+### Malicious-vs-Benign Classifier (Sep 2026)
+
+The LLM severity score capped mal/ben separation at ~65%, so classification is now a dedicated RandomForest (300 trees) on 20 static features from steps 1–6 (class counts, permissions, string/C2/payload/secret counts, MasterKey flags) — no LLM calls:
+
+| Metric | Value |
+|--------|-------|
+| Accuracy (5-fold CV, 509 samples) | **90.0%** |
+| F1 / Precision / Recall | 0.937 / 0.938 / 0.927 |
+| Holdout (80/20) | 89.2% acc, confusion `[[15,5],[6,76]]` |
+| Inference speed | 3 s (tiny APK) – 15 s (7 MB APK) |
+
+Top signals are structural (`decompiled_classes`, `total_strings`, `num_dangerous_perms`) — C2 count contributes only ~0.04 importance. Model + features committed: `evaluation/classifier_data/{malben_rf.pkl,features.csv,malben_report.json}`.
+
+```python
+from analysis.classify_fast import classify_malware_fast
+is_malicious, confidence = classify_malware_fast("sample.apk")  # (True, 80.2)
+```
+
+### C2 Context Tiers (Sep 2026)
+
+Step-5 extraction replaced bare pattern-matching with tiers (`analysis/step5_allowlists.py`, `analysis/step5_tiers.py`):
+- **Tier 3** (live): OAuth/CDN/library-docs allowlist — `accounts.snapchat.com`, `ktor.io`, `logback.qos.ch` no longer score as C2 (98 records demoted; top-FP benign 135 → 20 C2s).
+- **Tier 1** (measured): VirusTotal tracker check — 3/155 malware IPs (`176.65.134.52`, `38.190.225.166`, `38.47.213.197`) and 1/60 domains (`depositmobi.com`, freq 36) confirmed tracked. Thin yield: most extracted C2s are legit, junk, or dead infrastructure.
+- Residual floods (OsmAnd 4,494 tile URLs, DuckDuckGo 7,092) are counted as split features (`num_c2_real` vs fallback-IP), not verdicts.
+
 ### Validation Status
 
 | Criterion | Status |
@@ -333,14 +395,16 @@ Remaining misses are honest: Opfake/FakeInstaller/FakeChrome leave no observable
 | Sample APKs collected | ✅ |
 | Recall on balanced set | ✅ 95% |
 | Speedup verified | ✅ 63x (204 timed samples) |
-| Family-ID accuracy vs ground truth | ✅ measured: 64.2% exact-match (352 samples, corrected GT) |
+| Family-ID accuracy vs ground truth | ✅ measured: 72.0% specific-family (409 samples, corrected GT) |
+| Mal/ben accuracy vs ground truth | ✅ measured: 90.0% 5-fold CV (509 samples) |
 | FP rate validation | ✅ measured: 68% of indicators clearly benign, 2.4% confirmed malicious (380 indicators, 22 samples) |
 | Comparative aggregator validation | ⏳ Future work |
 
 ## Known Limitations
 
 - **Indicator precision is low**: 68% of auto-extracted indicators are clearly benign strings; only 2.4% were confirmed as genuine C2 in manual review (see [validation](#evaluation)). Heuristics favor recall over precision by design.
-- **Family identification is imperfect**: 64.2% exact-match accuracy on 352-sample corrected ground truth — opaque-obfuscation families (Opfake, FakeChrome) and toolkit-shared families (TeaBot↔Hydra↔Ermac↔FluBot) remain hard; treat family output as advisory.
+- **Family identification is imperfect**: 72.0% specific-family accuracy on the 409-malware corrected ground truth (40.3% overall — dragged down by unscorable abusech catch-all labels) — opaque-obfuscation families (Opfake, FakeChrome) and toolkit-shared families (TeaBot↔Hydra↔Ermac↔FluBot) remain hard; treat family output as advisory.
+- **Mal/ben errors concentrate** on packed `unknown`-family malware (6 FN) and permission-heavy benign (7 FP); one AndroZoo-hosted sample is byte-corrupt (no ZIP directory) and yields zero features by design.
 - Encrypted native libraries flagged for manual inspection
 - Reflection-heavy obfuscation handled by heuristics (not perfect)
 - C2-blind malware (zero static artifacts) — documented limitation
@@ -377,10 +441,11 @@ CI runs both suites on every push and PR.
 ```
 backend/          — FastAPI server, threat intel integration, pipeline logic
 frontend/         — React dashboard (Leaflet C2 maps, FamilySignalsCard, threat chains)
-analysis/         — 18-step pipeline (extraction → decoding → correlation → synthesis → report)
+analysis/         — 22-step pipeline (extraction → decoding → correlation → synthesis → report) + `classify_fast.py` mal/ben inference
 scripts/          — Batch analysis, data collection utilities
 data/             — GeoIP databases, YARA rules
 evaluation_results/ — Committed validation results (FP review, family-ID metrics)
+evaluation/       — metrics_v4 (full-set family scores), c2_analysis (FP/FN/tracker data), classifier_data (features + mal/ben model)
 tests/            — Python backend tests (pytest)
 docs/             — Dashboard guide, codebase reference, superpower plans
 ```
