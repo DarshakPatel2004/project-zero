@@ -88,7 +88,7 @@ STEP_NAMES = {
 }
 
 STEP_TIMEOUTS = {
-    1: 180, 2: 180, 3: 180, 4: 90, 5: 450,
+    1: 600, 2: 600, 3: 600, 4: 90, 5: 450,
     6: 90, 7: 270, 8: 900, 9: 450,
     10: 90, 11: 90, 12: 90, 13: 90, 14: 90,
     15: 45, 16: 45, 17: 45, 18: 45,
@@ -233,7 +233,9 @@ def _run_step(step_num: int, sample_id: str, apk_size: int,
 
 def run_pipeline(apk_path: str, work_dir: Optional[str] = None,
                  event_emitter: EventEmitter = None,
-                 pipeline_timeout: int = 600) -> dict:
+                 pipeline_timeout: int = 600,
+                 stop_after: int = TOTAL_STEPS,
+                 skip_steps: frozenset = frozenset()) -> dict:
     """
     Run the full analysis pipeline on an APK.
 
@@ -243,6 +245,10 @@ def run_pipeline(apk_path: str, work_dir: Optional[str] = None,
             settings.WORK_DIR.
         event_emitter: Optional callback for emitting events.
         pipeline_timeout: Maximum total pipeline runtime in seconds.
+        stop_after: Last step to execute (1-22). Use 8 for mal/ben only
+            (stops after LLM Assessment, skips family/forensics).
+        skip_steps: Step numbers to skip with empty results (e.g. frozenset({3})
+            for giant APKs where encoding detection never finishes).
 
     Returns:
         dict with full analysis results.
@@ -329,11 +335,16 @@ def run_pipeline(apk_path: str, work_dir: Optional[str] = None,
 
     _validate_step_input("Step 2 input", extraction, ["sample_id", "package_name", "apktool_output_dir"])
 
-    # Step 2: String Enumeration
-    strings_result, timeline["step2"] = _run_step(
-        2, sample_id, apk_size, global_start, event_emitter, work_dir,
-        enumerate_strings, extraction
-    )
+    # Step 2: String Enumeration (skippable for giant APKs)
+    if 2 in skip_steps:
+        strings_result = {"sample_id": sample_id, "total_strings": 0, "categories": {}, "skipped": True}
+        timeline["step2"] = 0.0
+        logger.info("Step 2 skipped via skip_steps (giant APK degraded mode)")
+    else:
+        strings_result, timeline["step2"] = _run_step(
+            2, sample_id, apk_size, global_start, event_emitter, work_dir,
+            enumerate_strings, extraction
+        )
     _emit(event_emitter, "metric_updated", {
         "sample_id": sample_id,
         "metric_name": "string_count",
@@ -362,11 +373,16 @@ def run_pipeline(apk_path: str, work_dir: Optional[str] = None,
     })
     logger.info("Hardcoded secrets: %d", secrets_result.get("secret_risk", {}).get("total_secrets", 0))
 
-    # Step 3: Encoding Detection
-    encodings_result, timeline["step3"] = _run_step(
-        3, sample_id, apk_size, global_start, event_emitter, work_dir,
-        detect_encoding, strings_result
-    )
+    # Step 3: Encoding Detection (skippable for giant APKs)
+    if 3 in skip_steps:
+        encodings_result = {"sample_id": sample_id, "encodings": [], "skipped": True}
+        timeline["step3"] = 0.0
+        logger.info("Step 3 skipped via skip_steps (giant APK degraded mode)")
+    else:
+        encodings_result, timeline["step3"] = _run_step(
+            3, sample_id, apk_size, global_start, event_emitter, work_dir,
+            detect_encoding, strings_result
+        )
     _emit(event_emitter, "metric_updated", {
         "sample_id": sample_id,
         "metric_name": "encoding_count",
@@ -451,6 +467,63 @@ def run_pipeline(apk_path: str, work_dir: Optional[str] = None,
             f"  2. APK is very large — run individual steps instead\n"
             f"  3. APK is very large — run individual steps instead"
         )
+
+    # Early exit for classifier (stop_after <=6): return features without obfuscation/LLM
+    if stop_after <= 6:
+        duration = round(time.time() - global_start, 3)
+        timeline["total"] = duration
+        manifest = extraction.get("manifest_info", {}) or {}
+        result = {
+            "sample_id": sample_id,
+            "metadata": {
+                "sample_name": extraction["sample_name"],
+                "file_size_bytes": extraction["file_size_bytes"],
+                "sha256": extraction["sha256"],
+                "md5": extraction["md5"],
+                "package_name": extraction["package_name"],
+                "package": extraction["package_name"],
+                "apk_path": str(apk_path),
+            },
+            "extraction": {
+                "apktool_success": extraction["apktool_success"],
+                "errors": extraction.get("errors", []),
+                "native_libs_found": extraction["native_libs_found"],
+                "decompiled_classes": extraction["decompiled_classes"],
+                "crypter_stub": extraction.get("crypter_stub", False),
+                "extraction_status": extraction.get("extraction_status", "ok"),
+                "total_strings_extracted": strings_result["total_strings"],
+            },
+            "manifest": {
+                "version_name": manifest.get("version_name"),
+                "version_code": manifest.get("version_code"),
+                "target_sdk_version": manifest.get("target_sdk_version"),
+                "min_sdk_version": manifest.get("min_sdk_version"),
+                "uses_permissions": manifest.get("uses_permissions", []),
+            },
+            "strings": strings_result["categories"],
+            "hardcoded_secrets": secrets_result["hardcoded_secrets"],
+            "secret_risk": secrets_result["secret_risk"],
+            "encodings": encodings_result["encodings"],
+            "payloads": payloads_result["payloads"],
+            "c2_infrastructure": c2_result["c2_infrastructure"],
+            "threat_chains": chains_result["threat_chains"],
+            "timeline": timeline,
+            "stop_after": stop_after,
+        }
+        from backend.transformers import _strip_surrogates
+        result = _strip_surrogates(result)
+        result_path = Path(work_dir) / sample_id / "pipeline_result.json"
+        result_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(result_path, "w", encoding="utf-8") as f:
+            json.dump(result, f, indent=2, default=str)
+        _emit(event_emitter, "analysis_complete", {
+            "sample_id": sample_id,
+            "total_duration_seconds": duration,
+            "step_timings": {f"step{i}": timeline.get(f"step{i}", 0) for i in range(1, 7)},
+            "final_verdict": "classifier_pending",
+            "risk_score": 0,
+        })
+        return result
 
     _validate_step_input("Step 7 input", chains_result, ["threat_chains"])
 
@@ -576,6 +649,31 @@ def run_pipeline(apk_path: str, work_dir: Optional[str] = None,
         "obfuscation_analysis": obfuscation_result,
         "timeline": timeline,
     }
+
+    # Early exit for mal/ben only (stop_after <= 8): skip family + forensics
+    if stop_after <= 8:
+        # Still apply post-processing for sanity, but skip family/forensics
+        try:
+            result = post_process_result(result)
+        except Exception:
+            pass
+        duration = round(time.time() - global_start, 3)
+        timeline["total"] = duration
+        result["timeline"] = timeline
+        from backend.transformers import _strip_surrogates
+        result = _strip_surrogates(result)
+        result_path = Path(work_dir) / sample_id / "pipeline_result.json"
+        result_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(result_path, "w", encoding="utf-8") as f:
+            json.dump(result, f, indent=2, default=str)
+        _emit(event_emitter, "analysis_complete", {
+            "sample_id": sample_id,
+            "total_duration_seconds": duration,
+            "step_timings": {f"step{i}": timeline.get(f"step{i}", 0) for i in range(1, 9)},
+            "final_verdict": result.get("llm_assessment", {}).get("severity", "unknown"),
+            "risk_score": result.get("llm_assessment", {}).get("risk_score", 0),
+        })
+        return result
 
     # Step 9a: Post-processing sanity corrections
     try:

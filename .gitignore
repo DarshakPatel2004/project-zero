@@ -214,3 +214,7 @@ analysis/dissect_m1/0000a053de676b4d/
 getMe_*.json
 C-FAIL
 reports/pendrive_emulate.log
+
+# Classifier extraction work dirs (regenerable apktool output, GBs)
+evaluation/classifier_data/work/
+

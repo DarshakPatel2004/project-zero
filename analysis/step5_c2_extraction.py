@@ -1014,6 +1014,14 @@ def parse_url(url: str) -> Optional[Dict[str, Any]]:
 
 def calculate_c2_confidence(parsed: dict, source_context: str, ip_legitimacy: Optional[Dict] = None) -> float:
     """Calculate confidence score for a C2 record."""
+    # Tier 3: legitimate infrastructure -> cap at 0.1 and don't score as C2
+    try:
+        from analysis.step5_allowlists import is_tier3
+        dom = (parsed.get("domain") or "").lower()
+        if dom and is_tier3(dom):
+            return 0.1
+    except Exception:
+        pass
     score = 0.5
 
     # Boost for valid URL structure
@@ -1165,6 +1173,13 @@ def extract_c2_infrastructure(payloads_result: dict, strings_result: dict) -> di
                 parsed = parse_url(url)
                 if parsed is None or is_benign_url(url):
                     continue
+                # Tier 3 allowlist: skip legitimate infrastructure entirely
+                try:
+                    from analysis.step5_allowlists import is_tier3
+                    if parsed.get("domain") and is_tier3(parsed["domain"]):
+                        continue
+                except Exception:
+                    pass
 
                 ip_legitimacy = None
                 if parsed["ip"]:
@@ -1173,6 +1188,8 @@ def extract_c2_infrastructure(payloads_result: dict, strings_result: dict) -> di
                     )
 
                 confidence = calculate_c2_confidence(parsed, source_location, ip_legitimacy)
+                if confidence <= 0.3:
+                    continue
                 record = {
                     "c2_id": f"c2_{c2_id:03d}",
                     "payload_id": payload_id,
@@ -1217,6 +1234,12 @@ def extract_c2_infrastructure(payloads_result: dict, strings_result: dict) -> di
                     continue
                 if parsed["domain"] and _is_likely_junk_domain(parsed["domain"]):
                     continue
+                try:
+                    from analysis.step5_allowlists import is_tier3
+                    if parsed.get("domain") and is_tier3(parsed["domain"]):
+                        continue
+                except Exception:
+                    pass
 
                 ip_legitimacy = None
                 if parsed["ip"]:
@@ -1266,6 +1289,13 @@ def extract_c2_infrastructure(payloads_result: dict, strings_result: dict) -> di
                 # Filter out known benign domains
                 if _is_benign_domain(domain_lower):
                     continue
+                # Tier 3 allowlist: skip legitimate infrastructure (bare domains)
+                try:
+                    from analysis.step5_allowlists import is_tier3
+                    if is_tier3(domain_lower):
+                        continue
+                except Exception:
+                    pass
 
                 confidence = round(calculate_c2_confidence(
                     {"domain": domain_lower, "ip": None, "protocol": "unknown", "port": None, "path": None, "query_params": None},
